@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* beautifului.dev dark tokens — exact values scraped from live computed styles */
+:root {
+  --page: oklch(0.205 0.004 264.485);
+  --surface: oklch(0.26 0.006 271.191);
+  --panel: oklch(0.238 0.005 271);
+  --field: oklch(0.293 0.006 271.223);   /* inputs, chips */
+  --inset: oklch(0.228 0.005 264);
+  --control: oklch(0.356 0.007 264.474); /* send/control button bg */
+  --hover: oklch(1 0 0 / 0.05);
+  --hover-2: oklch(1 0 0 / 0.09);
+  --ink: oklch(0.964 0.002 247.84);
+  --ink-2: oklch(0.72 0.008 264);
+  --ink-3: oklch(0.56 0.01 264);
+  --line: oklch(0.308 0.006 258.354);       /* solid border */
+  --line-strong: oklch(0.356 0.007 264.474);
+  --ring: oklch(1 0 0 / 0.11);              /* card hairline ring */
+  --accent: oklch(0.68 0.173 253.301);
+  --accent-ink: oklch(0.99 0 0);
+  --accent-tint: oklch(0.68 0.173 253.301 / 0.16);
+  --ok: oklch(0.74 0.16 152);
+  --ok-tint: oklch(0.74 0.16 152 / 0.14);
+  --warn: oklch(0.77 0.16 62);
+  --warn-tint: oklch(0.77 0.16 62 / 0.14);
+  --bad: oklch(0.7 0.19 23);
+  --bad-tint: oklch(0.7 0.19 23 / 0.13);
+  /* card: white-alpha hairline ring + soft shadow (exact from site) */
+  --sh-card: 0 0 0 1px var(--ring), 0 1px 2px oklch(0 0 0/.2), 0 2px 6px oklch(0 0 0/.2);
+  --sh-raised: 0 0 0 1px var(--ring), 0 6px 18px oklch(0 0 0/.35), 0 20px 50px oklch(0 0 0/.4);
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --radius-chip: 6px;
+}
+
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--line); border: 2px solid var(--page); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }

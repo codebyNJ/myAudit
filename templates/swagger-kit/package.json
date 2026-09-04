@@ -1,0 +1,8 @@
+{
+  "name": "@myintern/swagger-kit",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OpenAPI spec builder for template apps (static preview; @fastify/swagger for runtime).",
+  "exports": { "./openapi": "./src/openapi.js" },
+  "scripts": { "test": "node --test" }
+}

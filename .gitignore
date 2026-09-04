@@ -1,0 +1,11 @@
+# Go
+/bin/
+*.out
+.env
+.DS_Store
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/dist/
+runs/
+web/node_modules/
+web/dist/

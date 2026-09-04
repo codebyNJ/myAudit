@@ -1,0 +1,9 @@
+bin/
+runs/
+web/node_modules/
+web/dist/
+internal/api/web/dist/
+desktop/
+docs/
+.git/
+*.log
