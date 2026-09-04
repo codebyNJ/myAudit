@@ -12,7 +12,7 @@ func TestRaiseAndResolveCheckpoint(t *testing.T) {
 
 	run, _ := s.CreateRun(ctx, "acme")
 	nid, _ := s.AddNode(ctx, run, "implement", nil)
-	s.Pool().Exec(ctx, `UPDATE nodes SET status='running' WHERE id=$1`, nid)
+	s.db.ExecContext(ctx, `UPDATE nodes SET status='running' WHERE id=?`, nid)
 
 	cpID, err := s.RaiseCheckpoint(ctx, run, nid, "multi or single?", []string{"multi", "single"})
 	if err != nil {

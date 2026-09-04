@@ -188,7 +188,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		events.New(s.Pool()).Log(r.Context(), events.Event{RunID: id, Kind: "file.edit", Msg: clean})
+		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "file.edit", Msg: clean})
 		w.WriteHeader(200)
 	})
 
@@ -218,7 +218,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 				os.Remove(filepath.Join("runs", id.String(), clean))
 			}
 		}
-		events.New(s.Pool()).Log(r.Context(), events.Event{RunID: id, Kind: "review." + b.Status, Msg: b.Path})
+		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "review." + b.Status, Msg: b.Path})
 		w.WriteHeader(200)
 	})
 
@@ -285,7 +285,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, "message required", 400)
 			return
 		}
-		events.New(s.Pool()).Log(r.Context(), events.Event{RunID: id, Kind: "steer", Msg: b.Message})
+		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "steer", Msg: b.Message})
 		w.WriteHeader(202)
 	})
 
@@ -310,42 +310,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		writeJSON(w, merged)
-	})
-
-	// Global (baseline) schema/openapi — used before a run is selected.
-	mux.HandleFunc("GET /api/openapi", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, baselineOpenAPI())
-	})
-	mux.HandleFunc("GET /api/schema", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, baselineSchema())
-	})
-
-	// Per-run schema/openapi — baseline + the run's own generated resources.
-	mux.HandleFunc("GET /api/runs/{id}/schema", func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "bad id", 400)
-			return
-		}
-		res, err := s.ResourcesForRun(r.Context(), id)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		writeJSON(w, schemaWith(res))
-	})
-	mux.HandleFunc("GET /api/runs/{id}/openapi", func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "bad id", 400)
-			return
-		}
-		res, err := s.ResourcesForRun(r.Context(), id)
-		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
-		}
-		writeJSON(w, openapiWith(res))
 	})
 
 	if static != nil {

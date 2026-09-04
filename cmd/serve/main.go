@@ -21,7 +21,7 @@ func main() {
 		slog.Error("config", "err", err)
 		os.Exit(1)
 	}
-	s, err := store.Open(context.Background(), cfg.DatabaseURL)
+	s, err := store.Open(context.Background(), cfg.DBPath)
 	if err != nil {
 		slog.Error("store", "err", err)
 		os.Exit(1)
@@ -55,7 +55,7 @@ func main() {
 	if p := os.Getenv("PORT"); p != "" {
 		addr = ":" + p
 	}
-	slog.Info("myIntern UI serving", "addr", "http://localhost"+addr)
+	slog.Info("myAudit UI serving", "addr", "http://localhost"+addr)
 	if err := http.ListenAndServe(addr, api.NewMux(s, api.StaticHandler())); err != nil {
 		slog.Error("serve", "err", err)
 		os.Exit(1)

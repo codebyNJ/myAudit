@@ -2,16 +2,14 @@ package store
 
 import (
 	"context"
-	"os"
+	"path/filepath"
 	"testing"
 )
 
+// testURL returns a fresh SQLite file path in the test's temp dir, so every
+// test gets an isolated database (no shared-DB TRUNCATE dance).
 func testURL(t *testing.T) string {
-	u := os.Getenv("TEST_DATABASE_URL")
-	if u == "" {
-		t.Skip("set TEST_DATABASE_URL (docker compose up -d)")
-	}
-	return u
+	return filepath.Join(t.TempDir(), "test.db")
 }
 
 func TestOpenAndPing(t *testing.T) {

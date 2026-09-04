@@ -12,7 +12,7 @@ func TestNodeDetailsHandlesOutputWithoutFiles(t *testing.T) {
 	run, _ := s.CreateRun(ctx, "acme")
 	nid, _ := s.AddNode(ctx, run, "implement", nil)
 	// output with a summary but NO files key (the case that broke jsonb_array_length)
-	s.Pool().Exec(ctx, `UPDATE nodes SET status='done', output='{"summary":"did a thing"}' WHERE id=$1`, nid)
+	s.db.ExecContext(ctx, `UPDATE nodes SET status='done', output='{"summary":"did a thing"}' WHERE id=?`, nid)
 
 	cards, err := s.NodeDetailsForRun(ctx, run)
 	if err != nil {

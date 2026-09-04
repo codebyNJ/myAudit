@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -30,8 +31,8 @@ func (s *Store) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, project, status, created_at FROM runs ORDER BY created_at DESC LIMIT $1`, limit)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, project, status, created_at FROM runs ORDER BY created_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func (s *Store) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 type NodeDetail struct {
 	ID        uuid.UUID  `json:"id"`
 	Type      string     `json:"type"`
-	Name      string     `json:"name"` // resource name for feature nodes (from input_snapshot)
+	Name      string     `json:"name"` // spec name from input_snapshot
 	Status    string     `json:"status"`
 	Deps      int        `json:"deps"`
 	Attempts  int        `json:"attempts"`
@@ -66,8 +67,8 @@ type NodeDetail struct {
 
 // NodesForRun returns all nodes of a run (basic, for the graph view).
 func (s *Store) NodesForRun(ctx context.Context, run uuid.UUID) ([]Node, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, run_id, type, status, deps FROM nodes WHERE run_id=$1 ORDER BY created_at`, run)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, run_id, type, status, deps FROM nodes WHERE run_id=? ORDER BY created_at`, run)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +76,11 @@ func (s *Store) NodesForRun(ctx context.Context, run uuid.UUID) ([]Node, error) 
 	var out []Node
 	for rows.Next() {
 		var n Node
-		if err := rows.Scan(&n.ID, &n.RunID, &n.Type, &n.Status, &n.Deps); err != nil {
+		var deps string
+		if err := rows.Scan(&n.ID, &n.RunID, &n.Type, &n.Status, &deps); err != nil {
 			return nil, err
 		}
+		n.Deps = scanIDs(deps)
 		out = append(out, n)
 	}
 	return out, rows.Err()
@@ -85,16 +88,16 @@ func (s *Store) NodesForRun(ctx context.Context, run uuid.UUID) ([]Node, error) 
 
 // NodeDetailsForRun returns enriched node cards, joining event counts.
 func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDetail, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT n.id, n.type, coalesce(n.input_snapshot->>'name',''), n.status,
-		       coalesce(array_length(n.deps,1),0), n.attempts,
-		       coalesce(n.output->>'summary',''),
-		       CASE WHEN jsonb_typeof(n.output->'changed') = 'array'
-		            THEN jsonb_array_length(n.output->'changed') ELSE 0 END,
-		       coalesce((n.output->>'cost_usd')::float8, 0),
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT n.id, n.type, coalesce(json_extract(n.input_snapshot,'$.name'),''), n.status,
+		       coalesce(json_array_length(n.deps),0), n.attempts,
+		       coalesce(json_extract(n.output,'$.summary'),''),
+		       CASE WHEN json_type(n.output,'$.changed')='array'
+		            THEN json_array_length(n.output,'$.changed') ELSE 0 END,
+		       coalesce(json_extract(n.output,'$.cost_usd'),0),
 		       (SELECT count(*) FROM events e WHERE e.node_id = n.id),
 		       n.created_at, n.claimed_at
-		FROM nodes n WHERE n.run_id=$1 ORDER BY n.created_at`, run)
+		FROM nodes n WHERE n.run_id=? ORDER BY n.created_at`, run)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +105,13 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 	var out []NodeDetail
 	for rows.Next() {
 		var d NodeDetail
-		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &d.ClaimedAt); err != nil {
+		var claimed sql.NullTime
+		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed); err != nil {
 			return nil, err
+		}
+		if claimed.Valid {
+			t := claimed.Time
+			d.ClaimedAt = &t
 		}
 		out = append(out, d)
 	}
@@ -111,7 +119,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 }
 
 // FileEntry is a file in a run's workspace. In tree listings Content is empty
-// (fetched lazily per file); Changed marks files a feature node produced.
+// (fetched lazily per file); Changed marks files a node produced/flagged.
 type FileEntry struct {
 	Path    string `json:"path"`
 	Content string `json:"content,omitempty"`
@@ -120,13 +128,12 @@ type FileEntry struct {
 	Review  string `json:"review,omitempty"` // "" | accepted
 }
 
-// ChangedFilesForRun returns the paths a run's feature nodes changed (from each
-// node output's `changed` array), first-seen order, excluding rejected. Content
-// is NOT included — the agent wrote the files to disk; the API layer reads their
-// content from the workspace. Accepted files carry their review status.
+// ChangedFilesForRun returns paths a run's nodes flagged (from each node
+// output's `changed` array), first-seen order, excluding rejected. Content is
+// NOT included — the API layer reads file content from the workspace on disk.
 func (s *Store) ChangedFilesForRun(ctx context.Context, run uuid.UUID) ([]FileEntry, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT output FROM nodes WHERE run_id=$1 AND output IS NOT NULL ORDER BY created_at`, run)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT output FROM nodes WHERE run_id=? AND output IS NOT NULL ORDER BY created_at`, run)
 	if err != nil {
 		return nil, err
 	}
@@ -168,42 +175,20 @@ func (s *Store) ChangedFilesForRun(ctx context.Context, run uuid.UUID) ([]FileEn
 	return files, nil
 }
 
-// ResourcesForRun returns the domain resources a run's feature nodes were
-// created for (from each feature node's input_snapshot), in graph order.
-func (s *Store) ResourcesForRun(ctx context.Context, run uuid.UUID) ([]Resource, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT input_snapshot FROM nodes WHERE run_id=$1 AND type='feature' ORDER BY created_at`, run)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Resource
-	for rows.Next() {
-		var raw []byte
-		if err := rows.Scan(&raw); err != nil {
-			return nil, err
-		}
-		var r Resource
-		if json.Unmarshal(raw, &r) == nil && r.Name != "" {
-			out = append(out, r)
-		}
-	}
-	return out, rows.Err()
-}
-
 // RunCostUSD sums the cost recorded across a run's node outputs.
 func (s *Store) RunCostUSD(ctx context.Context, run uuid.UUID) (float64, error) {
 	var total float64
-	err := s.pool.QueryRow(ctx,
-		`SELECT coalesce(sum((output->>'cost_usd')::float8),0) FROM nodes WHERE run_id=$1 AND output ? 'cost_usd'`, run).Scan(&total)
+	err := s.db.QueryRowContext(ctx,
+		`SELECT coalesce(sum(json_extract(output,'$.cost_usd')),0) FROM nodes
+		 WHERE run_id=? AND output IS NOT NULL AND json_extract(output,'$.cost_usd') IS NOT NULL`, run).Scan(&total)
 	return total, err
 }
 
 // OpenCheckpointsForRun returns unresolved checkpoints for a run.
 func (s *Store) OpenCheckpointsForRun(ctx context.Context, run uuid.UUID) ([]Checkpoint, error) {
-	rows, err := s.pool.Query(ctx,
+	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, run_id, node_id, question, resolved, COALESCE(answer,'')
-		 FROM checkpoints WHERE run_id=$1 AND NOT resolved ORDER BY created_at`, run)
+		 FROM checkpoints WHERE run_id=? AND resolved=0 ORDER BY created_at`, run)
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +209,8 @@ func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]E
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := s.pool.Query(ctx,
-		`SELECT ts, kind, level, COALESCE(msg,''), node_id FROM events WHERE run_id=$1 ORDER BY ts LIMIT $2`, run, limit)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT ts, kind, level, COALESCE(msg,''), node_id FROM events WHERE run_id=? ORDER BY ts LIMIT ?`, run, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -233,9 +218,11 @@ func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]E
 	var out []EventRow
 	for rows.Next() {
 		var e EventRow
-		if err := rows.Scan(&e.TS, &e.Kind, &e.Level, &e.Msg, &e.NodeID); err != nil {
+		var node sql.NullString
+		if err := rows.Scan(&e.TS, &e.Kind, &e.Level, &e.Msg, &node); err != nil {
 			return nil, err
 		}
+		e.NodeID = nullUUID(node)
 		out = append(out, e)
 	}
 	return out, rows.Err()

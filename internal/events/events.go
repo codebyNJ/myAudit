@@ -2,15 +2,15 @@ package events
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Event is a single typed, correlated log entry. Kind comes from a fixed
-// vocabulary (run.start, node.start, claude.request, gate.red, ...).
+// vocabulary (run.start, node.start, understand.done, finding, ...).
 type Event struct {
 	RunID  uuid.UUID
 	NodeID *uuid.UUID
@@ -21,13 +21,13 @@ type Event struct {
 	Attrs  map[string]any
 }
 
-// Logger writes typed events to Postgres and mirrors them to slog.
+// Logger writes typed events to SQLite and mirrors them to slog.
 type Logger struct {
-	pool *pgxpool.Pool
+	db *sql.DB
 }
 
-// New builds a Logger over the given pool.
-func New(p *pgxpool.Pool) *Logger { return &Logger{pool: p} }
+// New builds a Logger over the given DB handle.
+func New(db *sql.DB) *Logger { return &Logger{db: db} }
 
 // Log persists one event. Insert failures never block the caller — they are
 // logged and swallowed.
@@ -36,10 +36,10 @@ func (l *Logger) Log(ctx context.Context, e Event) {
 		e.Level = "info"
 	}
 	attrs, _ := json.Marshal(e.Attrs)
-	_, err := l.pool.Exec(ctx,
+	_, err := l.db.ExecContext(ctx,
 		`INSERT INTO events(run_id, node_id, span_id, level, kind, msg, attrs)
-		 VALUES($1,$2,$3,$4,$5,$6,$7)`,
-		e.RunID, e.NodeID, nullStr(e.SpanID), e.Level, e.Kind, e.Msg, attrs)
+		 VALUES(?,?,?,?,?,?,?)`,
+		e.RunID, nodeArg(e.NodeID), nullStr(e.SpanID), e.Level, e.Kind, e.Msg, string(attrs))
 	if err != nil {
 		slog.Error("event insert failed", "err", err)
 	}
@@ -51,4 +51,12 @@ func nullStr(s string) any {
 		return nil
 	}
 	return s
+}
+
+// nodeArg passes a nullable node id to SQL: nil pointer → NULL.
+func nodeArg(p *uuid.UUID) any {
+	if p == nil {
+		return nil
+	}
+	return p.String()
 }

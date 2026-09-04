@@ -21,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 	ctx := context.Background()
-	s, err := store.Open(ctx, cfg.DatabaseURL)
+	s, err := store.Open(ctx, cfg.DBPath)
 	if err != nil {
 		slog.Error("store", "err", err)
 		os.Exit(1)
@@ -39,14 +39,14 @@ func main() {
 		os.Exit(1)
 	}
 	set := func(key, status string) {
-		s.Pool().Exec(ctx, `UPDATE nodes SET status=$2 WHERE id=$1`, ids[key], status)
+		s.DB().ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, ids[key])
 	}
 	set("scaffold", "done")
 	set("schema", "done")
 	set("auth", "running")
 	set("landing", "pending")
 
-	log := events.New(s.Pool())
+	log := events.New(s.DB())
 	ev := func(node, kind, msg string) {
 		var np *uuid.UUID
 		if node != "" {

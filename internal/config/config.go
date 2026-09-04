@@ -1,27 +1,27 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"strconv"
 )
 
-// Config holds the orchestrator's runtime configuration, loaded from env.
+// Config holds the runtime configuration, loaded from env.
 type Config struct {
-	DatabaseURL         string
+	DBPath              string
 	MaxConcurrentClaude int
 }
 
-// Load reads configuration from the environment. DATABASE_URL is required;
+// Load reads configuration from the environment. MYAUDIT_DB overrides the
+// SQLite file path (default ./myaudit.db — this is a local, single-file IDE).
 // MAX_CONCURRENT_CLAUDE defaults to 2 (bounded concurrency).
 func Load() (Config, error) {
-	url := os.Getenv("DATABASE_URL")
-	if url == "" {
-		return Config{}, errors.New("DATABASE_URL required")
+	path := os.Getenv("MYAUDIT_DB")
+	if path == "" {
+		path = "myaudit.db"
 	}
 	n, _ := strconv.Atoi(os.Getenv("MAX_CONCURRENT_CLAUDE"))
 	if n == 0 {
 		n = 2
 	}
-	return Config{DatabaseURL: url, MaxConcurrentClaude: n}, nil
+	return Config{DBPath: path, MaxConcurrentClaude: n}, nil
 }

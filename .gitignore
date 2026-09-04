@@ -9,3 +9,9 @@ desktop/dist/
 runs/
 web/node_modules/
 web/dist/
+
+# local sqlite db
+myaudit.db*
+*.db
+*.db-shm
+*.db-wal

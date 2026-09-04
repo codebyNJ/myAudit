@@ -2,53 +2,50 @@ package queue
 
 import (
 	"context"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+
+	"myaudit/internal/store"
 )
 
-func pool(t *testing.T) *pgxpool.Pool {
-	u := os.Getenv("TEST_DATABASE_URL")
-	if u == "" {
-		t.Skip("no db")
-	}
-	p, _ := pgxpool.New(context.Background(), u)
-	return p
-}
-
-// reset gives each queue test an exclusive clean slate. Queue tests assert on
-// the global ready-set (Claim pops the oldest ready node across all runs), so
-// they must not see other tests' rows. Run the DB suite with `go test -p 1`.
-func reset(t *testing.T, p *pgxpool.Pool) {
-	if _, err := p.Exec(context.Background(), `TRUNCATE runs, nodes, events RESTART IDENTITY CASCADE`); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestClaimReturnsReadyNodeOnce(t *testing.T) {
+// Exercises the SQLite port's tricky bits: dependency gating via json_each,
+// the atomic single-statement Claim, and "nothing ready → nil".
+func TestClaimGatingAndComplete(t *testing.T) {
 	ctx := context.Background()
-	p := pool(t)
-	defer p.Close()
-	reset(t, p)
-	run := uuid.New()
-	p.Exec(ctx, `INSERT INTO runs(id,project) VALUES($1,'t')`, run)
-	var nid uuid.UUID
-	p.QueryRow(ctx, `INSERT INTO nodes(run_id,type,status) VALUES($1,'implement','ready') RETURNING id`, run).Scan(&nid)
-	q := New(p)
-	c1, err := q.Claim(ctx)
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c1 == nil || c1.ID != nid {
-		t.Fatal("first claim should get the ready node")
+	defer s.Close()
+	q := New(s.DB())
+
+	run, _ := s.CreateRun(ctx, "x")
+	a, _ := s.AddNode(ctx, run, "understand", nil)
+	b, _ := s.AddNode(ctx, run, "testgen", []uuid.UUID{a}) // depends on a
+
+	// Only a (no deps) promotes; b is gated on a.
+	if n, err := q.PromoteReady(ctx); err != nil || n != 1 {
+		t.Fatalf("promote1: n=%d err=%v (want 1)", n, err)
 	}
-	c2, err := q.Claim(ctx)
-	if err != nil {
+	c, err := q.Claim(ctx)
+	if err != nil || c == nil || c.ID != a || c.Type != "understand" {
+		t.Fatalf("claim a: %+v err=%v", c, err)
+	}
+	// a is running, b still gated → nothing to claim.
+	if c2, err := q.Claim(ctx); err != nil || c2 != nil {
+		t.Fatalf("claim2 should be nil, got %+v err=%v", c2, err)
+	}
+	// Completing a unblocks b.
+	if err := q.Complete(ctx, a, []byte(`{"summary":"ok"}`)); err != nil {
 		t.Fatal(err)
 	}
-	if c2 != nil {
-		t.Fatal("second claim should be empty (node already running)")
+	if n, err := q.PromoteReady(ctx); err != nil || n != 1 {
+		t.Fatalf("promote2: n=%d err=%v (want 1)", n, err)
+	}
+	c3, err := q.Claim(ctx)
+	if err != nil || c3 == nil || c3.ID != b {
+		t.Fatalf("claim b: %+v err=%v", c3, err)
 	}
 }

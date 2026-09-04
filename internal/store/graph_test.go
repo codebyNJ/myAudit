@@ -26,7 +26,7 @@ func TestCreateGraphStoresResourceSpec(t *testing.T) {
 		t.Fatalf("want 4 nodes, got %d", len(ids))
 	}
 	var snap []byte
-	if err := s.pool.QueryRow(ctx, `SELECT input_snapshot FROM nodes WHERE id=$1`, ids["feature_Project"]).Scan(&snap); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT input_snapshot FROM nodes WHERE id=?`, ids["feature_Project"]).Scan(&snap); err != nil {
 		t.Fatal(err)
 	}
 	var got Resource

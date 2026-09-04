@@ -6,12 +6,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
-// Resource is a per-project domain entity the agent generates a feature module
-// for (beyond the template's generic Item example). It is the node spec of a
-// "feature" node.
+// Resource is a per-project domain entity a node spec may carry. Retained as a
+// generic node-spec payload; the inverted pipeline uses its own spec shapes too.
 type Resource struct {
 	Name   string  `json:"name"`
 	Fields []Field `json:"fields"`
@@ -23,15 +21,14 @@ type Field struct {
 	Type string `json:"type"`
 }
 
-// TaskSpec describes one node in a build graph. Deps are referenced by Key so a
-// plan can be written before any ids exist; CreateGraph resolves them.
+// TaskSpec describes one node in a graph. Deps are referenced by Key so a plan
+// can be written before any ids exist; CreateGraph resolves them.
 type TaskSpec struct {
 	Key     string
 	Type    string
 	DepKeys []string
-	// Spec is per-node data (e.g. a feature's resource + fields, or config
-	// choices). Stored in nodes.input_snapshot; the worker reads it to build the
-	// agent task. nil ⇒ stored as '{}'.
+	// Spec is per-node data stored in nodes.input_snapshot; the worker reads it
+	// to build the agent task. nil ⇒ stored as '{}'.
 	Spec any
 }
 
@@ -39,32 +36,32 @@ type TaskSpec struct {
 // deps from keys to the generated node ids. Returns the run id and a
 // key→node-id map. An unknown dep key aborts the whole graph.
 func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpec) (uuid.UUID, map[string]uuid.UUID, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return uuid.Nil, nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
-	var run uuid.UUID
-	if err := tx.QueryRow(ctx, `INSERT INTO runs(project) VALUES($1) RETURNING id`, project).Scan(&run); err != nil {
+	run := uuid.New()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(id, project) VALUES(?,?)`, run, project); err != nil {
 		return uuid.Nil, nil, err
 	}
 
 	ids := make(map[string]uuid.UUID, len(specs))
 	// First pass: create nodes without deps so every key has an id.
 	for _, sp := range specs {
-		snap := []byte("{}")
+		snap := "{}"
 		if sp.Spec != nil {
 			b, err := json.Marshal(sp.Spec)
 			if err != nil {
 				return uuid.Nil, nil, fmt.Errorf("marshal spec for %q: %w", sp.Key, err)
 			}
-			snap = b
+			snap = string(b)
 		}
-		var id uuid.UUID
-		if err := tx.QueryRow(ctx,
-			`INSERT INTO nodes(run_id, type, input_snapshot) VALUES($1,$2,$3) RETURNING id`,
-			run, sp.Type, snap).Scan(&id); err != nil {
+		id := uuid.New()
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO nodes(id, run_id, type, input_snapshot) VALUES(?,?,?,?)`,
+			id, run, sp.Type, snap); err != nil {
 			return uuid.Nil, nil, err
 		}
 		ids[sp.Key] = id
@@ -82,15 +79,12 @@ func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpe
 			}
 			deps = append(deps, did)
 		}
-		if _, err := tx.Exec(ctx, `UPDATE nodes SET deps=$2 WHERE id=$1`, ids[sp.Key], deps); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE nodes SET deps=? WHERE id=?`, marshalIDs(deps), ids[sp.Key]); err != nil {
 			return uuid.Nil, nil, err
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		if err == pgx.ErrTxClosed {
-			return uuid.Nil, nil, err
-		}
+	if err := tx.Commit(); err != nil {
 		return uuid.Nil, nil, err
 	}
 	return run, ids, nil

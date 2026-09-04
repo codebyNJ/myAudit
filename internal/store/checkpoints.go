@@ -2,10 +2,11 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // Checkpoint is a human-in-the-loop interrupt raised by a node.
@@ -21,57 +22,57 @@ type Checkpoint struct {
 // RaiseCheckpoint records an interrupt and blocks the node until it is
 // resolved. Returns the checkpoint id.
 func (s *Store) RaiseCheckpoint(ctx context.Context, run, node uuid.UUID, question string, options []string) (uuid.UUID, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return uuid.Nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	opts, _ := json.Marshal(options)
-	var id uuid.UUID
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO checkpoints(run_id, node_id, question, options) VALUES($1,$2,$3,$4) RETURNING id`,
-		run, node, question, opts).Scan(&id); err != nil {
+	id := uuid.New()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO checkpoints(id, run_id, node_id, question, options) VALUES(?,?,?,?,?)`,
+		id, run, node, question, string(opts)); err != nil {
 		return uuid.Nil, err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE nodes SET status='blocked' WHERE id=$1`, node); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE nodes SET status='blocked' WHERE id=?`, node); err != nil {
 		return uuid.Nil, err
 	}
-	return id, tx.Commit(ctx)
+	return id, tx.Commit()
 }
 
 // ResolveCheckpoint stores the answer and requeues the node to ready so it
 // re-runs with the decision available.
 func (s *Store) ResolveCheckpoint(ctx context.Context, checkpoint uuid.UUID, answer string) error {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback()
 
 	var node uuid.UUID
-	if err := tx.QueryRow(ctx,
-		`UPDATE checkpoints SET answer=$2, resolved=true, resolved_at=now() WHERE id=$1 RETURNING node_id`,
-		checkpoint, answer).Scan(&node); err != nil {
+	if err := tx.QueryRowContext(ctx,
+		`UPDATE checkpoints SET answer=?, resolved=1, resolved_at=CURRENT_TIMESTAMP WHERE id=? RETURNING node_id`,
+		answer, checkpoint).Scan(&node); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE nodes SET status='ready' WHERE id=$1`, node); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, node); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return tx.Commit()
 }
 
 // OpenCheckpointForNode returns the unresolved checkpoint for a node, if any.
 func (s *Store) OpenCheckpointForNode(ctx context.Context, node uuid.UUID) (Checkpoint, bool, error) {
 	var cp Checkpoint
-	err := s.pool.QueryRow(ctx,
+	err := s.db.QueryRowContext(ctx,
 		`SELECT id, run_id, node_id, question, resolved, COALESCE(answer,'')
-		 FROM checkpoints WHERE node_id=$1 AND NOT resolved LIMIT 1`, node).
+		 FROM checkpoints WHERE node_id=? AND resolved=0 LIMIT 1`, node).
 		Scan(&cp.ID, &cp.RunID, &cp.NodeID, &cp.Question, &cp.Resolved, &cp.Answer)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Checkpoint{}, false, nil
+	}
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return Checkpoint{}, false, nil
-		}
 		return Checkpoint{}, false, err
 	}
 	return cp, true, nil

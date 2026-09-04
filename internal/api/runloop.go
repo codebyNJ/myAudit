@@ -88,7 +88,7 @@ func NewRealDeps(s *store.Store) worker.Deps {
 		image = "myaudit-sandbox"
 	}
 	return worker.Deps{
-		Store: s, Queue: queue.New(s.Pool()), Log: events.New(s.Pool()),
+		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         realAgent{model: model, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image},
 		Verify:        syntaxVerifier{},
 		WorkspaceRoot: "runs", MaxRepairs: 2,
@@ -98,7 +98,7 @@ func NewRealDeps(s *store.Store) worker.Deps {
 // NewStubDeps drives feature nodes with the $0 stub agent (dev/UI mode).
 func NewStubDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
-		Store: s, Queue: queue.New(s.Pool()), Log: events.New(s.Pool()),
+		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent: stubAgent{}, Verify: nil,
 		WorkspaceRoot: "runs", MaxRepairs: 0,
 	}
