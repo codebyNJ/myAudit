@@ -13,11 +13,11 @@ import (
 	"regexp"
 	"strings"
 
-	"myintern/internal/agent"
-	"myintern/internal/events"
-	"myintern/internal/queue"
-	"myintern/internal/sandbox"
-	"myintern/internal/store"
+	"myaudit/internal/agent"
+	"myaudit/internal/events"
+	"myaudit/internal/queue"
+	"myaudit/internal/sandbox"
+	"myaudit/internal/store"
 )
 
 // Agent is the generation seam: real runs call the claude CLI, tests fake it.

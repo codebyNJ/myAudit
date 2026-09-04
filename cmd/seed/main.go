@@ -9,9 +9,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"myintern/internal/config"
-	"myintern/internal/events"
-	"myintern/internal/store"
+	"myaudit/internal/config"
+	"myaudit/internal/events"
+	"myaudit/internal/store"
 )
 
 func main() {

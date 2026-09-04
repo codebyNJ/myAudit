@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"myintern/internal/events"
-	"myintern/internal/store"
+	"myaudit/internal/events"
+	"myaudit/internal/store"
 )
 
 // RunDetail is a run plus its nodes and event log.

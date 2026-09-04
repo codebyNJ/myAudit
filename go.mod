@@ -1,4 +1,4 @@
-module myintern
+module myaudit
 
 go 1.26.5
 

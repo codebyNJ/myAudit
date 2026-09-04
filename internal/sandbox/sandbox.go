@@ -103,7 +103,7 @@ func (w Workspace) Commit(ctx context.Context, msg string) error {
 		return err
 	}
 	out, code, err := w.Run(ctx, "git",
-		"-c", "user.email=myintern@local", "-c", "user.name=myIntern", "commit", "-q", "-m", msg)
+		"-c", "user.email=myaudit@local", "-c", "user.name=myIntern", "commit", "-q", "-m", msg)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 	steps := [][]string{
 		{"-C", dir, "init", "-q"},
 		{"-C", dir, "add", "-A"},
-		{"-C", dir, "-c", "user.email=myintern@local", "-c", "user.name=myIntern", "commit", "-q", "-m", "scaffold baseline"},
+		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myIntern", "commit", "-q", "-m", "scaffold baseline"},
 	}
 	for _, args := range steps {
 		if out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput(); err != nil {

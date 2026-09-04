@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
-	"myintern/internal/api"
-	"myintern/internal/config"
-	"myintern/internal/store"
-	"myintern/internal/worker"
+	"myaudit/internal/api"
+	"myaudit/internal/config"
+	"myaudit/internal/store"
+	"myaudit/internal/worker"
 )
 
 func main() {

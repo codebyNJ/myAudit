@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"myintern/internal/agent"
-	"myintern/internal/events"
-	"myintern/internal/queue"
-	"myintern/internal/sandbox"
-	"myintern/internal/store"
-	"myintern/internal/worker"
+	"myaudit/internal/agent"
+	"myaudit/internal/events"
+	"myaudit/internal/queue"
+	"myaudit/internal/sandbox"
+	"myaudit/internal/store"
+	"myaudit/internal/worker"
 )
 
 // realAgent implements worker.Agent by driving the real Claude Code CLI with the
@@ -85,7 +85,7 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	}
 	image := os.Getenv("AGENT_IMAGE")
 	if image == "" {
-		image = "myintern-sandbox"
+		image = "myaudit-sandbox"
 	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.Pool()), Log: events.New(s.Pool()),

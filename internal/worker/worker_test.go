@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"myintern/internal/agent"
-	"myintern/internal/events"
-	"myintern/internal/queue"
-	"myintern/internal/sandbox"
-	"myintern/internal/store"
+	"myaudit/internal/agent"
+	"myaudit/internal/events"
+	"myaudit/internal/queue"
+	"myaudit/internal/sandbox"
+	"myaudit/internal/store"
 )
 
 // recordingAgent fakes the generation seam: records calls, optionally writes a

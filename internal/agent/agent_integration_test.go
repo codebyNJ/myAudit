@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"myintern/internal/sandbox"
+	"myaudit/internal/sandbox"
 )
 
 // TestRealFeatureAddProject drives the REAL claude agent (no mocks) to add a

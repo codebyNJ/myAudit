@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"myintern/internal/store"
+	"myaudit/internal/store"
 )
 
 // TickAll should advance a run: a deterministic config node (no deps, no model)

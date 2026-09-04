@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"myintern/internal/store"
+	"myaudit/internal/store"
 )
 
 // skipTreeDir are directories excluded from the workspace file tree.

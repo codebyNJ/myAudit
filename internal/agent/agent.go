@@ -13,7 +13,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"myintern/internal/sandbox"
+	"myaudit/internal/sandbox"
 )
 
 // Result summarizes one agent run. OK means claude completed without error; the
@@ -50,7 +50,7 @@ type Options struct {
 	SessionID      string   // set for repair continuity
 	Resume         bool     // true → --resume SessionID (continue), else --session-id
 	Isolate        bool     // run claude inside a docker container (blast-radius isolation)
-	Image          string   // container image when Isolate (default "myintern-sandbox")
+	Image          string   // container image when Isolate (default "myaudit-sandbox")
 }
 
 // command builds the exec.Cmd, either running claude directly (cwd = workspace)
@@ -61,7 +61,7 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 	if o.Isolate {
 		img := o.Image
 		if img == "" {
-			img = "myintern-sandbox"
+			img = "myaudit-sandbox"
 		}
 		docker := []string{"run", "--rm", "-v", ws.Dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
 		docker = append(docker, o.Args(task, "/work")...)

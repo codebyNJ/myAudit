@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"myintern/internal/store"
+	"myaudit/internal/store"
 )
 
 func newStore(t *testing.T) *store.Store {

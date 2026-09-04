@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"myintern/internal/sandbox"
+	"myaudit/internal/sandbox"
 )
 
 func TestIsolateBuildsDockerCommand(t *testing.T) {
@@ -14,7 +14,7 @@ func TestIsolateBuildsDockerCommand(t *testing.T) {
 	got := strings.Join(cmd.Args, " ")
 	for _, want := range []string{
 		"docker run", "--rm", "-v /runs/abc:/work", "-w /work",
-		"-e CLAUDE_CODE_OAUTH_TOKEN", "myintern-sandbox", "claude",
+		"-e CLAUDE_CODE_OAUTH_TOKEN", "myaudit-sandbox", "claude",
 		"--add-dir /work", "-p do X",
 	} {
 		if !strings.Contains(got, want) {
