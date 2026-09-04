@@ -6,12 +6,9 @@ import { Toasts } from './components/Toasts'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
-import { Chat } from './components/Chat'
 import { DevScreen } from './screens/DevScreen'
 import { ConfigScreen } from './screens/ConfigScreen'
 import { ActivityScreen } from './screens/ActivityScreen'
-import { SchemaScreen } from './screens/SchemaScreen'
-import { SwaggerScreen } from './screens/SwaggerScreen'
 import { PlaywrightScreen } from './screens/PlaywrightScreen'
 import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
@@ -21,10 +18,7 @@ function Screen() {
   const { tab } = useStore()
   switch (tab) {
     case 'dev': return <DevScreen />
-    case 'config': return <ConfigScreen />
     case 'activity': return <ActivityScreen />
-    case 'schema': return <SchemaScreen />
-    case 'swagger': return <SwaggerScreen />
     case 'playwright': return <PlaywrightScreen />
     case 'kanban': return <KanbanScreen />
     case 'notes': return <NotesScreen />
@@ -47,17 +41,6 @@ function Shell() {
     window.addEventListener('mouseup', onUp)
   }
 
-  // Locked (post-config, pre-first-prompt): prompt-only, no explorer/tabs.
-  // Scaffolding runs in the background; the first prompt unlocks the full IDE.
-  if (s.locked) {
-    return (
-      <div className="app">
-        <Header />
-        <div className="body locked"><main><div className="locked-prompt"><Chat /></div></main></div>
-      </div>
-    )
-  }
-
   const collapsed = !s.explorerOpen
   return (
     <div className="app">
@@ -75,13 +58,13 @@ function Shell() {
   )
 }
 
-// New-project flow: the Config wizard full-screen with a way back to Home.
+// Import flow: the import form full-screen with a way back to Home.
 function NewProject() {
   const s = useStore()
   return (
     <div className="app">
       <header className="mini-head">
-        <button className="btn-sm" onClick={() => s.setNewOpen(false)}>← Projects</button>
+        <button className="btn-sm" onClick={() => s.setNewOpen(false)}>← Audits</button>
         <div className="logo"><AgentAvatar size={20} radius={5} /></div>
       </header>
       <main><div className="screen on"><ConfigScreen /></div></main>

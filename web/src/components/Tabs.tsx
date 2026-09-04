@@ -3,14 +3,11 @@ import { useStore, type Tab } from '../store'
 
 // Tabs shown in the segmented control (Settings is reachable via the account menu).
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'dev', label: 'Dev' },
-  { id: 'config', label: 'Config' },
-  { id: 'activity', label: 'Activity' },
-  { id: 'schema', label: 'Schema' },
-  { id: 'swagger', label: 'Swagger' },
-  { id: 'playwright', label: 'Verify' },
-  { id: 'kanban', label: 'Kanban' },
+  { id: 'kanban', label: 'Board' },
   { id: 'notes', label: 'Notes' },
+  { id: 'dev', label: 'Files' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'playwright', label: 'Verify' },
 ]
 
 export function Tabs() {

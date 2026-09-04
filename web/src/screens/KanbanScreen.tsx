@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
-  Boxes, Cog, Hammer, CheckCircle2,
+  Download, BookOpen, FlaskConical, CheckCircle2, Search,
   GitBranch, RefreshCw, Clock, FileCode2, Activity as ActIcon, X,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { STATUS_COLOR } from '../components/util'
 
-// A feature node is labelled by its resource name; others by type.
-const label = (n: { type: string; name: string }) => (n.type === 'feature' && n.name ? n.name : n.type)
+const label = (n: { type: string; name: string }) => n.name || n.type
 
 const COLS = [
   { key: 'pending', label: 'To do' },
@@ -21,10 +20,12 @@ const bucket = (st: string) => st === 'done' ? 'done' : st === 'running' || st =
 // icon per task type/key
 function TaskIcon({ type }: { type: string }) {
   const p = { size: 14 }
-  if (type === 'scaffold') return <Hammer {...p} />
-  if (type === 'config') return <Cog {...p} />
-  if (type === 'finalize') return <CheckCircle2 {...p} />
-  return <Boxes {...p} /> // feature
+  if (type === 'import') return <Download {...p} />
+  if (type === 'understand') return <BookOpen {...p} />
+  if (type === 'testgen') return <FlaskConical {...p} />
+  if (type === 'verify') return <CheckCircle2 {...p} />
+  if (type === 'review') return <Search {...p} />
+  return <FileCode2 {...p} />
 }
 
 function since(ts: string) {
@@ -47,7 +48,7 @@ export function KanbanScreen() {
     return () => { alive = false; clearInterval(h) }
   }, [s.runId])
 
-  if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Create a project to see its task board.</p></div>
+  if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
   if (cards == null) return <div className="empty-mid"><div className="spin" /></div>
 
   return (

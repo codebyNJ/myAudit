@@ -17,7 +17,7 @@ export function Header() {
         <div className="branch-tag"><IcBranch /> main</div>
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}
       </div>
-      <div className="h-center">{!s.locked && <Tabs />}</div>
+      <div className="h-center"><Tabs /></div>
       <div className="h-right"><AccountMenu /></div>
     </header>
   )

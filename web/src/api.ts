@@ -5,13 +5,8 @@ export type EventRow = { ts: string; kind: string; level: string; msg: string; n
 export type Checkpoint = { id: string; run_id: string; node_id: string; question: string; resolved: boolean; answer: string }
 export type FileEntry = { path: string; content?: string; action?: string; changed?: boolean; review?: string }
 export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number }
-export type ApiRoute = { method: string; path: string; summary: string }
-export type SchemaField = { name: string; type?: string; ref?: string }
-export type SchemaEntity = { name: string; fields: SchemaField[] }
 export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string }
-export type ResourceField = { name: string; type: string }
-export type Resource = { name: string; fields: ResourceField[] }
-export type CreateRunBody = { project: string; tenancy?: string; cache?: string; resources: Resource[] }
+export type CreateRunBody = { repo_path: string; project?: string }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(path, opts)
@@ -26,10 +21,6 @@ export const api = {
     req<{ id: string }>('/api/runs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
   resolveCheckpoint: (id: string, answer: string) =>
     req<void>('/api/checkpoints/' + id + '/resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer }) }),
-  openapi: () => req<ApiRoute[]>('/api/openapi'),
-  schema: () => req<SchemaEntity[]>('/api/schema'),
-  openapiFor: (id: string) => req<ApiRoute[]>('/api/runs/' + id + '/openapi'),
-  schemaFor: (id: string) => req<SchemaEntity[]>('/api/runs/' + id + '/schema'),
   board: (id: string) => req<NodeCard[]>('/api/runs/' + id + '/board'),
   fileContent: (id: string, path: string) => req<{ path: string; content: string }>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path)),
   saveFile: (id: string, path: string, content: string) =>

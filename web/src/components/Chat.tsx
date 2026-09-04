@@ -16,9 +16,8 @@ export function Chat() {
 
   const send = async (t: string, context: string[]) => {
     if (!s.runId) return
-    s.unlock() // first prompt opens up the full IDE (explorer + tabs)
     const msg = context.length ? t + '  (context: ' + context.join(', ') + ')' : t
-    try { await api.steer(s.runId, msg); s.toast('success', 'Sent to intern', msg); s.reloadDetail() }
+    try { await api.steer(s.runId, msg); s.toast('success', 'Sent', msg); s.reloadDetail() }
     catch (e) { s.toast('error', 'Steer failed', (e as Error).message) }
   }
 
@@ -57,7 +56,7 @@ export function Chat() {
         </div>
       </div>
 
-      <PromptBar files={files} meta={`${events.length} events`} disabled={!s.runId} autoFocus={s.locked} onSend={send} />
+      <PromptBar files={files} meta={`${events.length} events`} disabled={!s.runId} autoFocus={false} onSend={send} />
     </div>
   )
 }

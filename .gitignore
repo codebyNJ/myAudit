@@ -15,3 +15,6 @@ myaudit.db*
 *.db
 *.db-shm
 *.db-wal
+
+# stray build artifacts
+/serve

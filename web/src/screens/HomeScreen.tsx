@@ -11,12 +11,12 @@ export function HomeScreen() {
       <div className="home-inner">
         <div className="home-head">
           <div className="logo lg"><AgentAvatar size={40} radius={10} /></div>
-          <h1>myIntern</h1>
-          <p>Open a project, or start a new one.</p>
+          <h1>myAudit</h1>
+          <p>Open a past audit, or import a codebase to start one.</p>
         </div>
         <div className="home-grid">
           <button className="proj-card new" onClick={() => s.setNewOpen(true)}>
-            <Plus size={20} /><span>New project</span>
+            <Plus size={20} /><span>Import codebase</span>
           </button>
           {runs.map((r) => (
             <button key={r.id} className="proj-card" onClick={() => s.setRun(r.id)}>
@@ -28,7 +28,7 @@ export function HomeScreen() {
             </button>
           ))}
         </div>
-        {s.runs && !runs.length && <div className="home-empty">No projects yet — create your first.</div>}
+        {s.runs && !runs.length && <div className="home-empty">No audits yet — import a codebase to start.</div>}
       </div>
     </div>
   )
