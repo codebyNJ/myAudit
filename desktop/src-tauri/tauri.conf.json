@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.myaudit.app",
   "build": {
-    "beforeDevCommand": "sh -c 'cd ../.. && (lsof -ti :7788 >/dev/null 2>&1 || REAL_CLAUDE=1 PORT=7788 go run ./cmd/serve)'",
+    "beforeDevCommand": "sh -c 'cd \"$(git rev-parse --show-toplevel)\" && (lsof -ti :7788 >/dev/null 2>&1 || REAL_CLAUDE=1 PORT=7788 go run ./cmd/serve)'",
     "devUrl": "http://localhost:7788",
     "frontendDist": "../src"
   },
