@@ -98,16 +98,15 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		if project == "" {
 			project = filepath.Base(strings.TrimRight(body.RepoPath, "/"))
 		}
-		// The audit graph: import the repo, understand it, then in parallel write a
-		// test for a key flow (→ verify) and review it for bugs/best-practice misses.
-		//   import → understand → testgen → verify
-		//                      └→ review
+		// The audit graph starts tiny and grows itself (a living board): import the
+		// repo, then map it into modules. The map step spawns one qa card per module
+		// at runtime; each qa card files bug tickets, and each bug is an autonomous
+		// dev fix — all added dynamically, so the board fills as work is discovered.
+		//   import → map ─┬→ qa(module A) ─→ bug… (dev fixes, blocked until QA)
+		//                 └→ qa(module B) ─→ bug…
 		specs := []store.TaskSpec{
 			{Key: "import", Type: "import", Spec: map[string]any{"repo_path": body.RepoPath}},
-			{Key: "understand", Type: "understand", DepKeys: []string{"import"}},
-			{Key: "testgen", Type: "testgen", DepKeys: []string{"understand"}},
-			{Key: "verify", Type: "verify", DepKeys: []string{"testgen"}},
-			{Key: "review", Type: "review", DepKeys: []string{"understand"}},
+			{Key: "map", Type: "map", DepKeys: []string{"import"}},
 		}
 		run, _, err := s.CreateGraph(r.Context(), project, specs)
 		if err != nil {

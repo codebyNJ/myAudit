@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -28,6 +29,28 @@ func (s *Store) AddNode(ctx context.Context, run uuid.UUID, typ string, deps []u
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO nodes(id, run_id, type, deps) VALUES(?,?,?,?)`,
 		id, run, typ, marshalIDs(deps))
+	return id, err
+}
+
+// AddNodeFull inserts a node with a spec payload and an explicit initial status.
+// The map step uses it to spawn per-module qa cards as 'pending', so they promote
+// to 'ready' once their deps (import→map) are done — the dynamic board fan-out.
+func (s *Store) AddNodeFull(ctx context.Context, run uuid.UUID, typ string, deps []uuid.UUID, spec any, status string) (uuid.UUID, error) {
+	snap := "{}"
+	if spec != nil {
+		b, err := json.Marshal(spec)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		snap = string(b)
+	}
+	if status == "" {
+		status = "pending"
+	}
+	id := uuid.New()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO nodes(id, run_id, type, status, deps, input_snapshot) VALUES(?,?,?,?,?,?)`,
+		id, run, typ, status, marshalIDs(deps), snap)
 	return id, err
 }
 

@@ -22,8 +22,12 @@ type Bug struct {
 	Kind     string   `json:"type"` // "bug" | "feature" | "chore" (card type)
 }
 
-// CreateBug inserts a bug ticket node in the 'open' lifecycle state.
-func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug) (uuid.UUID, error) {
+// CreateBug inserts a bug ticket node. With no deps it lands in the manual 'open'
+// state (never queue-claimed) — the legacy behavior. Passed a dep (its module's
+// qa node), it lands 'pending' and blocked on that dep, so the autonomous dev fix
+// loop can only pick it up AFTER that module's QA is done ("QA over dev"): the
+// queue's PromoteReady flips it to 'ready' once the qa node completes.
+func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug, deps ...uuid.UUID) (uuid.UUID, error) {
 	if b.Name == "" {
 		b.Name = b.Title
 	}
@@ -35,9 +39,13 @@ func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug) (uuid.UUID,
 	}
 	snap, _ := json.Marshal(b)
 	id := uuid.New()
+	status := "open"
+	if len(deps) > 0 {
+		status = "pending"
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO nodes(id, run_id, type, status, input_snapshot) VALUES(?,?,?, 'open', ?)`,
-		id, run, "bug", string(snap))
+		`INSERT INTO nodes(id, run_id, type, status, deps, input_snapshot) VALUES(?,?,?,?,?,?)`,
+		id, run, "bug", status, marshalIDs(deps), string(snap))
 	return id, err
 }
 

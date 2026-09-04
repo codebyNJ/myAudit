@@ -32,12 +32,18 @@ func New(db *sql.DB) *Queue { return &Queue{db: db} }
 // atomic under SQLite's statement-level write lock — no FOR UPDATE SKIP LOCKED
 // needed. Fine for a local single-process run loop; revisit if we ever run
 // multiple worker processes against one file.
+//
+// Claim order encodes "QA over dev": import/map first, then qa (find everything),
+// then bug (dev fixes) last, tie-broken by created_at. So the board drains all
+// discovery before any fix begins.
 func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	var c ClaimedNode
 	var spec sql.NullString
 	err := q.db.QueryRowContext(ctx, `
 		UPDATE nodes SET status='running', claimed_at=CURRENT_TIMESTAMP, attempts=attempts+1
-		WHERE id = (SELECT id FROM nodes WHERE status='ready' ORDER BY created_at LIMIT 1)
+		WHERE id = (SELECT id FROM nodes WHERE status='ready'
+			ORDER BY CASE type WHEN 'import' THEN 0 WHEN 'map' THEN 1 WHEN 'qa' THEN 2 ELSE 3 END, created_at
+			LIMIT 1)
 		RETURNING id, run_id, type, attempts, COALESCE(input_snapshot,'{}')`).
 		Scan(&c.ID, &c.RunID, &c.Type, &c.Attempts, &spec)
 	if errors.Is(err, sql.ErrNoRows) {

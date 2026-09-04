@@ -64,6 +64,12 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	switch c.Type {
 	case "import":
 		return d.doImport(ctx, c, ws)
+	case "map":
+		return d.doMap(ctx, c, ws)
+	case "qa":
+		return d.qa(ctx, c, ws)
+	case "bug":
+		return d.bug(ctx, c, ws)
 	case "understand":
 		return d.understand(ctx, c, ws)
 	case "testgen":
