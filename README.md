@@ -28,7 +28,7 @@ Prereqs: **Go 1.23+**, the **`claude` CLI** (logged in), and **git**.
 make run     # UI + API at http://localhost:7788, REAL Claude Code agent
 make dev     # same, but the $0 stub agent (no tokens — UI/graph only)
 make test    # full Go suite (temp SQLite per test; no services)
-make desktop # native Tauri shell (run `make run` in another shell first)
+make desktop # native Tauri shell (auto-starts the server on :7788)
 ```
 
 Start an audit:

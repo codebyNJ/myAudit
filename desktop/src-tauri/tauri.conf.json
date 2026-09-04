@@ -1,16 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "myIntern",
+  "productName": "myAudit",
   "version": "0.1.0",
-  "identifier": "com.myintern.app",
+  "identifier": "com.myaudit.app",
   "build": {
+    "beforeDevCommand": "sh -c 'cd ../.. && (lsof -ti :7788 >/dev/null 2>&1 || REAL_CLAUDE=1 PORT=7788 go run ./cmd/serve)'",
+    "devUrl": "http://localhost:7788",
     "frontendDist": "../src"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "myIntern",
+        "title": "myAudit",
         "width": 1280,
         "height": 832,
         "url": "http://localhost:7788"
