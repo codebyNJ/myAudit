@@ -5,22 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"myaudit/internal/store"
 )
 
 func newStore(t *testing.T) *store.Store {
-	u := os.Getenv("TEST_DATABASE_URL")
-	if u == "" {
-		t.Skip("no db")
-	}
-	s, err := store.Open(context.Background(), u)
+	s, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "api.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.Pool().Exec(context.Background(), `TRUNCATE runs, nodes, events, checkpoints RESTART IDENTITY CASCADE`)
 	return s
 }
 
@@ -51,7 +46,7 @@ func TestRunDetailEndpoint(t *testing.T) {
 	defer s.Close()
 	run, _ := s.CreateRun(ctx, "acme")
 	nid, _ := s.AddNode(ctx, run, "implement", nil)
-	s.Pool().Exec(ctx, `INSERT INTO events(run_id,node_id,level,kind,msg) VALUES($1,$2,'info','node.start','go')`, run, nid)
+	s.DB().ExecContext(ctx, `INSERT INTO events(run_id,node_id,level,kind,msg) VALUES(?,?,'info','node.start','go')`, run, nid)
 
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
@@ -77,7 +72,7 @@ func TestRunDetailIncludesCheckpoints(t *testing.T) {
 	defer s.Close()
 	run, _ := s.CreateRun(ctx, "acme")
 	nid, _ := s.AddNode(ctx, run, "implement", nil)
-	s.Pool().Exec(ctx, `UPDATE nodes SET status='running' WHERE id=$1`, nid)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='running' WHERE id=?`, nid)
 	s.RaiseCheckpoint(ctx, run, nid, "Google-only?", nil)
 
 	srv := httptest.NewServer(NewMux(s, nil))

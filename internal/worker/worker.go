@@ -1,14 +1,16 @@
-// Package worker runs one node of the build graph. Nodes dispatch by type:
-// scaffold/config/finalize are deterministic ($0, no model); a feature node
-// drives the Claude Code agent to add one domain resource, then verifies and
-// captures the git diff. The Agent and Verifier are interfaces so tests inject
-// fakes and prod injects the real claude-backed runner.
+// Package worker runs one node of an audit graph. Nodes dispatch by type:
+// import copies the target repo into an isolated workspace ($0, deterministic);
+// understand and review drive Claude Code read-only to analyze the code; testgen
+// drives it to write one test; verify runs the tests deterministically. The
+// Agent is an interface so tests inject a fake and prod injects the real
+// claude-backed runner.
 package worker
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,16 +22,10 @@ import (
 	"myaudit/internal/store"
 )
 
-// Agent is the generation seam: real runs call the claude CLI, tests fake it.
+// Agent is the Claude Code seam: real runs call the claude CLI, tests fake it.
+// readOnly selects the tool policy (comprehension/review vs. write).
 type Agent interface {
-	Run(ctx context.Context, ws sandbox.Workspace, task string) (agent.Result, error)
-}
-
-// Verifier checks a workspace after a feature node (e.g. build/boot). A nil
-// error means the feature is good. When Deps.Verify is nil, verification is
-// skipped (used by dev/dry runs).
-type Verifier interface {
-	Verify(ctx context.Context, ws sandbox.Workspace) error
+	Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error)
 }
 
 // Deps are RunOnce's collaborators.
@@ -38,9 +34,8 @@ type Deps struct {
 	Queue         *queue.Queue
 	Log           *events.Logger
 	Agent         Agent
-	Verify        Verifier
 	WorkspaceRoot string // runs live under <root>/<run-id>
-	MaxRepairs    int    // bounded repair attempts on a failed feature before a checkpoint
+	MaxRepairs    int    // bounded agent retries before a checkpoint
 }
 
 // nodeOutput is what we persist per node (shown in the UI, summed for cost).
@@ -67,96 +62,134 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	ws := sandbox.Workspace{Dir: filepath.Join(d.WorkspaceRoot, c.RunID.String())}
 
 	switch c.Type {
-	case "scaffold":
-		return d.scaffold(ctx, c, ws)
-	case "feature":
-		return d.feature(ctx, c, ws)
-	case "config", "finalize":
-		return d.deterministic(ctx, c, ws)
+	case "import":
+		return d.doImport(ctx, c, ws)
+	case "understand":
+		return d.understand(ctx, c, ws)
+	case "testgen":
+		return d.testgen(ctx, c, ws)
+	case "verify":
+		return d.verify(ctx, c, ws)
+	case "review":
+		return d.review(ctx, c, ws)
 	default:
 		d.fail(ctx, c, "unknown node type: "+c.Type)
 		return true, nil
 	}
 }
 
-// scaffold produces the whole base app from the template — deterministically,
-// no model.
-func (d Deps) scaffold(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
+// doImport copies the target repo into the run workspace with a git baseline.
+func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	var sp struct {
-		Project string `json:"project"`
+		RepoPath string `json:"repo_path"`
 	}
 	_ = json.Unmarshal(c.Spec, &sp)
-	name := sp.Project
-	if name == "" {
-		name = "app"
-	}
-	if _, err := sandbox.Scaffold(ctx, d.WorkspaceRoot, c.RunID.String(), name, slugify(name)); err != nil {
-		d.fail(ctx, c, "scaffold: "+err.Error())
+	if sp.RepoPath == "" {
+		d.fail(ctx, c, "import: no repo_path in spec")
 		return true, nil
 	}
-	d.complete(ctx, c, nodeOutput{Kind: "scaffold", Summary: "scaffolded " + name + " from template ($0)"})
+	if _, err := sandbox.Import(ctx, d.WorkspaceRoot, c.RunID.String(), sp.RepoPath); err != nil {
+		d.fail(ctx, c, "import: "+err.Error())
+		return true, nil
+	}
+	d.complete(ctx, c, nodeOutput{Kind: "import", Summary: "imported " + filepath.Base(sp.RepoPath)})
 	return true, nil
 }
 
-// deterministic handles config/finalize — currently pass-through commits that
-// keep the graph moving with no model spend.
-func (d Deps) deterministic(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	d.complete(ctx, c, nodeOutput{Kind: c.Type, Summary: c.Type + " (deterministic)"})
+// understand drives a read-only agent to summarize the codebase and its flows,
+// writing the result to the run's notes.
+func (d Deps) understand(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
+	r, ok := d.runAgent(ctx, c, ws, understandTask, true)
+	if !ok {
+		return true, nil
+	}
+	_ = d.Store.PutNotes(ctx, c.RunID, "# Understanding\n\n"+r.Summary)
+	d.Log.Log(ctx, event(c, "understand.done", "wrote understanding + flows to notes"))
+	d.complete(ctx, c, nodeOutput{Kind: "understand", Summary: firstN(r.Summary, 140), CostUSD: r.CostUSD, Tokens: r.Tokens})
 	return true, nil
 }
 
-// feature drives the agent to add one resource, verifies, repairs (bounded),
-// and captures the diff.
-func (d Deps) feature(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	var res store.Resource
-	if err := json.Unmarshal(c.Spec, &res); err != nil || res.Name == "" {
-		d.fail(ctx, c, "feature node has no valid resource spec")
+// testgen drives the agent to write one test for an identified flow, grounded on
+// the understanding notes, then captures the new file(s).
+func (d Deps) testgen(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
+	notes, _ := d.Store.GetNotes(ctx, c.RunID)
+	r, ok := d.runAgent(ctx, c, ws, testgenTask(notes), false)
+	if !ok {
 		return true, nil
 	}
-	task := buildFeatureTask(res)
+	diff, _ := ws.Diff(ctx)
+	_ = ws.Commit(ctx, "testgen: add test")
+	d.complete(ctx, c, nodeOutput{
+		Kind: "testgen", Summary: r.Summary, CostUSD: r.CostUSD, Tokens: r.Tokens,
+		Changed: changedFiles(diff),
+	})
+	return true, nil
+}
 
+// verify runs the project's tests. Inverting the base's RED gate: the code
+// already exists, so a passing suite confirms behavior and a failing one is a
+// finding (never a node failure).
+func (d Deps) verify(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
+	name, args, ok := detectTestCmd(ws.Dir)
+	if !ok {
+		d.Log.Log(ctx, event(c, "verify.skip", "no test runner detected"))
+		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "no test runner detected"})
+		return true, nil
+	}
+	out, code, err := ws.Run(ctx, name, args...)
+	if err != nil {
+		d.fail(ctx, c, "verify run: "+err.Error())
+		return true, nil
+	}
+	if code == 0 {
+		d.Log.Log(ctx, event(c, "verify.pass", "tests passed — behavior confirmed"))
+		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests passed"})
+	} else {
+		d.Log.Log(ctx, event(c, "finding", "test failure: "+firstLine(out)))
+		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests failed — see findings"})
+	}
+	return true, nil
+}
+
+// review drives a read-only agent to flag bugs and best-practice misses,
+// appending them to the notes and emitting a finding event.
+func (d Deps) review(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
+	r, ok := d.runAgent(ctx, c, ws, reviewTask, true)
+	if !ok {
+		return true, nil
+	}
+	cur, _ := d.Store.GetNotes(ctx, c.RunID)
+	_ = d.Store.PutNotes(ctx, c.RunID, cur+"\n\n# Findings (review)\n\n"+r.Summary)
+	d.Log.Log(ctx, event(c, "finding", firstN(r.Summary, 140)))
+	d.complete(ctx, c, nodeOutput{Kind: "review", Summary: firstN(r.Summary, 140), CostUSD: r.CostUSD, Tokens: r.Tokens})
+	return true, nil
+}
+
+// runAgent runs the agent with bounded retries. On an infra error it fails the
+// node; on repeated agent-level failure it raises a checkpoint. Returns the
+// result and whether the caller should proceed.
+func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, bool) {
 	var last agent.Result
 	for attempt := 0; attempt <= d.MaxRepairs; attempt++ {
 		t := task
-		if attempt > 0 {
-			t = task + "\n\nThe previous attempt failed verification with:\n" + last.Err + "\nFix it."
+		if attempt > 0 && last.Err != "" {
+			t = task + "\n\nThe previous attempt failed with:\n" + last.Err + "\nTry again."
 		}
-		r, err := d.Agent.Run(ctx, ws, t)
+		r, err := d.Agent.Run(ctx, ws, t, readOnly)
 		if err != nil {
 			d.fail(ctx, c, "agent: "+err.Error())
-			return true, nil
+			return r, false
 		}
 		last = r
-		if !r.OK {
-			last.Err = r.Err
-			continue // repair
+		if r.OK {
+			return r, true
 		}
-		// Verify (build/boot). nil verifier = accept.
-		if d.Verify != nil {
-			if verr := d.Verify.Verify(ctx, ws); verr != nil {
-				last.Err = verr.Error()
-				d.Log.Log(ctx, event(c, "verify.fail", verr.Error()))
-				continue // repair
-			}
-			d.Log.Log(ctx, event(c, "verify.ok", "checks passed for "+res.Name))
-		}
-		// Success: capture diff, commit the node.
-		diff, _ := ws.Diff(ctx)
-		_ = ws.Commit(ctx, "feature: "+res.Name)
-		d.complete(ctx, c, nodeOutput{
-			Kind: "feature", Summary: r.Summary, CostUSD: r.CostUSD, Tokens: r.Tokens,
-			Changed: changedFiles(diff),
-		})
-		return true, nil
 	}
-
-	// Out of repair budget → hand to a human instead of burning more tokens.
-	q := fmt.Sprintf("feature %q failed verification after %d repair attempts: %s", res.Name, d.MaxRepairs, last.Err)
-	if _, err := d.Store.RaiseCheckpoint(ctx, c.RunID, c.ID, q, nil); err != nil {
-		return true, err
+	q := fmt.Sprintf("%s failed after %d attempts: %s", c.Type, d.MaxRepairs, last.Err)
+	if _, err := d.Store.RaiseCheckpoint(ctx, c.RunID, c.ID, q, nil); err == nil {
+		d.Log.Log(ctx, event(c, "checkpoint.raise", q))
 	}
-	d.Log.Log(ctx, event(c, "checkpoint.raise", q))
-	return true, nil
+	return last, false
 }
 
 func (d Deps) complete(ctx context.Context, c *queue.ClaimedNode, out nodeOutput) {
@@ -180,34 +213,51 @@ func event(c *queue.ClaimedNode, kind, msg string) events.Event {
 	return events.Event{RunID: c.RunID, NodeID: &nid, Kind: kind, Msg: msg}
 }
 
-// buildFeatureTask renders the agent instruction for one resource, leaning on
-// the template's Item exemplar + CLAUDE.md conventions.
-func buildFeatureTask(res store.Resource) string {
-	var fields strings.Builder
-	for i, f := range res.Fields {
-		if i > 0 {
-			fields.WriteString(", ")
-		}
-		typ := f.Type
-		if typ == "" {
-			typ = "string"
-		}
-		fields.WriteString(f.Name + " (" + typ + ")")
+// --- prompts ---
+
+const understandTask = "Read this codebase and explain, as concise markdown: " +
+	"(1) what the project does, (2) its high-level architecture and main components, " +
+	"(3) the key user and data flows you can identify — name the real files each flow touches. " +
+	"Do NOT modify any files; your final message IS the analysis."
+
+const reviewTask = "Review this codebase for real bugs, correctness issues, and clear " +
+	"best-practice violations. Output a concise markdown list; for each finding give the " +
+	"file, the problem, and a severity (high/medium/low). Do NOT modify any files; your " +
+	"final message IS the report."
+
+func testgenTask(notes string) string {
+	ctx := ""
+	if strings.TrimSpace(notes) != "" {
+		ctx = "Here is an understanding of this codebase:\n\n" + notes + "\n\n"
 	}
-	if fields.Len() == 0 {
-		fields.WriteString("name (string)")
-	}
-	// Natural in tone, but names the reference locations so the agent doesn't burn
-	// time discovering them — mirror Item, adapt for this resource, use judgment
-	// on the details. (Open-ended "go study the repo" prompts explore for minutes.)
-	return fmt.Sprintf(
-		"Add a new feature to this app: a workspace-scoped %q resource with fields %s.\n\n"+
-			"Mirror the existing \"Item\" feature as the pattern — it lives at backend/src/models/item.model.js, "+
-			"backend/src/routes/v1/item/, and frontend/src/views/Item/, and is wired via backend/src/models/index.js, "+
-			"backend/src/routes/v1/index.js, the deleteWorkspace cascade, and the frontend endpoints/servicesApi/routes/nav. "+
-			"Adapt it for %q, following CLAUDE.md. Use your judgment on the details; don't add tests.",
-		res.Name, fields.String(), res.Name)
+	return ctx + "Pick the single most important flow and write ONE focused test that " +
+		"exercises it, in the project's existing test style/framework. Create a NEW test " +
+		"file; do NOT modify existing source files. Keep it runnable."
 }
+
+// --- test-runner detection ---
+
+// detectTestCmd picks a test command from the workspace's project markers.
+// ponytail: naive marker sniffing — the calibration knob for real repos. Extend
+// the table (or read package.json scripts) when a target needs something else.
+func detectTestCmd(dir string) (string, []string, bool) {
+	switch {
+	case fileExists(filepath.Join(dir, "package.json")):
+		return "npm", []string{"test", "--silent"}, true
+	case fileExists(filepath.Join(dir, "go.mod")):
+		return "go", []string{"test", "./..."}, true
+	case fileExists(filepath.Join(dir, "pytest.ini")), fileExists(filepath.Join(dir, "pyproject.toml")):
+		return "pytest", []string{"-q"}, true
+	}
+	return "", nil, false
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// --- small helpers ---
 
 var diffFileRe = regexp.MustCompile(`(?m)^diff --git a/(\S+) b/`)
 
@@ -220,10 +270,17 @@ func changedFiles(diff string) []string {
 	return out
 }
 
-var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
 
-func slugify(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	s = nonAlnum.ReplaceAllString(s, "-")
-	return strings.Trim(s, "-")
+func firstN(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }

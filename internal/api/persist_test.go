@@ -69,7 +69,7 @@ func TestSteerEndpoint(t *testing.T) {
 		t.Fatalf("steer want 202, got %d", resp.StatusCode)
 	}
 	var n int
-	s.Pool().QueryRow(ctx, `SELECT count(*) FROM events WHERE run_id=$1 AND kind='steer'`, run).Scan(&n)
+	s.DB().QueryRowContext(ctx, `SELECT count(*) FROM events WHERE run_id=? AND kind='steer'`, run).Scan(&n)
 	if n != 1 {
 		t.Fatalf("expected 1 steer event, got %d", n)
 	}

@@ -2,9 +2,7 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"myaudit/internal/agent"
@@ -24,60 +22,29 @@ type realAgent struct {
 	image   string
 }
 
-func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string) (agent.Result, error) {
+func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
+	allow, deny := agent.DefaultAllow, agent.DefaultDeny
+	if readOnly {
+		allow, deny = agent.ReadOnlyAllow, agent.ReadOnlyDeny
+	}
 	return agent.Run(ctx, ws, task, agent.Options{
 		Model:   a.model,
-		Allow:   agent.DefaultAllow,
-		Deny:    agent.DefaultDeny,
+		Allow:   allow,
+		Deny:    deny,
 		Isolate: a.isolate,
 		Image:   a.image,
 	})
 }
 
 // stubAgent is the $0 dev runner: it reports success without calling a model, so
-// the UI/graph can be exercised without spending tokens. (Scaffold still runs
-// for real — it's deterministic and free.)
+// the UI/graph can be exercised without spending tokens.
 type stubAgent struct{}
 
-func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string) (agent.Result, error) {
-	return agent.Result{OK: true, Summary: "[stub] feature skipped (dev mode)"}, nil
+func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
+	return agent.Result{OK: true, Summary: "[stub] node skipped (dev mode)"}, nil
 }
 
-// syntaxVerifier is a real, fast, DB-free gate: every backend .js file must pass
-// `node --check`. Catches an agent breaking the code. (Fuller build/boot
-// verification can layer on later.)
-type syntaxVerifier struct{}
-
-func (syntaxVerifier) Verify(ctx context.Context, ws sandbox.Workspace) error {
-	// Only check what this node changed — fast, and we don't re-validate the
-	// (already-good) template on every run.
-	changed, err := ws.ChangedPaths(ctx)
-	if err != nil {
-		return nil // can't determine changes → don't block
-	}
-	var bad []string
-	for _, rel := range changed {
-		if !strings.HasSuffix(rel, ".js") || !strings.HasPrefix(rel, "backend/") {
-			continue // node --check is for backend JS; skip frontend/JSX/etc.
-		}
-		if out, code, _ := ws.Run(ctx, "node", "--check", rel); code != 0 {
-			bad = append(bad, rel+": "+firstLine(out))
-		}
-	}
-	if len(bad) > 0 {
-		return fmt.Errorf("syntax check failed: %s", strings.Join(bad, "; "))
-	}
-	return nil
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
-}
-
-// NewRealDeps drives feature nodes with the REAL claude agent + a real verifier.
+// NewRealDeps drives nodes with the REAL Claude Code agent.
 func NewRealDeps(s *store.Store) worker.Deps {
 	model := os.Getenv("CLAUDE_MODEL")
 	if model == "" {
@@ -90,16 +57,15 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         realAgent{model: model, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image},
-		Verify:        syntaxVerifier{},
 		WorkspaceRoot: "runs", MaxRepairs: 2,
 	}
 }
 
-// NewStubDeps drives feature nodes with the $0 stub agent (dev/UI mode).
+// NewStubDeps drives nodes with the $0 stub agent (dev/UI mode).
 func NewStubDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
-		Agent: stubAgent{}, Verify: nil,
+		Agent:         stubAgent{},
 		WorkspaceRoot: "runs", MaxRepairs: 0,
 	}
 }

@@ -2,8 +2,6 @@ package worker
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,18 +14,18 @@ import (
 	"myaudit/internal/store"
 )
 
-// recordingAgent fakes the generation seam: records calls, optionally writes a
-// file into the workspace, returns a configured Result. (Real claude is
-// exercised in the agent package's integration test, per "no mock in the real
-// generation path" — this is dispatch-logic testing.)
+// recordingAgent fakes the Claude Code seam: records calls + the readOnly flag,
+// optionally writes a file into the workspace, returns a configured Result.
 type recordingAgent struct {
-	calls     int
-	result    agent.Result
-	writeFile string
+	calls        int
+	lastReadOnly bool
+	result       agent.Result
+	writeFile    string
 }
 
-func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string) (agent.Result, error) {
+func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
 	f.calls++
+	f.lastReadOnly = readOnly
 	if f.writeFile != "" {
 		p := filepath.Join(ws.Dir, f.writeFile)
 		os.MkdirAll(filepath.Dir(p), 0o755)
@@ -36,22 +34,24 @@ func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task str
 	return f.result, nil
 }
 
-type fakeVerifier struct{ err error }
+func newStore(t *testing.T) *store.Store {
+	t.Helper()
+	s, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "w.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	return s
+}
 
-func (v fakeVerifier) Verify(ctx context.Context, ws sandbox.Workspace) error { return v.err }
-
-// --- pure-unit tests (no DB) ---
-
-func TestBuildFeatureTask(t *testing.T) {
-	task := buildFeatureTask(store.Resource{Name: "Invoice", Fields: []store.Field{{Name: "amount", Type: "number"}}})
-	// Natural prompt: carries the resource + fields and points at the in-repo
-	// reference (Item) + CLAUDE.md, without a rigid file checklist.
-	for _, want := range []string{"Invoice", "amount (number)", "Item", "CLAUDE.md"} {
-		if !strings.Contains(task, want) {
-			t.Fatalf("task missing %q:\n%s", want, task)
-		}
+func newDeps(s *store.Store, a Agent, root string) Deps {
+	return Deps{
+		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
+		Agent: a, WorkspaceRoot: root, MaxRepairs: 2,
 	}
 }
+
+// --- pure-unit tests ---
 
 func TestChangedFiles(t *testing.T) {
 	d := "diff --git a/src/x.js b/src/x.js\n@@\n+a\ndiff --git a/src/y.js b/src/y.js\n@@\n+b\n"
@@ -61,77 +61,59 @@ func TestChangedFiles(t *testing.T) {
 	}
 }
 
-func TestSlugify(t *testing.T) {
-	for in, want := range map[string]string{"My App!": "my-app", "Lumen": "lumen", "  a  b  ": "a-b"} {
-		if got := slugify(in); got != want {
-			t.Fatalf("slugify(%q)=%q want %q", in, got, want)
-		}
+func TestDetectTestCmd(t *testing.T) {
+	node := t.TempDir()
+	os.WriteFile(filepath.Join(node, "package.json"), []byte("{}"), 0o644)
+	if name, _, ok := detectTestCmd(node); !ok || name != "npm" {
+		t.Fatalf("npm: %s ok=%v", name, ok)
+	}
+	golang := t.TempDir()
+	os.WriteFile(filepath.Join(golang, "go.mod"), []byte("module x"), 0o644)
+	if name, _, ok := detectTestCmd(golang); !ok || name != "go" {
+		t.Fatalf("go: %s ok=%v", name, ok)
+	}
+	if _, _, ok := detectTestCmd(t.TempDir()); ok {
+		t.Fatal("empty dir should have no runner")
 	}
 }
 
-// --- DB-backed dispatch tests ---
+// --- DB-backed dispatch tests (SQLite) ---
 
-func TestFeatureCompletesOnAgentOKAndVerifyPass(t *testing.T) {
-	u := os.Getenv("TEST_DATABASE_URL")
-	if u == "" {
-		t.Skip("no db")
-	}
+func TestUnderstandWritesNotesReadOnly(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.Open(ctx, u)
-	defer s.Close()
-	s.Pool().Exec(ctx, `TRUNCATE runs, nodes, events, checkpoints RESTART IDENTITY CASCADE`)
-
+	s := newStore(t)
 	run, _ := s.CreateRun(ctx, "proj")
-	nid, _ := s.AddNode(ctx, run, "feature", nil)
-	spec, _ := json.Marshal(store.Resource{Name: "Project", Fields: []store.Field{{Name: "title", Type: "string"}}})
-	s.Pool().Exec(ctx, `UPDATE nodes SET status='ready', input_snapshot=$2 WHERE id=$1`, nid, spec)
+	nid, _ := s.AddNode(ctx, run, "understand", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
 
-	fa := &recordingAgent{result: agent.Result{OK: true, Summary: "added Project", CostUSD: 0.02, Tokens: 100}, writeFile: "backend/src/models/project.model.js"}
-	deps := Deps{
-		Store: s, Queue: queue.New(s.Pool()), Log: events.New(s.Pool()),
-		Agent: fa, Verify: fakeVerifier{nil}, WorkspaceRoot: t.TempDir(), MaxRepairs: 2,
-	}
-	if _, err := RunOnce(ctx, deps); err != nil {
+	fa := &recordingAgent{result: agent.Result{OK: true, Summary: "does X. Flow: login → session"}}
+	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
-	if fa.calls != 1 {
-		t.Fatalf("agent should run once, got %d", fa.calls)
+	if fa.calls != 1 || !fa.lastReadOnly {
+		t.Fatalf("understand should call agent once read-only: calls=%d ro=%v", fa.calls, fa.lastReadOnly)
 	}
-	n, _ := s.GetNode(ctx, nid)
-	if n.Status != "done" {
+	if n, _ := s.GetNode(ctx, nid); n.Status != "done" {
 		t.Fatalf("status=%s", n.Status)
 	}
+	notes, _ := s.GetNotes(ctx, run)
+	if !strings.Contains(notes, "does X") {
+		t.Fatalf("notes missing understanding: %q", notes)
+	}
 }
 
-func TestFeatureRepairsThenCheckpoint(t *testing.T) {
-	u := os.Getenv("TEST_DATABASE_URL")
-	if u == "" {
-		t.Skip("no db")
-	}
+func TestVerifySkipsWhenNoRunner(t *testing.T) {
 	ctx := context.Background()
-	s, _ := store.Open(ctx, u)
-	defer s.Close()
-	s.Pool().Exec(ctx, `TRUNCATE runs, nodes, events, checkpoints RESTART IDENTITY CASCADE`)
-
+	s := newStore(t)
 	run, _ := s.CreateRun(ctx, "proj")
-	nid, _ := s.AddNode(ctx, run, "feature", nil)
-	spec, _ := json.Marshal(store.Resource{Name: "Project"})
-	s.Pool().Exec(ctx, `UPDATE nodes SET status='ready', input_snapshot=$2 WHERE id=$1`, nid, spec)
+	nid, _ := s.AddNode(ctx, run, "verify", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
 
-	fa := &recordingAgent{result: agent.Result{OK: true, Summary: "tried"}}
-	deps := Deps{
-		Store: s, Queue: queue.New(s.Pool()), Log: events.New(s.Pool()),
-		Agent: fa, Verify: fakeVerifier{errors.New("build broke")}, WorkspaceRoot: t.TempDir(), MaxRepairs: 2,
-	}
-	if _, err := RunOnce(ctx, deps); err != nil {
+	// Workspace dir has no project markers → verify skips (still completes).
+	if _, err := RunOnce(ctx, newDeps(s, &recordingAgent{}, t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
-	if fa.calls != 3 { // initial + 2 repairs
-		t.Fatalf("agent should run MaxRepairs+1=3 times, got %d", fa.calls)
-	}
-	var ev int
-	s.Pool().QueryRow(ctx, `SELECT count(*) FROM events WHERE node_id=$1 AND kind='checkpoint.raise'`, nid).Scan(&ev)
-	if ev < 1 {
-		t.Fatal("expected a checkpoint after exhausting repairs")
+	if n, _ := s.GetNode(ctx, nid); n.Status != "done" {
+		t.Fatalf("verify should complete, status=%s", n.Status)
 	}
 }

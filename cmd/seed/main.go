@@ -28,11 +28,12 @@ func main() {
 	}
 	defer s.Close()
 
-	run, ids, err := s.CreateGraph(ctx, "acme-saas", []store.TaskSpec{
-		{Key: "scaffold", Type: "scaffold"},
-		{Key: "schema", Type: "implement", DepKeys: []string{"scaffold"}},
-		{Key: "auth", Type: "implement", DepKeys: []string{"schema"}},
-		{Key: "landing", Type: "implement", DepKeys: []string{"auth"}},
+	run, ids, err := s.CreateGraph(ctx, "demo-repo", []store.TaskSpec{
+		{Key: "import", Type: "import", Spec: map[string]any{"repo_path": "/path/to/demo-repo"}},
+		{Key: "understand", Type: "understand", DepKeys: []string{"import"}},
+		{Key: "testgen", Type: "testgen", DepKeys: []string{"understand"}},
+		{Key: "verify", Type: "verify", DepKeys: []string{"testgen"}},
+		{Key: "review", Type: "review", DepKeys: []string{"understand"}},
 	})
 	if err != nil {
 		slog.Error("graph", "err", err)
@@ -41,10 +42,11 @@ func main() {
 	set := func(key, status string) {
 		s.DB().ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, ids[key])
 	}
-	set("scaffold", "done")
-	set("schema", "done")
-	set("auth", "running")
-	set("landing", "pending")
+	set("import", "done")
+	set("understand", "done")
+	set("testgen", "running")
+	set("verify", "pending")
+	set("review", "running")
 
 	log := events.New(s.DB())
 	ev := func(node, kind, msg string) {
@@ -55,14 +57,13 @@ func main() {
 		}
 		log.Log(ctx, events.Event{RunID: run, NodeID: np, Kind: kind, Msg: msg})
 	}
-	ev("", "run.start", "acme-saas — Fastify + MongoDB")
-	ev("scaffold", "node.start", "init-project.js")
-	ev("scaffold", "node.end", "env seeded, git reset")
-	ev("schema", "node.start", "workspaces + RBAC models")
-	ev("schema", "node.end", "GREEN 5/5")
-	ev("auth", "node.start", "JWT + Google OAuth")
-	ev("auth", "gate.red", "genuine: reset.expired failed on empty impl")
-	ev("auth", "checkpoint.raise", "Confirm Google-only sign-in?")
+	ev("", "run.start", "demo-repo — importing codebase")
+	ev("import", "node.end", "copied repo into workspace")
+	ev("understand", "node.start", "reading codebase")
+	ev("understand", "understand.done", "wrote understanding + flows to notes")
+	ev("testgen", "node.start", "writing a test for the login flow")
+	ev("review", "finding", "auth: password compared with == (timing leak) — high")
 
+	_ = s.PutNotes(ctx, run, "# Understanding\n\nDemo notes: a small web app with a login flow.\n")
 	fmt.Println("seeded run:", run)
 }

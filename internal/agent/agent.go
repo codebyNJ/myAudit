@@ -41,6 +41,23 @@ var DefaultDeny = []string{
 	"WebFetch", "WebSearch",
 }
 
+// ReadOnlyAllow is the tool policy for comprehension/review nodes: the agent may
+// explore the imported codebase but never mutate it. No Write/Edit, no git,
+// only read-shaped Bash.
+var ReadOnlyAllow = []string{
+	"Read", "Glob", "Grep",
+	"Bash(cat:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(rg:*)",
+	"Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(sed:*)",
+}
+
+// ReadOnlyDeny blocks all mutation (files, git) and network egress for
+// read-only nodes.
+var ReadOnlyDeny = []string{
+	"Write", "Edit", "MultiEdit", "NotebookEdit",
+	"Bash(rm:*)", "Bash(sudo:*)", "Bash(git:*)", "Bash(npm:*)", "Bash(mv:*)", "Bash(cp:*)",
+	"WebFetch", "WebSearch",
+}
+
 // Options configure the claude invocation.
 type Options struct {
 	Model          string   // e.g. "claude-haiku-4-5-20251001"

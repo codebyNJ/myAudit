@@ -82,43 +82,34 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	})
 
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
-		var cfg struct {
-			Project   string           `json:"project"`
-			Tenancy   string           `json:"tenancy"` // multi | single (template default: multi)
-			Cache     string           `json:"cache"`   // off | shadow | on
-			Resources []store.Resource `json:"resources"`
+		var body struct {
+			RepoPath string `json:"repo_path"`
+			Project  string `json:"project"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil || cfg.Project == "" {
-			http.Error(w, "project required", 400)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RepoPath == "" {
+			http.Error(w, "repo_path required", 400)
 			return
 		}
-		// New graph: the template already IS the base app (auth, tenancy, workspaces,
-		// RBAC, cache, frontend) — produced for $0 by the scaffold node. The agent is
-		// invoked only per requested domain resource (the per-project delta).
-		//   scaffold(deterministic) → config(deterministic) → feature:<R>(agent)… → finalize
+		if info, err := os.Stat(body.RepoPath); err != nil || !info.IsDir() {
+			http.Error(w, "repo_path is not a directory", 400)
+			return
+		}
+		project := body.Project
+		if project == "" {
+			project = filepath.Base(strings.TrimRight(body.RepoPath, "/"))
+		}
+		// The audit graph: import the repo, understand it, then in parallel write a
+		// test for a key flow (→ verify) and review it for bugs/best-practice misses.
+		//   import → understand → testgen → verify
+		//                      └→ review
 		specs := []store.TaskSpec{
-			{Key: "scaffold", Type: "scaffold", Spec: map[string]any{"project": cfg.Project}},
-			{Key: "config", Type: "config", DepKeys: []string{"scaffold"},
-				Spec: map[string]any{"tenancy": cfg.Tenancy, "cache": cfg.Cache}},
+			{Key: "import", Type: "import", Spec: map[string]any{"repo_path": body.RepoPath}},
+			{Key: "understand", Type: "understand", DepKeys: []string{"import"}},
+			{Key: "testgen", Type: "testgen", DepKeys: []string{"understand"}},
+			{Key: "verify", Type: "verify", DepKeys: []string{"testgen"}},
+			{Key: "review", Type: "review", DepKeys: []string{"understand"}},
 		}
-		featureKeys := []string{}
-		for _, res := range cfg.Resources {
-			if res.Name == "" {
-				continue
-			}
-			key := "feature_" + res.Name
-			featureKeys = append(featureKeys, key)
-			specs = append(specs, store.TaskSpec{
-				Key: key, Type: "feature", DepKeys: []string{"config"}, Spec: res,
-			})
-		}
-		// finalize depends on every feature (or config if none) so it runs last.
-		finalizeDeps := featureKeys
-		if len(finalizeDeps) == 0 {
-			finalizeDeps = []string{"config"}
-		}
-		specs = append(specs, store.TaskSpec{Key: "finalize", Type: "finalize", DepKeys: finalizeDeps})
-		run, _, err := s.CreateGraph(r.Context(), cfg.Project, specs)
+		run, _, err := s.CreateGraph(r.Context(), project, specs)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return

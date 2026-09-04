@@ -1,7 +1,7 @@
-// Package sandbox creates a per-run project workspace by copying the
-// battle-tested template and running its own deterministic init script. No
-// model is involved here — this is the $0 scaffold path that produces the
-// entire base app (auth, tenancy, workspaces, RBAC, cache, frontend).
+// Package sandbox creates a per-run workspace by copying an imported codebase
+// into an isolated directory with a committed git baseline. All node work
+// (understanding, test generation, review) happens on this copy, never the
+// user's original repo.
 package sandbox
 
 import (
@@ -14,35 +14,25 @@ import (
 	"strings"
 )
 
-// Workspace is a scaffolded project directory for one run.
+// Workspace is a per-run working copy of an imported codebase.
 type Workspace struct{ Dir string }
 
-// excludeDirs are skipped when copying the template — VCS metadata and heavy
-// build artifacts we never want in a fresh scaffold.
+// excludeDirs are skipped when copying a repo — VCS metadata and heavy build
+// artifacts we never want in the working copy.
 var excludeDirs = map[string]bool{".git": true, "node_modules": true, "dist": true, "build": true, ".next": true}
 
-// Scaffold copies TEMPLATE_PATH into <root>/<runID> (skipping excludeDirs), then
-// runs the template's own scripts/init-project.js to rewrite the default
-// identity (Acme→name / acme→slug), seed backend/.env, and initialize git.
-// Returns the workspace with a committed HEAD baseline for per-node diffs.
-func Scaffold(ctx context.Context, root, runID, name, slug string) (Workspace, error) {
-	tmpl := os.Getenv("TEMPLATE_PATH")
-	if tmpl == "" {
-		return Workspace{}, fmt.Errorf("TEMPLATE_PATH not set")
+// Import copies the repo at src into <root>/<runID> (skipping excludeDirs) and
+// gives it a single committed baseline so per-node git diffs have a clean start.
+// The user's original repo is never touched.
+func Import(ctx context.Context, root, runID, src string) (Workspace, error) {
+	info, err := os.Stat(src)
+	if err != nil || !info.IsDir() {
+		return Workspace{}, fmt.Errorf("import source %q is not a directory", src)
 	}
 	dir := filepath.Join(root, runID)
-	if err := copyDir(tmpl, dir); err != nil {
-		return Workspace{}, fmt.Errorf("copy template: %w", err)
+	if err := copyDir(src, dir); err != nil {
+		return Workspace{}, fmt.Errorf("copy repo: %w", err)
 	}
-	// The template ships a zero-dependency initializer; run it in the copy.
-	cmd := exec.CommandContext(ctx, "node", "scripts/init-project.js", name, slug)
-	cmd.Dir = dir
-	cmd.Stdin = nil
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return Workspace{}, fmt.Errorf("init-project: %v: %s", err, out)
-	}
-	// init-project resets git and commits, but git identity may be unset (CI).
-	// Guarantee a committed HEAD so per-node git diffs have a baseline.
 	if err := ensureGitBaseline(ctx, dir); err != nil {
 		return Workspace{}, err
 	}
@@ -113,16 +103,15 @@ func (w Workspace) Commit(ctx context.Context, msg string) error {
 	return nil
 }
 
-// ensureGitBaseline makes the workspace a single clean commit of the exact
-// post-scaffold tree. init-project.js commits and then deletes itself, leaving
-// a dirty tree; rather than depend on its git state, we reset to one baseline
-// commit so a fresh scaffold has an empty diff.
+// ensureGitBaseline makes the workspace a single clean commit of the imported
+// tree, so a node's Diff starts from an empty delta regardless of the source
+// repo's own git state.
 func ensureGitBaseline(ctx context.Context, dir string) error {
 	_ = os.RemoveAll(filepath.Join(dir, ".git"))
 	steps := [][]string{
 		{"-C", dir, "init", "-q"},
 		{"-C", dir, "add", "-A"},
-		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myIntern", "commit", "-q", "-m", "scaffold baseline"},
+		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myaudit", "commit", "-q", "-m", "import baseline"},
 	}
 	for _, args := range steps {
 		if out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput(); err != nil {

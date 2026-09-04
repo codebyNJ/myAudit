@@ -9,22 +9,26 @@ import (
 	"testing"
 )
 
-func TestScaffoldCopiesTemplateAndInits(t *testing.T) {
-	if os.Getenv("TEMPLATE_PATH") == "" {
-		t.Skip("TEMPLATE_PATH not set (real template required — no mocks)")
-	}
-	ws, err := Scaffold(context.Background(), t.TempDir(), "run1", "Lumen", "lumen")
+// makeRepo builds a small source repo to import: a file, plus a node_modules
+// dir that must be excluded from the copy.
+func makeRepo(t *testing.T) string {
+	t.Helper()
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "main.go"), []byte("package main"), 0o644)
+	os.MkdirAll(filepath.Join(src, "node_modules", "foo"), 0o755)
+	os.WriteFile(filepath.Join(src, "node_modules", "foo", "x.js"), []byte("x"), 0o644)
+	return src
+}
+
+func TestImportCopiesAndBaselines(t *testing.T) {
+	ws, err := Import(context.Background(), t.TempDir(), "run1", makeRepo(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(ws.Dir, "backend/src/server.js")); err != nil {
-		t.Fatalf("missing server.js: %v", err)
+	if _, err := os.Stat(filepath.Join(ws.Dir, "main.go")); err != nil {
+		t.Fatalf("main.go not copied: %v", err)
 	}
-	b, _ := os.ReadFile(filepath.Join(ws.Dir, "package.json"))
-	if strings.Contains(string(b), `"acme"`) {
-		t.Fatalf("identity not rewritten, still contains acme: %s", b)
-	}
-	if _, err := os.Stat(filepath.Join(ws.Dir, "frontend/node_modules")); err == nil {
+	if _, err := os.Stat(filepath.Join(ws.Dir, "node_modules")); err == nil {
 		t.Fatal("node_modules should have been excluded from the copy")
 	}
 	if out, err := exec.Command("git", "-C", ws.Dir, "rev-parse", "HEAD").Output(); err != nil || len(out) == 0 {
@@ -32,22 +36,23 @@ func TestScaffoldCopiesTemplateAndInits(t *testing.T) {
 	}
 }
 
-func TestRunAndDiffCapture(t *testing.T) {
-	if os.Getenv("TEMPLATE_PATH") == "" {
-		t.Skip("TEMPLATE_PATH not set")
+func TestImportRejectsMissingSource(t *testing.T) {
+	if _, err := Import(context.Background(), t.TempDir(), "run0", "/no/such/dir"); err == nil {
+		t.Fatal("import of a missing directory should error")
 	}
-	ws, err := Scaffold(context.Background(), t.TempDir(), "run2", "Lumen", "lumen")
+}
+
+func TestRunAndDiffCapture(t *testing.T) {
+	ctx := context.Background()
+	ws, err := Import(ctx, t.TempDir(), "run2", makeRepo(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
-
-	// A fresh scaffold has a committed baseline → no diff.
+	// A fresh import has a committed baseline → no diff.
 	if d, err := ws.Diff(ctx); err != nil || strings.TrimSpace(d) != "" {
-		t.Fatalf("expected empty diff on fresh scaffold, got %q (err %v)", d, err)
+		t.Fatalf("expected empty diff on fresh import, got %q (err %v)", d, err)
 	}
-
-	// Run a command that changes the tree; the diff must reflect it.
+	// A change shows up in the diff.
 	if _, code, err := ws.Run(ctx, "sh", "-c", "echo hi > NEWFILE.txt"); err != nil || code != 0 {
 		t.Fatalf("run failed: code=%d err=%v", code, err)
 	}
@@ -55,7 +60,6 @@ func TestRunAndDiffCapture(t *testing.T) {
 	if err != nil || !strings.Contains(d, "NEWFILE.txt") {
 		t.Fatalf("diff should mention NEWFILE.txt, got %q (err %v)", d, err)
 	}
-
 	// After committing the node, the diff resets to empty.
 	if err := ws.Commit(ctx, "node: add NEWFILE"); err != nil {
 		t.Fatal(err)
@@ -64,4 +68,3 @@ func TestRunAndDiffCapture(t *testing.T) {
 		t.Fatalf("expected empty diff after commit, got %q (err %v)", d, err)
 	}
 }
-
