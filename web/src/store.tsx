@@ -12,6 +12,8 @@ type Store = {
   loadingDetail: boolean
   tab: Tab
   file: string | null
+  openFiles: string[]
+  closeFile: (p: string) => void
   toasts: Toast[]
   newOpen: boolean
   setNewOpen: (v: boolean) => void
@@ -40,7 +42,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState<RunDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [tab, setTab] = useState<Tab>('kanban')
-  const [file, setFile] = useState<string | null>(null)
+  const [file, setFileState] = useState<string | null>(null)
+  const [openFiles, setOpenFiles] = useState<string[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
   const [newOpen, setNewOpen] = useState(false)
   const [explorerOpen, setExplorerOpen] = useState(true)
@@ -94,13 +97,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const visibleFiles = detail?.files || []
 
+  // Opening a file activates it and adds it to the open-tabs list (VSCode-style).
+  const setFile = useCallback((p: string) => {
+    setFileState(p || null)
+    if (p) setOpenFiles((o) => (o.includes(p) ? o : [...o, p]))
+  }, [])
+  // Closing a tab drops it; if it was active, activate the neighbour.
+  const closeFile = useCallback((p: string) => {
+    setOpenFiles((o) => {
+      const i = o.indexOf(p)
+      const next = o.filter((x) => x !== p)
+      setFileState((cur) => (cur === p ? (next[i] ?? next[i - 1] ?? null) : cur))
+      return next
+    })
+  }, [])
+  const clearFiles = useCallback(() => { setFileState(null); setOpenFiles([]) }, [])
+
   const store: Store = {
-    runs, runId, detail, visibleFiles, loadingDetail, tab, file, toasts, newOpen, setNewOpen,
+    runs, runId, detail, visibleFiles, loadingDetail, tab, file, openFiles, closeFile, toasts, newOpen, setNewOpen,
     explorerOpen, toggleExplorer: () => setExplorerOpen((v) => !v),
     explorerW, setExplorerW,
     setTab,
-    setRun: (id) => { setRunId(id); setNewOpen(false); setFile(null); setTab('kanban') },
-    goHome: () => { setRunId(null); setNewOpen(false); setFile(null) },
+    setRun: (id) => { setRunId(id); setNewOpen(false); clearFiles(); setTab('kanban') },
+    goHome: () => { setRunId(null); setNewOpen(false); clearFiles() },
     setFile, toast, dismiss,
     refresh: () => { loadRuns(); if (runId) loadDetail(runId, true) },
     reloadDetail: () => { if (runId) loadDetail(runId, false) },
@@ -108,7 +127,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const { id } = await api.createRun(b)
         toast('success', 'Audit started', b.project || b.repo_path)
-        await loadRuns(); setRunId(id); setNewOpen(false); setFile(null); setTab('kanban'); return true
+        await loadRuns(); setRunId(id); setNewOpen(false); clearFiles(); setTab('kanban'); return true
       } catch (e) { toast('error', 'Could not start audit', (e as Error).message); return false }
     },
     resolveCheckpoint: async (id, answer) => {

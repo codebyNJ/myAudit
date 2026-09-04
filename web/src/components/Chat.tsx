@@ -25,7 +25,7 @@ export function Chat() {
     <div className="chatlayer">
       <div className="bubbles">
         <div className="mb-agent">
-          <div className="agent-header"><div className="agent-icon" style={{ background: 'transparent', width: 20, height: 20 }}><AgentAvatar size={20} /></div>myIntern</div>
+          <div className="agent-header"><div className="agent-icon" style={{ background: 'transparent', width: 20, height: 20 }}><AgentAvatar size={20} /></div>myAudit</div>
 
           {events.length > 0 && (
             <div className="thinking-trace" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
@@ -50,8 +50,8 @@ export function Chat() {
               </div>
             : <div className="agent-reply">
                 {project
-                  ? <>Scaffolding <b>{project}</b> from the template, then wiring up your features. Ask me anything as it builds.</>
-                  : <>Hi — I'm your coding intern. Head to <b>Config</b> to start a project, then I'll build it here.</>}
+                  ? <>Auditing <b>{project}</b> — reading the code, mapping flows, generating a test, and reviewing for bugs. Ask me anything about it.</>
+                  : <>Hi — I audit codebases. Import a repo from the home screen and I'll interrogate it here.</>}
               </div>}
         </div>
       </div>

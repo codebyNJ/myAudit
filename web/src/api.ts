@@ -7,6 +7,7 @@ export type FileEntry = { path: string; content?: string; action?: string; chang
 export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number }
 export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string }
 export type CreateRunBody = { repo_path: string; project?: string }
+export type SearchHit = { path: string; line: number; text: string }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(path, opts)
@@ -32,6 +33,13 @@ export const api = {
     req<void>('/api/runs/' + id + '/steer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
   review: (id: string, path: string, status: 'accepted' | 'rejected') =>
     req<void>('/api/runs/' + id + '/review', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, status }) }),
+  search: (id: string, q: string) => req<SearchHit[]>('/api/runs/' + id + '/search?q=' + encodeURIComponent(q)),
+  newFile: (id: string, path: string, dir = false) =>
+    req<void>('/api/runs/' + id + '/file/new', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, dir }) }),
+  renameFile: (id: string, from: string, to: string) =>
+    req<void>('/api/runs/' + id + '/file/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from, to }) }),
+  deleteFile: (id: string, path: string) =>
+    req<void>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path), { method: 'DELETE' }),
   getSettings: () => req<Record<string, unknown>>('/api/settings'),
   putSettings: (patch: Record<string, unknown>) =>
     req<Record<string, unknown>>('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),

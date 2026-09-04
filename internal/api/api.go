@@ -175,6 +175,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		full := filepath.Join("runs", id.String(), clean)
+		_ = os.MkdirAll(filepath.Dir(full), 0o755) // allow saving into a new nested path
 		if err := os.WriteFile(full, []byte(b.Content), 0o644); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -302,6 +303,8 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		}
 		writeJSON(w, merged)
 	})
+
+	registerFileOps(mux, s)
 
 	if static != nil {
 		mux.Handle("GET /", static)

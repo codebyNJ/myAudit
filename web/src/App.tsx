@@ -3,6 +3,7 @@ import { StoreProvider, useStore } from './store'
 import { Header } from './components/Header'
 import { Explorer } from './components/Explorer'
 import { Toasts } from './components/Toasts'
+import { Palette } from './components/Palette'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
@@ -84,6 +85,7 @@ export default function App() {
     <StoreProvider>
       {booting && <Splash onDone={() => { sessionStorage.setItem('seen-splash', '1'); setBooting(false) }} />}
       <AppInner />
+      <Palette />
       <Toasts />
     </StoreProvider>
   )

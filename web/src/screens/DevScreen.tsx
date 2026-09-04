@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { IcFile } from '../components/icons'
 import { Chat } from '../components/Chat'
 import { Code } from '../components/Code'
+
+const baseName = (p: string) => p.split('/').pop() || p
 
 export function DevScreen() {
   const s = useStore()
@@ -65,6 +68,17 @@ export function DevScreen() {
   return (
     <>
       <div className="editor">
+        {s.openFiles.length > 0 && (
+          <div className="ed-tabs">
+            {s.openFiles.map((p) => (
+              <div key={p} className={`ed-tab ${p === s.file ? 'on' : ''}`} onClick={() => s.setFile(p)} title={p}>
+                <IcFile />
+                <span className="ed-tab-name">{baseName(p)}</span>
+                <span className="ed-tab-x" title="Close" onClick={(e) => { e.stopPropagation(); s.closeFile(p) }}><X size={12} /></span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="ed-head">
           <div className="ed-head-left">
             <IcFile />
