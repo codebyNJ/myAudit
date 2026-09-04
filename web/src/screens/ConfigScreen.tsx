@@ -1,6 +1,11 @@
 import { useState } from 'react'
-import { FolderGit2, Sparkles } from 'lucide-react'
+import { FolderGit2, Sparkles, FolderSearch } from 'lucide-react'
 import { useStore } from '../store'
+
+// Native folder picker, only available inside the Tauri desktop shell (a browser
+// can't hand back a real filesystem path). undefined ⇒ not in desktop.
+const tauriDialog = (): { open: (o: unknown) => Promise<string | null> } | undefined =>
+  (window as unknown as { __TAURI__?: { dialog?: { open: (o: unknown) => Promise<string | null> } } }).__TAURI__?.dialog
 
 // Import screen: point myAudit at a local repo and start an audit run.
 export function ConfigScreen() {
@@ -8,6 +13,15 @@ export function ConfigScreen() {
   const [repo, setRepo] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
+  const dlg = tauriDialog()
+
+  const browse = async () => {
+    if (!dlg) return
+    try {
+      const picked = await dlg.open({ directory: true, multiple: false, title: 'Select a repository to audit' })
+      if (typeof picked === 'string') setRepo(picked)
+    } catch (e) { s.toast('error', 'Folder picker failed', (e as Error).message) }
+  }
 
   const start = async () => {
     if (!repo.trim()) { s.toast('error', 'Repo path required'); return }
@@ -29,10 +43,11 @@ export function ConfigScreen() {
           <div className="cfg-item">
             <div className="cfg-ico"><FolderGit2 size={16} /></div>
             <div className="cfg-text"><div className="cfg-title">Local path</div><div className="cfg-desc">Absolute path to the repo to audit</div></div>
-            <div className="cfg-ctrl">
-              <input className="form-input" style={{ width: 340 }} value={repo} onChange={(e) => setRepo(e.target.value)}
+            <div className="cfg-ctrl" style={{ display: 'flex', gap: 8 }}>
+              <input className="form-input" style={{ width: dlg ? 250 : 340 }} value={repo} onChange={(e) => setRepo(e.target.value)}
                 placeholder="/Users/you/code/my-project"
                 onKeyDown={(e) => { if (e.key === 'Enter') start() }} />
+              {dlg && <button className="btn-sm" style={{ flex: 'none' }} onClick={browse} title="Choose a folder"><FolderSearch size={13} /> Browse…</button>}
             </div>
           </div>
           <div className="cfg-item">
