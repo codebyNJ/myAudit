@@ -53,6 +53,43 @@ var ReadOnlyDeny = []string{
 	"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "WebFetch", "WebSearch",
 }
 
+// LiveAllow is the policy for the live QA + dev-fix nodes: the agent may edit
+// files AND run the product via Bash — install deps, launch servers, run the test
+// suites and e2e, capture output. This deliberately relaxes the no-Bash
+// confinement (the user opted into full live QA); the blast radius is the run's
+// own workspace copy, and AGENT_ISOLATE=1 can additionally jail it in a container.
+var LiveAllow = []string{
+	"Read", "Glob", "Grep", "Write", "Edit", "MultiEdit", "Bash",
+}
+
+// LiveDeny keeps the model's own web tools off (Bash still reaches the network for
+// package installs — that's expected and needed to run real projects).
+var LiveDeny = []string{
+	"WebFetch", "WebSearch",
+}
+
+// Mode selects a node's tool policy. It replaces a bare read-only bool so we can
+// express the third capability tier (Live: Bash-enabled) the QA/dev loop needs.
+type Mode int
+
+const (
+	ReadOnly Mode = iota // comprehension/review: Read/Glob/Grep only
+	Write                // legacy write node (testgen): native file tools, no Bash
+	Live                 // QA + dev fix: file tools + Bash to run the product
+)
+
+// PolicyFor returns the allow/deny tool lists for a mode.
+func PolicyFor(m Mode) (allow, deny []string) {
+	switch m {
+	case Live:
+		return LiveAllow, LiveDeny
+	case Write:
+		return DefaultAllow, DefaultDeny
+	default:
+		return ReadOnlyAllow, ReadOnlyDeny
+	}
+}
+
 // Options configure the claude invocation.
 type Options struct {
 	Model          string   // e.g. "claude-haiku-4-5-20251001"

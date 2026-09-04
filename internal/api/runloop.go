@@ -22,11 +22,8 @@ type realAgent struct {
 	image   string
 }
 
-func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
-	allow, deny := agent.DefaultAllow, agent.DefaultDeny
-	if readOnly {
-		allow, deny = agent.ReadOnlyAllow, agent.ReadOnlyDeny
-	}
+func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
+	allow, deny := agent.PolicyFor(mode)
 	return agent.Run(ctx, ws, task, agent.Options{
 		Model:   a.model,
 		Allow:   allow,
@@ -40,7 +37,7 @@ func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, r
 // the UI/graph can be exercised without spending tokens.
 type stubAgent struct{}
 
-func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
+func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
 	return agent.Result{OK: true, Summary: "[stub] node skipped (dev mode)"}, nil
 }
 

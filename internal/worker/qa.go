@@ -7,14 +7,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
+	"myaudit/internal/agent"
 	"myaudit/internal/events"
 	"myaudit/internal/queue"
 	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
 )
+
+// liveTimeout bounds a single live node (QA run or dev fix): dep installs,
+// servers, and suites can be slow, but a hung process must not wedge the loop.
+// ponytail: fixed 20m ceiling; make it an env knob if a real target needs more.
+const liveTimeout = 20 * time.Minute
 
 // This file holds the QA-led pipeline that mirrors a real org: map the product
 // into modules, let QA (priority) find bugs + test gaps per module and file
@@ -29,7 +36,7 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	mods := scanModules(ws.Dir)
 
 	overview := ""
-	if r, err := d.Agent.Run(ctx, ws, mapTask, true); err == nil {
+	if r, err := d.Agent.Run(ctx, ws, mapTask, agent.ReadOnly); err == nil {
 		overview = strings.TrimSpace(r.Summary)
 	}
 
@@ -74,7 +81,15 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 		sp.Module, sp.Path = "(root)", "."
 	}
 
-	r, ok := d.runAgent(ctx, c, ws, qaTask(sp.Module, sp.Path), true)
+	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
+	defer cancel()
+	// Install deps once up front so the QA agent spends its budget running the
+	// product, not on `npm install` (idempotent — skipped if already present).
+	if did, msg := ensureInstalled(ctx, ws); did {
+		d.Log.Log(ctx, event(c, "qa.install", msg))
+	}
+
+	r, ok := d.runAgent(ctx, c, ws, qaTask(sp.Module, sp.Path), agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -119,7 +134,10 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 	_ = json.Unmarshal(c.Spec, &b)
 	notes, _ := d.Store.GetNotes(ctx, c.RunID)
 
-	r, ok := d.runAgent(ctx, c, ws, fixTask(b, notes), false)
+	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
+	defer cancel()
+
+	r, ok := d.runAgent(ctx, c, ws, fixTask(b, notes), agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -190,6 +208,7 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 	if !ok {
 		return testNotRunnable, "no test runner detected"
 	}
+	ensureInstalled(ctx, ws) // make the runner resolvable (idempotent)
 	out, code, err := ws.Run(ctx, name, args...)
 	if err != nil {
 		return testNotRunnable, err.Error()
@@ -201,6 +220,40 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 		return testNotRunnable, out
 	}
 	return testFail, out
+}
+
+// ensureInstalled installs project dependencies if a manifest is present and they
+// look missing, so the test runner actually resolves (the fix for the old
+// "vitest: command not found" false-positive). Best-effort + idempotent: returns
+// whether it ran and a short message. Bounded by an inner timeout so a wedged
+// install can't consume the whole node budget.
+func ensureInstalled(ctx context.Context, ws sandbox.Workspace) (bool, string) {
+	dir := ws.Dir
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+
+	if fileExists(filepath.Join(dir, "package.json")) && !dirExists(filepath.Join(dir, "node_modules")) {
+		name, args := "npm", []string{"install", "--no-audit", "--no-fund"}
+		if fileExists(filepath.Join(dir, "package-lock.json")) {
+			args = []string{"ci", "--no-audit", "--no-fund"}
+		}
+		_, code, err := ws.Run(ctx, name, args...)
+		if err != nil || code != 0 {
+			return true, "npm install failed (continuing)"
+		}
+		return true, "npm install"
+	}
+	if fileExists(filepath.Join(dir, "requirements.txt")) {
+		if _, _, err := ws.Run(ctx, "pip", "install", "-q", "-r", "requirements.txt"); err == nil {
+			return true, "pip install"
+		}
+	}
+	return false, ""
+}
+
+func dirExists(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
 }
 
 var notRunnableSigns = []string{
@@ -335,13 +388,17 @@ const mapTask = "Read this codebase and write a concise product map as markdown:
 
 func qaTask(module, path string) string {
 	return fmt.Sprintf(
-		"You are the QA engineer for the module %q (path `%s`) of this codebase. "+
-			"Test it thoroughly in your head against its intended behavior and the product scope: "+
-			"trace its flows, edge cases, error handling, and integration points. Identify real bugs, "+
-			"correctness issues, best-practice violations, AND important test cases that are missing. "+
-			"Do NOT modify any files.\n\n"+
-			"Return ONLY a JSON array (no prose, no fences) of findings, each:\n"+
-			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and concrete steps to reproduce or the test that would catch it>"}`+
+		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+
+			"(Bash) and the dependencies are installed. QA it like a real product: read the code, then "+
+			"actually EXERCISE it — run the existing test suite, run the linter/build, and where practical "+
+			"start the app or hit its backend to confirm real behavior. Prefer non-blocking commands; if you "+
+			"start a server, background it, probe it, then kill it — never leave a process running or block. "+
+			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
+			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
+			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+
+			"`.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
+			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
+			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path)
 }
@@ -359,8 +416,10 @@ func fixTask(b store.Bug, notes string) string {
 	if strings.TrimSpace(b.Detail) != "" {
 		sb.WriteString("Details / reproduce:\n" + b.Detail + "\n")
 	}
-	sb.WriteString("\nFix the ROOT CAUSE with the smallest correct change, matching the codebase's existing " +
-		"conventions. Do not introduce unrelated changes. If a shared function is at fault, fix it there so all " +
-		"callers benefit. After editing, briefly explain in your final message WHAT you changed and WHY.")
+	sb.WriteString("\nYou have a shell (Bash) and installed dependencies. Fix the ROOT CAUSE with the smallest " +
+		"correct change, matching the codebase's existing conventions. Do not introduce unrelated changes. If a " +
+		"shared function is at fault, fix it there so all callers benefit. Then RUN the relevant test(s)/build to " +
+		"confirm your fix holds and didn't break anything nearby. In your final message, briefly state WHAT you " +
+		"changed and WHY, and the result of the check you ran.")
 	return sb.String()
 }

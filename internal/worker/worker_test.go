@@ -17,15 +17,15 @@ import (
 // recordingAgent fakes the Claude Code seam: records calls + the readOnly flag,
 // optionally writes a file into the workspace, returns a configured Result.
 type recordingAgent struct {
-	calls        int
-	lastReadOnly bool
-	result       agent.Result
-	writeFile    string
+	calls     int
+	lastMode  agent.Mode
+	result    agent.Result
+	writeFile string
 }
 
-func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error) {
+func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
 	f.calls++
-	f.lastReadOnly = readOnly
+	f.lastMode = mode
 	if f.writeFile != "" {
 		p := filepath.Join(ws.Dir, f.writeFile)
 		os.MkdirAll(filepath.Dir(p), 0o755)
@@ -90,7 +90,7 @@ func TestReviewFilesBugTickets(t *testing.T) {
 	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
-	if !fa.lastReadOnly {
+	if fa.lastMode != agent.ReadOnly {
 		t.Fatal("review must run read-only")
 	}
 	cards, _ := s.NodeDetailsForRun(ctx, run)
@@ -137,8 +137,8 @@ func TestUnderstandWritesNotesReadOnly(t *testing.T) {
 	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
-	if fa.calls != 1 || !fa.lastReadOnly {
-		t.Fatalf("understand should call agent once read-only: calls=%d ro=%v", fa.calls, fa.lastReadOnly)
+	if fa.calls != 1 || fa.lastMode != agent.ReadOnly {
+		t.Fatalf("understand should call agent once read-only: calls=%d mode=%v", fa.calls, fa.lastMode)
 	}
 	if n, _ := s.GetNode(ctx, nid); n.Status != "done" {
 		t.Fatalf("status=%s", n.Status)

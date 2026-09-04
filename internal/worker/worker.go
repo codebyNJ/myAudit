@@ -23,9 +23,10 @@ import (
 )
 
 // Agent is the Claude Code seam: real runs call the claude CLI, tests fake it.
-// readOnly selects the tool policy (comprehension/review vs. write).
+// mode selects the tool policy (read-only comprehension/review, write, or live
+// Bash-enabled QA/dev).
 type Agent interface {
-	Run(ctx context.Context, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, error)
+	Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error)
 }
 
 // Deps are RunOnce's collaborators.
@@ -105,7 +106,7 @@ func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 // understand drives a read-only agent to summarize the codebase and its flows,
 // writing the result to the run's notes.
 func (d Deps) understand(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	r, ok := d.runAgent(ctx, c, ws, understandTask, true)
+	r, ok := d.runAgent(ctx, c, ws, understandTask, agent.ReadOnly)
 	if !ok {
 		return true, nil
 	}
@@ -119,7 +120,7 @@ func (d Deps) understand(ctx context.Context, c *queue.ClaimedNode, ws sandbox.W
 // the understanding notes, then captures the new file(s).
 func (d Deps) testgen(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	notes, _ := d.Store.GetNotes(ctx, c.RunID)
-	r, ok := d.runAgent(ctx, c, ws, testgenTask(notes), false)
+	r, ok := d.runAgent(ctx, c, ws, testgenTask(notes), agent.Write)
 	if !ok {
 		return true, nil
 	}
@@ -173,7 +174,7 @@ func (d Deps) verify(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Works
 // files one bug ticket per finding (tagged with severity) and records a summary
 // in the notes.
 func (d Deps) review(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	r, ok := d.runAgent(ctx, c, ws, reviewTask, true)
+	r, ok := d.runAgent(ctx, c, ws, reviewTask, agent.ReadOnly)
 	if !ok {
 		return true, nil
 	}
@@ -209,14 +210,14 @@ func (d Deps) review(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Works
 // runAgent runs the agent with bounded retries. On an infra error it fails the
 // node; on repeated agent-level failure it raises a checkpoint. Returns the
 // result and whether the caller should proceed.
-func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace, task string, readOnly bool) (agent.Result, bool) {
+func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, bool) {
 	var last agent.Result
 	for attempt := 0; attempt <= d.MaxRepairs; attempt++ {
 		t := task
 		if attempt > 0 && last.Err != "" {
 			t = task + "\n\nThe previous attempt failed with:\n" + last.Err + "\nTry again."
 		}
-		r, err := d.Agent.Run(ctx, ws, t, readOnly)
+		r, err := d.Agent.Run(ctx, ws, t, mode)
 		if err != nil {
 			d.fail(ctx, c, "agent: "+err.Error())
 			return r, false
