@@ -24,6 +24,7 @@ var excludeDirs = map[string]bool{
 	".git": true, "node_modules": true, "dist": true, "build": true, ".next": true,
 	"target": true, ".venv": true, "venv": true, "__pycache__": true, "vendor": true,
 	".svelte-kit": true, "coverage": true, ".gradle": true,
+	".vercel": true, ".turbo": true, ".output": true, ".cache": true, // build output / caches
 }
 
 // Import copies the repo at src into <root>/<runID> (skipping excludeDirs) and
@@ -127,14 +128,26 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 }
 
 // copyDir recursively copies src into dst, skipping excludeDirs by name.
+// Symlinks are recreated as symlinks (not followed) — following a symlinked
+// directory would try to read it as a file (EISDIR) and could loop. A single
+// unreadable entry is skipped rather than aborting the whole import.
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return nil // unreadable entry → skip, don't kill the import
 		}
 		rel, err := filepath.Rel(src, p)
 		if err != nil {
-			return err
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(p)
+			if err != nil {
+				return nil // skip a broken/unreadable link
+			}
+			_ = os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755)
+			_ = os.Symlink(target, filepath.Join(dst, rel))
+			return nil
 		}
 		if info.IsDir() {
 			if rel != "." && excludeDirs[info.Name()] {
@@ -142,7 +155,13 @@ func copyDir(src, dst string) error {
 			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
-		return copyFile(p, filepath.Join(dst, rel), info)
+		if !info.Mode().IsRegular() {
+			return nil // skip sockets/fifos/devices
+		}
+		if err := copyFile(p, filepath.Join(dst, rel), info); err != nil {
+			return nil // skip a single bad file rather than abort
+		}
+		return nil
 	})
 }
 

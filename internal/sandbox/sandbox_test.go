@@ -36,6 +36,24 @@ func TestImportCopiesAndBaselines(t *testing.T) {
 	}
 }
 
+// A symlink-to-directory (e.g. Vercel .func output) must not abort the import.
+func TestImportHandlesSymlinkToDir(t *testing.T) {
+	src := t.TempDir()
+	os.MkdirAll(filepath.Join(src, "real"), 0o755)
+	os.WriteFile(filepath.Join(src, "real", "f.txt"), []byte("hi"), 0o644)
+	if err := os.Symlink("real", filepath.Join(src, "link.func")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	ws, err := Import(context.Background(), t.TempDir(), "sl", src)
+	if err != nil {
+		t.Fatalf("import must not fail on a symlinked dir: %v", err)
+	}
+	fi, err := os.Lstat(filepath.Join(ws.Dir, "link.func"))
+	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("symlink should be preserved as a symlink: %v", err)
+	}
+}
+
 func TestImportRejectsMissingSource(t *testing.T) {
 	if _, err := Import(context.Background(), t.TempDir(), "run0", "/no/such/dir"); err == nil {
 		t.Fatal("import of a missing directory should error")
