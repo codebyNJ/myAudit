@@ -145,23 +145,58 @@ func (d Deps) verify(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Works
 		d.Log.Log(ctx, event(c, "verify.pass", "tests passed — behavior confirmed"))
 		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests passed"})
 	} else {
-		d.Log.Log(ctx, event(c, "finding", "test failure: "+firstLine(out)))
-		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests failed — see findings"})
+		// A failing test on existing code is a finding → file a bug ticket.
+		bug := store.Bug{
+			Title:    "Test failure",
+			Name:     "test failure",
+			Severity: "high",
+			Priority: "P1",
+			Detail:   "The generated test failed against the current code:\n\n" + firstN(out, 1500),
+			Tags:     []string{"from:verify", "test-failure"},
+		}
+		if bid, err := d.Store.CreateBug(ctx, c.RunID, bug); err == nil {
+			nid := bid
+			d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "finding", Msg: "test failure: " + firstLine(out)})
+		}
+		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests failed — bug filed"})
 	}
 	return true, nil
 }
 
-// review drives a read-only agent to flag bugs and best-practice misses,
-// appending them to the notes and emitting a finding event.
+// review drives a read-only agent to flag bugs and best-practice misses, then
+// files one bug ticket per finding (tagged with severity) and records a summary
+// in the notes.
 func (d Deps) review(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	r, ok := d.runAgent(ctx, c, ws, reviewTask, true)
 	if !ok {
 		return true, nil
 	}
+	findings := parseFindings(r.Summary)
+	for _, f := range findings {
+		sev := strings.ToLower(f.Severity)
+		if sev != "high" && sev != "medium" && sev != "low" {
+			sev = "medium"
+		}
+		bug := store.Bug{
+			Title:    f.Title,
+			Name:     f.Title,
+			File:     f.File,
+			Severity: sev,
+			Priority: map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
+			Detail:   f.Detail,
+			Tags:     []string{"from:review", sev},
+		}
+		if bid, err := d.Store.CreateBug(ctx, c.RunID, bug); err == nil {
+			nid := bid
+			d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "finding", Msg: f.Title})
+		}
+	}
 	cur, _ := d.Store.GetNotes(ctx, c.RunID)
-	_ = d.Store.PutNotes(ctx, c.RunID, cur+"\n\n# Findings (review)\n\n"+r.Summary)
-	d.Log.Log(ctx, event(c, "finding", firstN(r.Summary, 140)))
-	d.complete(ctx, c, nodeOutput{Kind: "review", Summary: firstN(r.Summary, 140), CostUSD: r.CostUSD, Tokens: r.Tokens})
+	_ = d.Store.PutNotes(ctx, c.RunID, cur+"\n\n# Findings (review)\n\n"+findingsMarkdown(findings, r.Summary))
+	d.complete(ctx, c, nodeOutput{
+		Kind: "review", Summary: fmt.Sprintf("%d finding(s) filed", len(findings)),
+		CostUSD: r.CostUSD, Tokens: r.Tokens,
+	})
 	return true, nil
 }
 
@@ -221,9 +256,10 @@ const understandTask = "Read this codebase and explain, as concise markdown: " +
 	"Do NOT modify any files; your final message IS the analysis."
 
 const reviewTask = "Review this codebase for real bugs, correctness issues, and clear " +
-	"best-practice violations. Output a concise markdown list; for each finding give the " +
-	"file, the problem, and a severity (high/medium/low). Do NOT modify any files; your " +
-	"final message IS the report."
+	"best-practice violations. Do NOT modify any files.\n\n" +
+	"Return ONLY a JSON array (no prose, no markdown fences) of findings, each:\n" +
+	`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<problem + why + fix>"}` +
+	"\nReturn [] if there are no real issues. Order by severity (high first). Max 10."
 
 func testgenTask(notes string) string {
 	ctx := ""
@@ -233,6 +269,57 @@ func testgenTask(notes string) string {
 	return ctx + "Pick the single most important flow and write ONE focused test that " +
 		"exercises it, in the project's existing test style/framework. Create a NEW test " +
 		"file; do NOT modify existing source files. Keep it runnable."
+}
+
+// --- review findings parsing ---
+
+type finding struct {
+	Title    string `json:"title"`
+	File     string `json:"file"`
+	Severity string `json:"severity"`
+	Detail   string `json:"detail"`
+}
+
+var jsonArrayRe = regexp.MustCompile(`(?s)\[.*\]`)
+
+// parseFindings extracts the JSON findings array from the model's reply, which
+// may be wrapped in prose or ```json fences. Returns nil if none parse.
+func parseFindings(s string) []finding {
+	m := jsonArrayRe.FindString(s)
+	if m == "" {
+		return nil
+	}
+	var fs []finding
+	if json.Unmarshal([]byte(m), &fs) != nil {
+		return nil
+	}
+	out := fs[:0]
+	for _, f := range fs {
+		if strings.TrimSpace(f.Title) != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// findingsMarkdown renders findings for the notes; falls back to the raw reply
+// when parsing produced nothing (so no analysis is ever lost).
+func findingsMarkdown(fs []finding, raw string) string {
+	if len(fs) == 0 {
+		return raw
+	}
+	var b strings.Builder
+	for _, f := range fs {
+		b.WriteString(fmt.Sprintf("- **[%s]** %s", strings.ToUpper(f.Severity), f.Title))
+		if f.File != "" {
+			b.WriteString(" — `" + f.File + "`")
+		}
+		b.WriteString("\n")
+		if f.Detail != "" {
+			b.WriteString("  " + f.Detail + "\n")
+		}
+	}
+	return b.String()
 }
 
 // --- test-runner detection ---

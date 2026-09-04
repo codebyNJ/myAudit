@@ -3,7 +3,6 @@ import { X } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { IcFile } from '../components/icons'
-import { Chat } from '../components/Chat'
 import { Code } from '../components/Code'
 
 const baseName = (p: string) => p.split('/').pop() || p
@@ -66,7 +65,6 @@ export function DevScreen() {
   }
 
   return (
-    <>
       <div className="editor">
         {s.openFiles.length > 0 && (
           <div className="ed-tabs">
@@ -111,7 +109,5 @@ export function DevScreen() {
             </div>
           )}
       </div>
-      <Chat />
-    </>
   )
 }

@@ -28,6 +28,18 @@ func scanIDs(s string) []uuid.UUID {
 	return v
 }
 
+// scanTags parses a JSON string array (from json_group_array) into []string.
+func scanTags(s string) []string {
+	if s == "" || s == "null" {
+		return []string{}
+	}
+	var v []string
+	if json.Unmarshal([]byte(s), &v) != nil {
+		return []string{}
+	}
+	return v
+}
+
 // uuidArg passes a nullable uuid to SQL: nil pointer → NULL.
 func uuidArg(p *uuid.UUID) any {
 	if p == nil {

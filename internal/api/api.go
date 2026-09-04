@@ -305,6 +305,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	})
 
 	registerFileOps(mux, s)
+	registerChat(mux, s)
 
 	if static != nil {
 		mux.Handle("GET /", static)

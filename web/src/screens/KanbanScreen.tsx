@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react'
 import {
-  Download, BookOpen, FlaskConical, CheckCircle2, Search,
+  Download, BookOpen, FlaskConical, CheckCircle2, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, Activity as ActIcon, X,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { STATUS_COLOR } from '../components/util'
 
-const label = (n: { type: string; name: string }) => n.name || n.type
+const label = (n: NodeCard) => n.title || n.name || n.type
+
+const SEV_COLOR: Record<string, string> = { high: '#f87171', medium: '#e0a92e', low: '#60a5fa' }
 
 const COLS = [
-  { key: 'pending', label: 'To do' },
+  { key: 'todo', label: 'To do' },
   { key: 'active', label: 'In progress' },
   { key: 'review', label: 'Review' },
+  { key: 'failed', label: 'Failed' },
   { key: 'done', label: 'Done' },
 ]
-const bucket = (st: string) => st === 'done' ? 'done' : st === 'running' || st === 'ready' ? 'active' : st === 'blocked' ? 'review' : 'pending'
+// Maps both audit-node statuses and bug-ticket lifecycle statuses onto columns.
+const bucket = (st: string) => {
+  switch (st) {
+    case 'done': case 'verified': case 'closed': return 'done'
+    case 'failed': case 'reopened': return 'failed'
+    case 'running': case 'ready': case 'in_progress': return 'active'
+    case 'blocked': case 'in_review': return 'review'
+    default: return 'todo' // pending, open, …
+  }
+}
 
 // icon per task type/key
 function TaskIcon({ type }: { type: string }) {
@@ -25,6 +37,7 @@ function TaskIcon({ type }: { type: string }) {
   if (type === 'testgen') return <FlaskConical {...p} />
   if (type === 'verify') return <CheckCircle2 {...p} />
   if (type === 'review') return <Search {...p} />
+  if (type === 'bug') return <Bug {...p} />
   return <FileCode2 {...p} />
 }
 
@@ -38,6 +51,19 @@ export function KanbanScreen() {
   const s = useStore()
   const [cards, setCards] = useState<NodeCard[] | null>(null)
   const [sel, setSel] = useState<NodeCard | null>(null)
+  const [tagDraft, setTagDraft] = useState('')
+
+  // Keep the open drawer in sync with polled board data (tags/status updates).
+  useEffect(() => {
+    if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
+  }, [cards]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveTags = async (card: NodeCard, tags: string[]) => {
+    if (!s.runId) return
+    setSel({ ...card, tags })
+    try { await api.setNodeTags(s.runId, card.id, tags); api.board(s.runId).then(setCards) }
+    catch (e) { s.toast('error', 'Tagging failed', (e as Error).message) }
+  }
 
   useEffect(() => {
     if (!s.runId) { setCards(null); return }
@@ -66,6 +92,13 @@ export function KanbanScreen() {
                     <span className="kt">{label(n)}</span>
                     <span className="kid">{n.id.slice(0, 6)}</span>
                   </div>
+                  {(n.severity || (n.tags && n.tags.length > 0)) && (
+                    <div className="ktags">
+                      {n.severity && <span className="ktag" style={{ color: SEV_COLOR[n.severity] || 'var(--text-secondary)', borderColor: SEV_COLOR[n.severity] || 'var(--border-subtle)' }}>{n.severity}</span>}
+                      {n.priority && <span className="ktag">{n.priority}</span>}
+                      {(n.tags || []).filter((t) => t !== n.severity).map((t) => <span key={t} className="ktag">{t}</span>)}
+                    </div>
+                  )}
                   {n.summary && <div className="ksum">{n.summary}</div>}
                   <div className="kcard-meta">
                     <span className="kbadge" style={{ color: STATUS_COLOR[n.status], background: 'var(--bg-panel)' }}>
@@ -100,10 +133,31 @@ export function KanbanScreen() {
                 <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
               </span>
               {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
+              {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
+
+              {/* Tags — add/remove (manual triage) */}
+              <div>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Tags</div>
+                <div className="ktags">
+                  {(sel.tags || []).map((t) => (
+                    <span key={t} className="ktag" style={{ cursor: 'pointer' }} onClick={() => saveTags(sel, (sel.tags || []).filter((x) => x !== t))} title="Remove">{t} ×</span>
+                  ))}
+                  <input className="tag-input" value={tagDraft} onChange={(e) => setTagDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && tagDraft.trim()) {
+                        const nt = Array.from(new Set([...(sel.tags || []), tagDraft.trim()]))
+                        saveTags(sel, nt); setTagDraft('')
+                      }
+                    }}
+                    placeholder="+ tag" />
+                </div>
+              </div>
+
               <dl className="drawer-kv">
                 <dt>id</dt><dd>{sel.id}</dd>
                 <dt>type</dt><dd>{sel.type}</dd>
-                {sel.name && <><dt>resource</dt><dd>{sel.name}</dd></>}
+                {sel.severity && <><dt>severity</dt><dd style={{ color: SEV_COLOR[sel.severity] }}>{sel.severity}</dd></>}
+                {sel.priority && <><dt>priority</dt><dd>{sel.priority}</dd></>}
                 <dt>attempts</dt><dd>{sel.attempts}</dd>
                 <dt>dependencies</dt><dd>{sel.deps}</dd>
                 <dt>files changed</dt><dd>{sel.files}</dd>

@@ -61,6 +61,53 @@ func TestChangedFiles(t *testing.T) {
 	}
 }
 
+func TestParseFindings(t *testing.T) {
+	// model output wrapped in prose + a json fence (the realistic case)
+	raw := "Here are the issues:\n```json\n" +
+		`[{"title":"SQL injection","file":"db.go:10","severity":"high","detail":"unsanitized"},` +
+		`{"title":"no timeout","file":"http.go:5","severity":"low","detail":"add ctx"}]` +
+		"\n```\n"
+	fs := parseFindings(raw)
+	if len(fs) != 2 || fs[0].Title != "SQL injection" || fs[1].Severity != "low" {
+		t.Fatalf("parse: %+v", fs)
+	}
+	if parseFindings("no json here") != nil {
+		t.Fatal("non-json should parse to nil")
+	}
+	if len(parseFindings("[]")) != 0 {
+		t.Fatal("empty array → no findings")
+	}
+}
+
+func TestReviewFilesBugTickets(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+	nid, _ := s.AddNode(ctx, run, "review", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
+
+	fa := &recordingAgent{result: agent.Result{OK: true, Summary: `[{"title":"XSS in render","file":"view.tsx:20","severity":"high","detail":"escape it"}]`}}
+	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
+		t.Fatal(err)
+	}
+	if !fa.lastReadOnly {
+		t.Fatal("review must run read-only")
+	}
+	cards, _ := s.NodeDetailsForRun(ctx, run)
+	var bug *store.NodeDetail
+	for i := range cards {
+		if cards[i].Type == "bug" {
+			bug = &cards[i]
+		}
+	}
+	if bug == nil {
+		t.Fatalf("review should have filed a bug ticket; cards=%+v", cards)
+	}
+	if bug.Title != "XSS in render" || bug.Severity != "high" || bug.Status != "open" {
+		t.Fatalf("bug ticket wrong: %+v", bug)
+	}
+}
+
 func TestDetectTestCmd(t *testing.T) {
 	node := t.TempDir()
 	os.WriteFile(filepath.Join(node, "package.json"), []byte("{}"), 0o644)

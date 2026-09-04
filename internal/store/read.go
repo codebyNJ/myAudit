@@ -63,6 +63,12 @@ type NodeDetail struct {
 	Events    int        `json:"events"`
 	CreatedAt time.Time  `json:"created_at"`
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
+	// Ticket fields (bug/feature cards) — read from input_snapshot JSON.
+	Title    string   `json:"title,omitempty"`
+	Severity string   `json:"severity,omitempty"`
+	Priority string   `json:"priority,omitempty"`
+	Detail   string   `json:"detail,omitempty"`
+	Tags     []string `json:"tags"`
 }
 
 // NodesForRun returns all nodes of a run (basic, for the graph view).
@@ -96,7 +102,12 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		            THEN json_array_length(n.output,'$.changed') ELSE 0 END,
 		       coalesce(json_extract(n.output,'$.cost_usd'),0),
 		       (SELECT count(*) FROM events e WHERE e.node_id = n.id),
-		       n.created_at, n.claimed_at
+		       n.created_at, n.claimed_at,
+		       coalesce(json_extract(n.input_snapshot,'$.title'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.severity'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.priority'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.detail'),''),
+		       coalesce((SELECT json_group_array(value) FROM json_each(n.input_snapshot,'$.tags')),'[]')
 		FROM nodes n WHERE n.run_id=? ORDER BY n.created_at`, run)
 	if err != nil {
 		return nil, err
@@ -106,13 +117,15 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 	for rows.Next() {
 		var d NodeDetail
 		var claimed sql.NullTime
-		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed); err != nil {
+		var tags string
+		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.Severity, &d.Priority, &d.Detail, &tags); err != nil {
 			return nil, err
 		}
 		if claimed.Valid {
 			t := claimed.Time
 			d.ClaimedAt = &t
 		}
+		d.Tags = scanTags(tags)
 		out = append(out, d)
 	}
 	return out, rows.Err()

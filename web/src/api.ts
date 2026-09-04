@@ -5,7 +5,7 @@ export type EventRow = { ts: string; kind: string; level: string; msg: string; n
 export type Checkpoint = { id: string; run_id: string; node_id: string; question: string; resolved: boolean; answer: string }
 export type FileEntry = { path: string; content?: string; action?: string; changed?: boolean; review?: string }
 export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number }
-export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string }
+export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; severity?: string; priority?: string; detail?: string; tags?: string[] }
 export type CreateRunBody = { repo_path: string; project?: string }
 export type SearchHit = { path: string; line: number; text: string }
 
@@ -31,6 +31,10 @@ export const api = {
     req<void>('/api/runs/' + id + '/notes', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content }) }),
   steer: (id: string, message: string) =>
     req<void>('/api/runs/' + id + '/steer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
+  chat: (id: string, message: string) =>
+    req<{ reply: string }>('/api/runs/' + id + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
+  setNodeTags: (id: string, nodeId: string, tags: string[]) =>
+    req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/tags', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tags }) }),
   review: (id: string, path: string, status: 'accepted' | 'rejected') =>
     req<void>('/api/runs/' + id + '/review', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, status }) }),
   search: (id: string, q: string) => req<SearchHit[]>('/api/runs/' + id + '/search?q=' + encodeURIComponent(q)),

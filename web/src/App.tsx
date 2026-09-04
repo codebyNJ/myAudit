@@ -7,6 +7,7 @@ import { Palette } from './components/Palette'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
+import { Chat } from './components/Chat'
 import { DevScreen } from './screens/DevScreen'
 import { ConfigScreen } from './screens/ConfigScreen'
 import { ActivityScreen } from './screens/ActivityScreen'
@@ -54,6 +55,7 @@ function Shell() {
           {collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
           <div className="screen on"><Screen /></div>
         </main>
+        <Chat />
       </div>
     </div>
   )
