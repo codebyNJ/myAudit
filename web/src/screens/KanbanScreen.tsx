@@ -65,6 +65,19 @@ export function KanbanScreen() {
     catch (e) { s.toast('error', 'Tagging failed', (e as Error).message) }
   }
 
+  // Re-run the autonomous fix for a ticket that failed or is parked in review.
+  const runFix = async (card: NodeCard) => {
+    if (!s.runId) return
+    try {
+      await api.enqueue(s.runId, card.id)
+      s.toast('info', 'Fix re-queued', 'The dev loop will pick it up — watch the board.')
+      api.board(s.runId).then(setCards)
+    } catch (e) { s.toast('error', 'Could not queue', (e as Error).message) }
+  }
+  const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review'].includes(c.status)
+  const previewsFor = (c: NodeCard) =>
+    c.type === 'qa' ? (s.detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path)) : []
+
   useEffect(() => {
     if (!s.runId) { setCards(null); return }
     let alive = true
@@ -129,11 +142,26 @@ export function KanbanScreen() {
               <span className="x" onClick={() => setSel(null)}><X size={18} /></span>
             </div>
             <div className="drawer-body">
-              <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)', alignSelf: 'flex-start' }}>
-                <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
+                  <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
+                </span>
+                {canRefix(sel) && <button className="btn-sm primary" onClick={() => runFix(sel)}>▶ Re-run fix</button>}
+              </div>
               {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
               {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
+
+              {previewsFor(sel).length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>QA preview</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {previewsFor(sel).map((f) => (
+                      <img key={f.path} src={api.rawUrl(s.runId!, f.path)} alt={f.path}
+                        style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border-dim)' }} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Tags — add/remove (manual triage) */}
               <div>

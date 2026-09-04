@@ -65,6 +65,27 @@ func (s *Store) SetNodeTags(ctx context.Context, node uuid.UUID, tags []string) 
 	return err
 }
 
+// ReopenableBugs returns the ids of bug tickets that can be (re-)queued for the
+// autonomous dev loop: still open, failed a prior attempt, or parked in review.
+// Used by the chat "fix" command.
+func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id FROM nodes WHERE run_id=? AND type='bug' AND status IN ('open','failed','in_review')`, run)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // SetNodeStatus moves a card to a new lifecycle status (used to advance bug
 // tickets: open → in_progress → in_review → verified, or failed/reopened).
 func (s *Store) SetNodeStatus(ctx context.Context, node uuid.UUID, status string) error {

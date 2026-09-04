@@ -156,6 +156,23 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		writeJSON(w, map[string]string{"path": clean, "content": string(b)})
 	})
 
+	// Raw bytes of a workspace file (for images like QA preview screenshots, which
+	// can't ride the JSON /file endpoint). Content-type is sniffed from the bytes.
+	mux.HandleFunc("GET /api/runs/{id}/raw", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		p := r.URL.Query().Get("path")
+		clean := filepath.Clean(p)
+		if p == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+			http.Error(w, "bad path", 400)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join("runs", id.String(), clean))
+	})
+
 	// Save edits to a file in the run workspace.
 	mux.HandleFunc("PUT /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))

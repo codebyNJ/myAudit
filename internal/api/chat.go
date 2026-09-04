@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -40,9 +41,31 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 		uid := id
 		log.Log(r.Context(), events.Event{RunID: id, Kind: "chat.user", Msg: b.Message})
 
-		reply := chatReply(r.Context(), s, id, b.Message)
+		// "fix" intent: enqueue open/failed/parked tickets for the autonomous dev
+		// loop so the work is tracked on the board — the fix isn't just described.
+		var reply string
+		if isFixIntent(b.Message) {
+			reply = enqueueFixes(r.Context(), s, id)
+		} else {
+			reply = chatReply(r.Context(), s, id, b.Message)
+		}
 		log.Log(context.Background(), events.Event{RunID: uid, Kind: "chat.assistant", Msg: reply})
 		writeJSON(w, map[string]string{"reply": reply})
+	})
+
+	// Re-run the fix for one ticket (a Failed or parked-in-Review card): flip it
+	// back to 'ready' so the autonomous dev loop picks it up again, tracked.
+	mux.HandleFunc("POST /api/runs/{id}/nodes/{nid}/enqueue", func(w http.ResponseWriter, r *http.Request) {
+		nid, err := uuid.Parse(r.PathValue("nid"))
+		if err != nil {
+			http.Error(w, "bad node id", 400)
+			return
+		}
+		if err := s.SetNodeStatus(r.Context(), nid, "ready"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(202)
 	})
 
 	// Manual tagging: replace a card's tags (bug ticket or audit node).
@@ -64,25 +87,51 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 	})
 }
 
-// chatReply grounds a read-only claude turn on the run's notes + the imported
-// workspace. Falls back to a stub when REAL_CLAUDE is unset (free dev mode).
+// isFixIntent detects a "go fix things" command (vs. a question). Kept narrow and
+// predictable: a message that starts with "fix" is a command to enqueue tickets.
+func isFixIntent(msg string) bool {
+	m := strings.ToLower(strings.TrimSpace(msg))
+	return strings.HasPrefix(m, "fix")
+}
+
+// enqueueFixes flips every open/failed/parked ticket back to 'ready' so the
+// autonomous dev loop picks them up — the fix is done AND tracked on the board.
+func enqueueFixes(ctx context.Context, s *store.Store, run uuid.UUID) string {
+	ids, err := s.ReopenableBugs(ctx, run)
+	if err != nil {
+		return "couldn't queue fixes: " + err.Error()
+	}
+	if len(ids) == 0 {
+		return "Nothing to fix — no open, failed, or in-review tickets on the board right now."
+	}
+	for _, id := range ids {
+		_ = s.SetNodeStatus(ctx, id, "ready")
+	}
+	return fmt.Sprintf("Queued %d ticket(s) for the autonomous dev — they'll move to **In progress** on the board, get a root-cause fix + regression, and auto-close on green. Watch the board.", len(ids))
+}
+
+// chatReply is a real Claude Code turn over the workspace: full tools (Bash
+// included), grounded on the run's notes — the chat is the same agent as the rest
+// of the IDE, so it can actually act, not just describe. Stub when REAL_CLAUDE is
+// unset (free dev mode).
 func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) string {
 	if os.Getenv("REAL_CLAUDE") == "" {
 		return "[stub] chat is disabled in dev mode. Run with the real agent (make run) to chat about the code."
 	}
 	notes, _ := s.GetNotes(ctx, run)
 	ws := sandbox.Workspace{Dir: filepath.Join("runs", run.String())}
-	task := "You are helping a developer understand and audit this codebase. " +
-		"Answer their question concisely using the code in this workspace. Do NOT modify any files.\n\n"
+	task := "You are the engineer working inside this codebase's workspace. You have full tools " +
+		"(read, edit, and a shell). Help the developer: answer questions about the code, and when they ask " +
+		"you to change or fix something, do it directly in the workspace.\n\n"
 	if strings.TrimSpace(notes) != "" {
-		task += "Prior analysis of this codebase:\n" + notes + "\n\n"
+		task += "Prior analysis + audit log for this codebase:\n" + notes + "\n\n"
 	}
-	task += "Developer's question: " + msg + "\n\nYour answer:"
+	task += "Developer: " + msg + "\n\nRespond concisely; if you changed files, say what and why."
 
 	res, err := agent.Run(ctx, ws, task, agent.Options{
 		Model: os.Getenv("CLAUDE_MODEL"),
-		Allow: agent.ReadOnlyAllow,
-		Deny:  agent.ReadOnlyDeny,
+		Allow: agent.LiveAllow,
+		Deny:  agent.LiveDeny,
 	})
 	if err != nil {
 		return "chat failed: " + err.Error()
