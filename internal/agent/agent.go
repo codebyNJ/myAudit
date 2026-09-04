@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"myaudit/internal/sandbox"
@@ -26,36 +27,30 @@ type Result struct {
 	Err     string  // failure reason when !OK
 }
 
-// DefaultAllow is the tool policy for feature generation: file edits plus the
-// commands adding a feature legitimately needs (install, run, git). Curated so
-// the agent never stalls on a needed command while still being bounded.
+// DefaultAllow is the tool policy for the write node (testgen): native file
+// tools only. Bash is deliberately excluded — it's the one tool that can escape
+// the workspace via `../..`, and writing a test file needs Write/Edit, not a
+// shell. verify runs the tests separately (deterministically), so the agent
+// never needs Bash.
 var DefaultAllow = []string{
-	"Read", "Write", "Edit", "Glob", "Grep",
-	"Bash(cat:*)", "Bash(ls:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)",
-	"Bash(npm:*)", "Bash(npx:*)", "Bash(node:*)", "Bash(git:*)",
+	"Read", "Glob", "Grep", "Write", "Edit", "MultiEdit",
 }
 
-// DefaultDeny blocks destructive, privilege, and network-egress commands.
+// DefaultDeny blocks Bash (workspace-escape + destructive surface) and network.
 var DefaultDeny = []string{
-	"Bash(rm:*)", "Bash(sudo:*)", "Bash(curl:*)", "Bash(wget:*)",
-	"WebFetch", "WebSearch",
+	"Bash", "WebFetch", "WebSearch",
 }
 
-// ReadOnlyAllow is the tool policy for comprehension/review nodes: the agent may
-// explore the imported codebase but never mutate it. No Write/Edit, no git,
-// only read-shaped Bash.
+// ReadOnlyAllow is the policy for comprehension/review nodes: read the imported
+// code, never mutate it, never shell out. Native Read/Glob/Grep are confined to
+// the workspace + --add-dir, so there is no way up into the host repo.
 var ReadOnlyAllow = []string{
 	"Read", "Glob", "Grep",
-	"Bash(cat:*)", "Bash(ls:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(rg:*)",
-	"Bash(head:*)", "Bash(tail:*)", "Bash(wc:*)", "Bash(sed:*)",
 }
 
-// ReadOnlyDeny blocks all mutation (files, git) and network egress for
-// read-only nodes.
+// ReadOnlyDeny blocks all mutation, shell, and network for read-only nodes.
 var ReadOnlyDeny = []string{
-	"Write", "Edit", "MultiEdit", "NotebookEdit",
-	"Bash(rm:*)", "Bash(sudo:*)", "Bash(git:*)", "Bash(npm:*)", "Bash(mv:*)", "Bash(cp:*)",
-	"WebFetch", "WebSearch",
+	"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "WebFetch", "WebSearch",
 }
 
 // Options configure the claude invocation.
@@ -75,17 +70,21 @@ type Options struct {
 // container, claude auths via CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`)
 // since the host keychain isn't reachable.
 func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string) *exec.Cmd {
+	dir := ws.Dir
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
 	if o.Isolate {
 		img := o.Image
 		if img == "" {
 			img = "myaudit-sandbox"
 		}
-		docker := []string{"run", "--rm", "-v", ws.Dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
+		docker := []string{"run", "--rm", "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
 		docker = append(docker, o.Args(task, "/work")...)
 		return exec.CommandContext(ctx, "docker", docker...)
 	}
-	c := exec.CommandContext(ctx, "claude", o.Args(task, ws.Dir)...)
-	c.Dir = ws.Dir
+	c := exec.CommandContext(ctx, "claude", o.Args(task, dir)...)
+	c.Dir = dir
 	return c
 }
 

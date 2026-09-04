@@ -18,8 +18,13 @@ import (
 type Workspace struct{ Dir string }
 
 // excludeDirs are skipped when copying a repo — VCS metadata and heavy build
-// artifacts we never want in the working copy.
-var excludeDirs = map[string]bool{".git": true, "node_modules": true, "dist": true, "build": true, ".next": true}
+// artifacts we never want in the working copy. ponytail: static list covering
+// the common ecosystems; extend if a target repo carries a different heavy dir.
+var excludeDirs = map[string]bool{
+	".git": true, "node_modules": true, "dist": true, "build": true, ".next": true,
+	"target": true, ".venv": true, "venv": true, "__pycache__": true, "vendor": true,
+	".svelte-kit": true, "coverage": true, ".gradle": true,
+}
 
 // Import copies the repo at src into <root>/<runID> (skipping excludeDirs) and
 // gives it a single committed baseline so per-node git diffs have a clean start.

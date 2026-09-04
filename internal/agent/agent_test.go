@@ -79,18 +79,25 @@ func TestParseSuccess(t *testing.T) {
 
 func TestDefaultPolicyRendersAndIsSafe(t *testing.T) {
 	got := strings.Join(Options{Allow: DefaultAllow, Deny: DefaultDeny}.Args("x", "/ws"), " ")
-	if !strings.Contains(got, "Bash(npm:*)") || !strings.Contains(got, "Write") {
-		t.Fatalf("allow policy not rendered: %s", got)
+	if !strings.Contains(got, "Write") || !strings.Contains(got, "Read") {
+		t.Fatalf("write policy should allow native file tools: %s", got)
 	}
-	// destructive/egress commands must be denied, never allowed
-	for _, bad := range []string{"Bash(rm:*)", "Bash(curl:*)", "WebFetch"} {
-		for _, a := range DefaultAllow {
-			if a == bad {
-				t.Fatalf("%s must not be in DefaultAllow", bad)
-			}
+	// Bash is the workspace-escape surface (`cat ../..`) — never allowed, always
+	// denied, for both the write and read-only policies.
+	for _, a := range append(append([]string{}, DefaultAllow...), ReadOnlyAllow...) {
+		if strings.HasPrefix(a, "Bash") {
+			t.Fatalf("Bash must never be in an allow policy: %q", a)
 		}
+	}
+	for _, bad := range []string{"Bash", "WebFetch", "WebSearch"} {
 		if !strings.Contains(got, bad) {
-			t.Fatalf("expected %s in deny args: %s", bad, got)
+			t.Fatalf("expected %s denied: %s", bad, got)
+		}
+	}
+	// read-only nodes must not be able to mutate the imported code
+	for _, a := range ReadOnlyAllow {
+		if a == "Write" || a == "Edit" || a == "MultiEdit" {
+			t.Fatalf("ReadOnlyAllow must be read-only: %v", ReadOnlyAllow)
 		}
 	}
 }
