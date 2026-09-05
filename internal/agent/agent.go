@@ -160,6 +160,25 @@ func (o Options) Args(task, wsDir string) []string {
 	return args
 }
 
+// agentEnv is the process env for the agent, with myAudit's own server vars
+// scrubbed. Critical: the Live agent runs the target app's dev server via Bash;
+// if it inherited PORT (myAudit's own port) the app would bind — and fight for —
+// that exact port, taking down the audit server. MYAUDIT_DB is dropped so the
+// agent can't see or touch our database path.
+func agentEnv() []string {
+	drop := map[string]bool{"PORT": true, "MYAUDIT_DB": true}
+	src := os.Environ()
+	out := make([]string, 0, len(src))
+	for _, kv := range src {
+		k, _, _ := strings.Cut(kv, "=")
+		if drop[k] {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
 // envelope is Claude Code's --output-format json shape (shared with internal/claude).
 type envelope struct {
 	Result  string  `json:"result"`
@@ -197,7 +216,7 @@ func parseEnvelope(b []byte) Result {
 func Run(ctx context.Context, ws sandbox.Workspace, task string, opt Options) (Result, error) {
 	cmd := opt.command(ctx, ws, task)
 	cmd.Stdin = nil // CRITICAL: -p mode blocks forever waiting on stdin EOF
-	cmd.Env = os.Environ()
+	cmd.Env = agentEnv()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
