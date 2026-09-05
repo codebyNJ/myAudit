@@ -17,16 +17,21 @@ export function DevScreen() {
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // As the backend writes files, reveal each new one in the editor so its code
-  // shows above as it lands. Only fires on genuinely new paths, not on re-polls.
+  // Follow the work live: reveal a file the moment it's created OR changed by a
+  // fix, so the editor jumps to whatever the agent just touched. Changed files
+  // win (that's the active fix); new files are the fallback.
   const seen = useRef<Set<string>>(new Set())
+  const changedSeen = useRef<Set<string>>(new Set())
+  const changedKey = files.filter((f) => f.changed).map((f) => f.path).join(',')
   useEffect(() => {
-    if (!s.runId) { seen.current = new Set(); return }
-    const fresh = files.filter((f) => !seen.current.has(f.path))
-    files.forEach((f) => seen.current.add(f.path))
-    if (fresh.length) s.setFile(fresh[fresh.length - 1].path)
+    if (!s.runId) { seen.current = new Set(); changedSeen.current = new Set(); return }
+    const freshChanged = files.filter((f) => f.changed && !changedSeen.current.has(f.path)).map((f) => f.path)
+    const freshNew = files.filter((f) => !seen.current.has(f.path)).map((f) => f.path)
+    files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
+    if (freshChanged.length) s.setFile(freshChanged[freshChanged.length - 1])
+    else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
     else if (!s.file && files.length) s.setFile(files[0].path)
-  }, [files.map((f) => f.path).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [files.map((f) => f.path).join(',') + '|' + changedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Content is loaded lazily per file (the tree only carries paths).
   useEffect(() => {
@@ -40,6 +45,17 @@ export function DevScreen() {
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [sel?.path, s.runId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live-refresh the OPEN file's content on each poll (unless you're editing),
+  // so you watch code update in place as fixes land — not just on file switch.
+  useEffect(() => {
+    if (!sel || !s.runId || editing) return
+    let alive = true
+    api.fileContent(s.runId, sel.path)
+      .then((r) => { if (alive) setContent((prev) => (prev === r.content ? prev : r.content)) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [s.detail, sel?.path, s.runId, editing]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEdit = () => { setDraft(content ?? ''); setEditing(true) }
   const saveEdit = async () => {

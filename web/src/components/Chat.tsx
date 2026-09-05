@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MessageSquare, X } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { AgentAvatar } from './icons'
@@ -31,9 +32,21 @@ export function Chat() {
     } finally { setBusy(false) }
   }
 
+  // Floating, toggleable dock (myIntern-style): a bubble opens it, × closes it.
+  if (!s.chatOpen) {
+    return (
+      <button className="chat-fab" title="Open chat" onClick={() => s.setChatOpen(true)}>
+        <MessageSquare size={20} />
+      </button>
+    )
+  }
+
   return (
-    <aside className="chatdock">
-      <div className="chatdock-h"><AgentAvatar size={18} /> <span>myAudit</span></div>
+    <aside className="chatdock floating">
+      <div className="chatdock-h">
+        <AgentAvatar size={18} /> <span>myAudit</span>
+        <span className="chatdock-x" title="Close" onClick={() => s.setChatOpen(false)}><X size={16} /></span>
+      </div>
 
       <div className="chatdock-body">
         {turns.length === 0 && !busy && (

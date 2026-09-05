@@ -32,10 +32,9 @@ const GREEN = '#4ade80'
 type Menu = { x: number; y: number; path: string; dir: boolean }
 type Ask = { title: string; value: string; onOk: (v: string) => void }
 
-function TreeRows({ nodes, depth, collapsed, toggle, onMenu }: {
-  nodes: TNode[]; depth: number; collapsed: Set<string>; toggle: (p: string) => void; onMenu: (e: React.MouseEvent, n: TNode) => void
+function TreeRows({ nodes, depth, collapsed, toggle, onMenu, changed }: {
+  nodes: TNode[]; depth: number; collapsed: Set<string>; toggle: (p: string) => void; onMenu: (e: React.MouseEvent, n: TNode) => void; changed: Set<string>
 }) {
-  const s = useStore()
   return (
     <>
       {nodes.map((n) => n.dir ? (
@@ -45,15 +44,29 @@ function TreeRows({ nodes, depth, collapsed, toggle, onMenu }: {
             {collapsed.has(n.path) ? <Folder size={13} /> : <FolderOpen size={13} />}
             <span>{n.name}</span>
           </div>
-          {!collapsed.has(n.path) && <TreeRows nodes={n.children} depth={depth + 1} collapsed={collapsed} toggle={toggle} onMenu={onMenu} />}
+          {!collapsed.has(n.path) && <TreeRows nodes={n.children} depth={depth + 1} collapsed={collapsed} toggle={toggle} onMenu={onMenu} changed={changed} />}
         </div>
       ) : (
-        <div key={n.path} className={`row file ${n.path === s.file ? 'on' : ''}`} style={{ paddingLeft: 6 + depth * 12 + 15 }}
-          onClick={() => { s.setFile(n.path); if (s.tab !== 'dev') s.setTab('dev') }} onContextMenu={(e) => onMenu(e, n)}>
-          <IcFile stroke={GREEN} /> <span style={{ color: GREEN }}>{n.name}</span>
-        </div>
+        <FileRow key={n.path} name={n.name} path={n.path} depth={depth} chg={changed.has(n.path)} onMenu={onMenu} />
       ))}
     </>
+  )
+}
+
+// One file row, colored by git status: changed files are green with an "M"
+// marker (VSCode-style), untouched files use the normal text color.
+function FileRow({ name, path, depth, chg, onMenu }: {
+  name: string; path: string; depth: number; chg: boolean; onMenu: (e: React.MouseEvent, n: TNode) => void
+}) {
+  const s = useStore()
+  return (
+    <div className={`row file ${path === s.file ? 'on' : ''} ${chg ? 'chg' : ''}`} style={{ paddingLeft: 6 + depth * 12 + 15 }}
+      onClick={() => { s.setFile(path); if (s.tab !== 'dev') s.setTab('dev') }}
+      onContextMenu={(e) => onMenu(e, { name: path, path, dir: false, children: [] })}>
+      <IcFile stroke={chg ? GREEN : 'currentColor'} />
+      <span style={chg ? { color: GREEN } : undefined}>{name}</span>
+      {chg && <span className="chg-m" title="changed by the audit">M</span>}
+    </div>
   )
 }
 
@@ -66,8 +79,9 @@ export function Explorer() {
   const [ask, setAsk] = useState<Ask | null>(null)
   const files = s.visibleFiles
   const toggle = (p: string) => setCollapsed((c) => { const n = new Set(c); n.has(p) ? n.delete(p) : n.add(p); return n })
-  const key = files.map((f) => f.path).join(',')
+  const key = files.map((f) => (f.changed ? '*' : '') + f.path).join(',')
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = useMemo(() => new Set(files.filter((f) => f.changed).map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
   const matches = q ? files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase())) : []
 
   const openMenu = (e: React.MouseEvent, n: TNode) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, path: n.path, dir: n.dir }) }
@@ -102,13 +116,9 @@ export function Explorer() {
           : !files.length ? <div className="tree-empty">Importing…</div>
           : q ? (matches.length
               ? matches.map((f) => (
-                  <div key={f.path} className={`row file ${f.path === s.file ? 'on' : ''}`}
-                    onClick={() => { s.setFile(f.path); if (s.tab !== 'dev') s.setTab('dev') }}
-                    onContextMenu={(e) => openMenu(e, { name: f.path, path: f.path, dir: false, children: [] })}>
-                    <IcFile stroke={GREEN} /> <span style={{ color: GREEN }}>{f.path}</span>
-                  </div>))
+                  <FileRow key={f.path} name={f.path} path={f.path} depth={0} chg={changed.has(f.path)} onMenu={openMenu} />))
               : <div className="tree-empty">No match for “{q}”</div>)
-          : <TreeRows nodes={tree} depth={0} collapsed={collapsed} toggle={toggle} onMenu={openMenu} />}
+          : <TreeRows nodes={tree} depth={0} collapsed={collapsed} toggle={toggle} onMenu={openMenu} changed={changed} />}
       </div>
 
       {menu && (

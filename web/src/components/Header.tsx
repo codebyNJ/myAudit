@@ -9,6 +9,9 @@ import { useStore } from '../store'
 export function Header() {
   const s = useStore()
   const cost = s.detail?.cost_usd || 0
+  const nodes = s.detail?.nodes || []
+  const running = nodes.find((n) => n.status === 'running')
+  const queued = nodes.filter((n) => n.status === 'ready' || n.status === 'pending').length
   return (
     <header>
       <div className="h-left">
@@ -16,6 +19,9 @@ export function Header() {
         <WorkspaceSwitcher />
         <div className="branch-tag"><IcBranch /> main</div>
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}
+        {running
+          ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{running.type} running{queued > 0 ? ` · ${queued} queued` : ''}</div>
+          : queued > 0 && <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>}
       </div>
       <div className="h-center"><Tabs /></div>
       <div className="h-right"><AccountMenu /></div>

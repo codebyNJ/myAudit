@@ -55,8 +55,8 @@ function Shell() {
           {collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
           <div className="screen on"><Screen /></div>
         </main>
-        <Chat />
       </div>
+      <Chat />
     </div>
   )
 }

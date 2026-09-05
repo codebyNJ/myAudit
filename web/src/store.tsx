@@ -19,6 +19,9 @@ type Store = {
   setNewOpen: (v: boolean) => void
   explorerOpen: boolean
   toggleExplorer: () => void
+  chatOpen: boolean
+  toggleChat: () => void
+  setChatOpen: (v: boolean) => void
   explorerW: number
   setExplorerW: (n: number) => void
   setTab: (t: Tab) => void
@@ -47,6 +50,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [newOpen, setNewOpen] = useState(false)
   const [explorerOpen, setExplorerOpen] = useState(true)
+  const [chatOpen, setChatOpenState] = useState(() => localStorage.getItem('chatOpen') === '1')
+  const setChatOpen = useCallback((v: boolean) => { setChatOpenState(v); localStorage.setItem('chatOpen', v ? '1' : '0') }, [])
   const [explorerW, setExplorerWState] = useState(() => {
     const v = Number(localStorage.getItem('explorerW'))
     return v >= 180 && v <= 480 ? v : 240
@@ -116,6 +121,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const store: Store = {
     runs, runId, detail, visibleFiles, loadingDetail, tab, file, openFiles, closeFile, toasts, newOpen, setNewOpen,
     explorerOpen, toggleExplorer: () => setExplorerOpen((v) => !v),
+    chatOpen, toggleChat: () => setChatOpen(!chatOpen), setChatOpen,
     explorerW, setExplorerW,
     setTab,
     setRun: (id) => { setRunId(id); setNewOpen(false); clearFiles(); setTab('kanban') },
