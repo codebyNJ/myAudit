@@ -115,6 +115,9 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 /* Changed-file marker in the Explorer. */
 .row.file .chg-m { margin-left: auto; font-size: 10px; font-weight: 700; color: #4ade80; padding-right: 4px; }
 
+/* Failed tickets live in the Review column, flagged red so they stand out. */
+.kcard.failed { border-left: 2px solid var(--method-del); }
+
 /* Live "now running" pill in the header — visible on every tab. */
 .run-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--font-mono);
   color: #4ade80; background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.3); border-radius: 999px; padding: 3px 10px; }

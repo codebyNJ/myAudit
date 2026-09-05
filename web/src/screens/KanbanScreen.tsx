@@ -15,19 +15,20 @@ const COLS = [
   { key: 'todo', label: 'To do' },
   { key: 'active', label: 'In progress' },
   { key: 'review', label: 'Review' },
-  { key: 'failed', label: 'Failed' },
   { key: 'done', label: 'Done' },
 ]
 // Maps both audit-node statuses and bug-ticket lifecycle statuses onto columns.
+// Review is the "needs a human" lane: failed regressions, unverifiable fixes,
+// and no-diff tickets all land here (failed ones flagged red on the card).
 const bucket = (st: string) => {
   switch (st) {
     case 'done': case 'verified': case 'closed': return 'done'
-    case 'failed': case 'reopened': return 'failed'
     case 'running': case 'ready': case 'in_progress': return 'active'
-    case 'blocked': case 'in_review': return 'review'
+    case 'failed': case 'reopened': case 'blocked': case 'in_review': return 'review'
     default: return 'todo' // pending, open, …
   }
 }
+const isFailed = (st: string) => st === 'failed' || st === 'reopened'
 
 // icon per task type/key
 function TaskIcon({ type }: { type: string }) {
@@ -99,7 +100,7 @@ export function KanbanScreen() {
             <div className="kcol" key={c.key}>
               <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
               {items.map((n) => (
-                <div className="kcard" key={n.id} onClick={() => setSel(n)}>
+                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''}`} key={n.id} onClick={() => setSel(n)}>
                   <div className="kcard-top">
                     <span className="kcard-ico"><TaskIcon type={n.type} /></span>
                     <span className="kt">{label(n)}</span>

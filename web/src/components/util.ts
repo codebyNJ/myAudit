@@ -1,6 +1,8 @@
 export const STATUS_COLOR: Record<string, string> = {
-  done: 'var(--method-get)', complete: 'var(--method-get)', running: 'var(--method-post)', ready: 'var(--method-post)',
-  failed: 'var(--method-del)', blocked: '#e0a92e', pending: 'var(--text-muted)',
+  done: 'var(--method-get)', complete: 'var(--method-get)', verified: 'var(--method-get)', closed: 'var(--method-get)',
+  running: 'var(--method-post)', ready: 'var(--method-post)', in_progress: 'var(--method-post)',
+  failed: 'var(--method-del)', reopened: 'var(--method-del)',
+  in_review: '#e0a92e', blocked: '#e0a92e', pending: 'var(--text-muted)',
 }
 export const evColor = (k: string) =>
   /fail|red|error/.test(k) ? 'var(--diff-del-text)'
