@@ -16,6 +16,12 @@ import → map ─┬→ QA · module A ─→ 🐛 tickets ─→ dev fix ─�
               └→ QA · module C ─→ 🐛 tickets ─→ dev fix ─→ 🔍 review
 ```
 
+![myAudit auditing a codebase — the QA-led board](docs/board.png)
+
+*A live run: `map` split the repo into modules, per-module **QA** filed tickets
+(with severity/priority/reproduce), and the autonomous **dev** loop fixed and
+auto-closed them. Changed files are flagged green in the Explorer.*
+
 ## How it works (QA over dev)
 
 | stage | model? | what it does |
@@ -113,4 +119,4 @@ All optional — see [`.env.example`](.env.example).
 
 ## License
 
-No license yet — add one (e.g. MIT) if you want others to reuse it.
+[MIT](LICENSE) © codebyNJ.
