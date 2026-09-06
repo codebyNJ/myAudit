@@ -96,8 +96,18 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, "repo_path required", 400)
 			return
 		}
-		if info, err := os.Stat(body.RepoPath); err != nil || !info.IsDir() {
-			http.Error(w, "repo_path is not a directory", 400)
+		// A relative path resolves against the SERVER's cwd (the myAudit repo), not
+		// the user's — silently the wrong thing. Require absolute + give actionable
+		// errors for the common mistakes.
+		if !filepath.IsAbs(body.RepoPath) {
+			http.Error(w, "repo_path must be an absolute path (e.g. /Users/you/project)", 400)
+			return
+		}
+		if info, err := os.Stat(body.RepoPath); err != nil {
+			http.Error(w, "no such directory: "+body.RepoPath, 400)
+			return
+		} else if !info.IsDir() {
+			http.Error(w, body.RepoPath+" is not a directory", 400)
 			return
 		}
 		project := body.Project
@@ -372,6 +382,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	registerFileOps(mux, s)
 	registerChat(mux, s)
 	registerExport(mux, s)
+	registerHealth(mux)
 
 	if static != nil {
 		mux.Handle("GET /", static)

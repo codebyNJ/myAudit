@@ -1,6 +1,7 @@
 import { Plus, Clock } from 'lucide-react'
 import { useStore } from '../store'
 import { AgentAvatar } from '../components/icons'
+import { HealthBanner } from '../components/HealthBanner'
 
 // The opening page: pick a project/workspace to open, or start a new one.
 export function HomeScreen() {
@@ -14,6 +15,7 @@ export function HomeScreen() {
           <h1>myAudit</h1>
           <p>Open a past audit, or import a codebase to start one.</p>
         </div>
+        <HealthBanner />
         <div className="home-grid">
           <button className="proj-card new" onClick={() => s.setNewOpen(true)}>
             <Plus size={20} /><span>Import codebase</span>

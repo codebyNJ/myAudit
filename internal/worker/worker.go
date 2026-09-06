@@ -170,7 +170,11 @@ func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, 
 }
 
 func (d Deps) fail(ctx context.Context, c *queue.ClaimedNode, reason string) {
-	_ = d.Queue.Fail(ctx, c.ID)
+	// Persist the reason as the node's summary (not just an event) so the board
+	// card shows WHY it failed — e.g. "claude exec: not logged in" — without the
+	// user having to drill into the activity log.
+	b, _ := json.Marshal(nodeOutput{Kind: c.Type, Summary: reason})
+	_ = d.Queue.Finish(ctx, c.ID, b, "failed")
 	e := event(c, "node.fail", reason)
 	e.Level = "error"
 	d.Log.Log(ctx, e)

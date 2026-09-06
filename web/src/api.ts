@@ -16,6 +16,7 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => req<{ ready: boolean; claude: boolean; claudeVersion: string; git: boolean; message: string }>('/api/health'),
   listRuns: () => req<Run[]>('/api/runs'),
   runDetail: (id: string) => req<RunDetail>('/api/runs/' + id),
   createRun: (body: CreateRunBody) =>

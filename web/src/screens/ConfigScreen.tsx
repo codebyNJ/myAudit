@@ -23,10 +23,17 @@ export function ConfigScreen() {
     } catch (e) { s.toast('error', 'Folder picker failed', (e as Error).message) }
   }
 
+  const path = repo.trim()
+  // Absolute on POSIX (/…) or Windows (C:\…); a relative path resolves against
+  // the server, not the user, so we block it up front with a clear hint.
+  const isAbs = /^(\/|[A-Za-z]:[\\/])/.test(path)
+  const pathError = path !== '' && !isAbs ? 'Enter an absolute path (e.g. /Users/you/project)' : ''
+
   const start = async () => {
-    if (!repo.trim()) { s.toast('error', 'Repo path required'); return }
+    if (!path) { s.toast('error', 'Repo path required'); return }
+    if (!isAbs) { s.toast('error', 'Path must be absolute', 'e.g. /Users/you/project'); return }
     setBusy(true)
-    await s.createRun({ repo_path: repo.trim(), project: name.trim() || undefined })
+    await s.createRun({ repo_path: path, project: name.trim() || undefined })
     setBusy(false)
   }
 
@@ -50,6 +57,8 @@ export function ConfigScreen() {
               {dlg && <button className="btn-sm" style={{ flex: 'none' }} onClick={browse} title="Choose a folder"><FolderSearch size={13} /> Browse…</button>}
             </div>
           </div>
+          {pathError && <div className="cfg-item"><div className="cfg-ico" /><div style={{ color: 'var(--method-del)', fontSize: 12 }}>{pathError}</div></div>}
+          {!dlg && <div className="cfg-item"><div className="cfg-ico" /><div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Tip: folder-browse is available in the desktop app; in the browser, paste an absolute path.</div></div>}
           <div className="cfg-item">
             <div className="cfg-ico"><Sparkles size={16} /></div>
             <div className="cfg-text"><div className="cfg-title">Name (optional)</div><div className="cfg-desc">Defaults to the folder name</div></div>
@@ -61,7 +70,7 @@ export function ConfigScreen() {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
           <button className="btn-sm" style={{ padding: '10px 20px' }} disabled={busy} onClick={() => s.setNewOpen(false)}>Cancel</button>
-          <button className="btn-sm primary" style={{ padding: '10px 20px' }} disabled={busy} onClick={start}>{busy ? 'Starting…' : 'Start audit →'}</button>
+          <button className="btn-sm primary" style={{ padding: '10px 20px' }} disabled={busy || !!pathError || !path} onClick={start}>{busy ? 'Starting…' : 'Start audit →'}</button>
         </div>
       </div>
     </div>
