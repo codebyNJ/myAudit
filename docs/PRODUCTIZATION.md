@@ -11,11 +11,13 @@ Tags in brackets = which lenses flagged it (cross-confirmed items rank higher).
   deferred), #11, #12, #13.
 - **Batch 3 — control & real-repo safety (done):** #2, #6, #14 (PR deferred),
   #17, #18 (edit-race serialization deferred).
-- **Batch 4 — live feedback & onboarding (partial):** #1 (streaming — done),
-  #15 (preflight — done), #16 (import UX — done). Remaining: #24 (Verify tab),
-  #25 (a11y), #26 (deep-linking).
-- **All P0s + the trust/control/onboarding P1s are done.** Remaining: #24/#25/#26
-  and the P2 polish list (#28–#41, #43).
+- **Batch 4 — live feedback & onboarding (done):** #1 (streaming), #15 (preflight),
+  #16 (import UX).
+- **Batch 5 — remaining P1s + all P2s (done):** #24, #25, #26 (5a/5b); #28, #29,
+  #30, #35, #39, #41 (5c); #31, #32, #33, #34, #36, #37, #38, #40 (5d); #43.
+- **✅ All 43 findings resolved.** Deferred sub-parts (noted in their commits):
+  PR-creation export (#14), chat↔loop edit-race serialization (#18), reopen
+  auto-revert of the prior fix commit (#9).
 
 Legend: **P0** breaks/blocks core value · **P1** major friction, missing
 table-stakes, trust, or real-repo failure · **P2** polish / cleanup / robustness.
