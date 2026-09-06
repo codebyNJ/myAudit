@@ -20,6 +20,17 @@ export function DevScreen() {
   const [diff, setDiff] = useState('')
   const [showDiff, setShowDiff] = useState(true) // changed files default to the diff view
 
+  // Step through changed files without going back to the explorer (PR-style
+  // review). Exclude myAudit's own artifacts (preview screenshots) — not code.
+  const changedFiles = files.filter((f) => f.changed && !f.path.startsWith('.myaudit/'))
+  const changedIdx = changedFiles.findIndex((f) => f.path === sel?.path)
+  const stepChanged = (dir: 1 | -1) => {
+    if (!changedFiles.length) return
+    const base = changedIdx < 0 ? (dir === 1 ? -1 : 0) : changedIdx
+    const next = changedFiles[(base + dir + changedFiles.length) % changedFiles.length]
+    if (next) s.setFile(next.path)
+  }
+
   // Follow the work live: reveal a file the moment it's created OR changed by a
   // fix, so the editor jumps to whatever the agent just touched. Changed files
   // win (that's the active fix); new files are the fallback.
@@ -122,6 +133,13 @@ export function DevScreen() {
             {sel?.review === 'accepted' && <span style={{ color: 'var(--diff-add-text)', marginLeft: 8 }}>✓ accepted</span>}
           </div>
           <div className="ed-actions">
+            {changedFiles.length > 1 && !editing && (
+              <span className="chg-step" title="Step through changed files">
+                <button className="btn-sm" onClick={() => stepChanged(-1)}>‹</button>
+                <span className="chg-step-c">{changedIdx >= 0 ? changedIdx + 1 : '–'}/{changedFiles.length} changed</span>
+                <button className="btn-sm" onClick={() => stepChanged(1)}>›</button>
+              </span>
+            )}
             {sel && editing && <>
               <button className="btn-sm" onClick={() => setEditing(false)}>Cancel</button>
               <button className="btn-sm primary" disabled={saving} onClick={saveEdit}>{saving ? 'Saving…' : 'Save'}</button>

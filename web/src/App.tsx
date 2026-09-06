@@ -54,16 +54,20 @@ function Shell() {
     window.addEventListener('mouseup', onUp)
   }
 
+  // The file explorer is only relevant to the Code tab (reviewing diffs). On every
+  // other tab the body is single-column — a source tree next to the board/report
+  // is just noise (and heavy). `.body.locked` collapses the explorer column.
+  const showExplorer = s.tab === 'dev'
   const collapsed = !s.explorerOpen
   return (
     <div className="app">
       <Header />
-      <div ref={bodyRef} className={`body ${collapsed ? 'collapsed' : ''} ${dragging ? 'resizing' : ''}`}
+      <div ref={bodyRef} className={`body ${!showExplorer ? 'locked' : collapsed ? 'collapsed' : ''} ${dragging ? 'resizing' : ''}`}
         style={{ '--exW': s.explorerW + 'px' } as CSSProperties}>
-        <Explorer />
+        {showExplorer && <Explorer />}
         <main>
-          {!collapsed && <div className={`resizer ${dragging ? 'drag' : ''}`} onMouseDown={startDrag} title="Drag to resize" />}
-          {collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
+          {showExplorer && !collapsed && <div className={`resizer ${dragging ? 'drag' : ''}`} onMouseDown={startDrag} title="Drag to resize" />}
+          {showExplorer && collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
           <Screens />
         </main>
       </div>

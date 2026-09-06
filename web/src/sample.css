@@ -167,6 +167,10 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .health-banner { display: flex; align-items: center; gap: 8px; margin: 0 auto 18px; max-width: 640px; padding: 10px 14px;
   background: rgba(224,169,46,0.1); border: 1px solid rgba(224,169,46,0.4); border-radius: 8px; color: #e0a92e; font-size: 13px; }
 
+/* Changed-file stepper in the editor header */
+.chg-step { display: inline-flex; align-items: center; gap: 6px; }
+.chg-step-c { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; }
+
 /* Unified diff view (fix review) */
 .diff { margin: 0; padding: 12px 0; overflow: auto; height: 100%; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; background: var(--bg-base); }
 .diff .dl { padding: 0 16px; white-space: pre; }

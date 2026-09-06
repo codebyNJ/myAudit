@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Folder, FolderOpen, FilePlus, Trash2, PenLine } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -82,7 +82,13 @@ export function Explorer() {
   const toggle = (p: string) => setCollapsed((c) => { const n = new Set(c); n.has(p) ? n.delete(p) : n.add(p); return n })
   const key = files.map((f) => (f.changed ? '*' : '') + f.path).join(',')
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
-  const changed = useMemo(() => new Set(files.filter((f) => f.changed).map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = useMemo(() => new Set(files.filter((f) => f.changed && !f.path.startsWith('.myaudit/')).map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Audit tool: lead with what the audit touched. The first time changed files
+  // appear, default to the changed-only view (the user can flip to All files).
+  const primedChanged = useRef(false)
+  useEffect(() => {
+    if (!primedChanged.current && changed.size > 0) { primedChanged.current = true; setChangedOnly(true) }
+  }, [changed.size])
   const matches = q ? files.filter((f) => f.path.toLowerCase().includes(q.toLowerCase())) : []
 
   const openMenu = (e: React.MouseEvent, n: TNode) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, path: n.path, dir: n.dir }) }
