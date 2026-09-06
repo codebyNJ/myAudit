@@ -118,6 +118,20 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 /* Failed tickets live in the Review column, flagged red so they stand out. */
 .kcard.failed { border-left: 2px solid var(--method-del); }
 
+/* Unified diff view (fix review) */
+.diff { margin: 0; padding: 12px 0; overflow: auto; height: 100%; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; background: var(--bg-base); }
+.diff .dl { padding: 0 16px; white-space: pre; }
+.diff .dl-add { background: var(--diff-add-bg); color: var(--diff-add-text); }
+.diff .dl-del { background: var(--diff-del-bg); color: var(--diff-del-text); }
+.diff .dl-hunk { color: #8b949e; background: rgba(56,139,253,0.1); }
+.diff .dl-file { color: var(--text-secondary); font-weight: 600; }
+.diff .dl-meta { color: var(--text-muted); }
+.diff-empty { padding: 24px; color: var(--text-muted); font-size: 13px; }
+/* Segmented Diff/File toggle */
+.seg { display: inline-flex; border: 1px solid var(--border-subtle); border-radius: 7px; overflow: hidden; }
+.seg-b { background: var(--bg-panel); border: none; color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer; }
+.seg-b.on { background: var(--border-focus); color: #fff; }
+
 /* Board triage filter bar */
 .board-filter { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); flex: none; }
 .board-filter .bf-search { flex: 1; max-width: 320px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; color: var(--text-primary); font-size: 13px; outline: none; }

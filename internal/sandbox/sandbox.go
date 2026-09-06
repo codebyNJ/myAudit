@@ -92,6 +92,27 @@ func (w Workspace) ChangedPaths(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
+// DiffFromBaseline returns the unified diff of the workspace against the import
+// baseline commit — i.e. everything the audit changed (all fix commits, plus any
+// uncommitted edits), optionally scoped to one path. This is what the UI shows to
+// review an autonomous fix.
+func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, error) {
+	base, _, err := w.Run(ctx, "git", "rev-list", "--max-parents=0", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(base)
+	if len(fields) == 0 {
+		return "", nil
+	}
+	args := []string{"diff", fields[0]}
+	if path != "" {
+		args = append(args, "--", path)
+	}
+	out, _, err := w.Run(ctx, "git", args...)
+	return out, err
+}
+
 // Commit snapshots the current tree as one node's result, so the next node's
 // Diff starts clean.
 func (w Workspace) Commit(ctx context.Context, msg string) error {

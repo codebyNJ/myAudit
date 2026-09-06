@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { api } from '../api'
 import { IcFile } from '../components/icons'
 import { Code } from '../components/Code'
+import { Diff } from '../components/Diff'
 
 const baseName = (p: string) => p.split('/').pop() || p
 
@@ -16,6 +17,8 @@ export function DevScreen() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [diff, setDiff] = useState('')
+  const [showDiff, setShowDiff] = useState(true) // changed files default to the diff view
 
   // Follow the work live: reveal a file the moment it's created OR changed by a
   // fix, so the editor jumps to whatever the agent just touched. Changed files
@@ -56,6 +59,15 @@ export function DevScreen() {
       .catch(() => {})
     return () => { alive = false }
   }, [s.detail, sel?.path, s.runId, editing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the diff-from-baseline for changed files (and refresh as fixes land), so
+  // "what did the autonomous fix change?" is answerable without leaving the tool.
+  useEffect(() => {
+    if (!sel || !s.runId || !sel.changed) { setDiff(''); return }
+    let alive = true
+    api.diff(s.runId, sel.path).then((r) => { if (alive) setDiff(r.diff) }).catch(() => {})
+    return () => { alive = false }
+  }, [s.detail, sel?.path, s.runId, sel?.changed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEdit = () => { setDraft(content ?? ''); setEditing(true) }
   const saveEdit = async () => {
@@ -106,10 +118,16 @@ export function DevScreen() {
               <button className="btn-sm primary" disabled={saving} onClick={saveEdit}>{saving ? 'Saving…' : 'Save'}</button>
             </>}
             {sel && !editing && <>
+              {sel.changed && (
+                <div className="seg">
+                  <button className={`seg-b ${showDiff ? 'on' : ''}`} onClick={() => setShowDiff(true)}>Diff</button>
+                  <button className={`seg-b ${!showDiff ? 'on' : ''}`} onClick={() => setShowDiff(false)}>File</button>
+                </div>
+              )}
               <button className="btn-sm" onClick={startEdit}>Edit</button>
               {sel.changed && sel.review !== 'accepted' && <>
                 <button className="btn-sm" onClick={() => review('rejected')}>Reject</button>
-                <button className="btn-sm primary" onClick={() => review('accepted')}>Accept Diff</button>
+                <button className="btn-sm primary" onClick={() => review('accepted')}>Accept changes</button>
               </>}
             </>}
           </div>
@@ -117,7 +135,9 @@ export function DevScreen() {
         {sel
           ? (editing
               ? <textarea className="code-edit" value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false} />
-              : <Code path={sel.path} content={loading ? '' : (content ?? '')} />)
+              : (sel.changed && showDiff
+                  ? <Diff text={diff} />
+                  : <Code path={sel.path} content={loading ? '' : (content ?? '')} />))
           : (
             <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
               <h3>{s.runId ? 'No file selected' : 'No project open'}</h3>

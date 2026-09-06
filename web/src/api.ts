@@ -24,6 +24,7 @@ export const api = {
     req<void>('/api/checkpoints/' + id + '/resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer }) }),
   board: (id: string) => req<NodeCard[]>('/api/runs/' + id + '/board'),
   fileContent: (id: string, path: string) => req<{ path: string; content: string }>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path)),
+  diff: (id: string, path: string) => req<{ path: string; diff: string }>('/api/runs/' + id + '/diff?path=' + encodeURIComponent(path)),
   saveFile: (id: string, path: string, content: string) =>
     req<void>('/api/runs/' + id + '/file', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, content }) }),
   getNotes: (id: string) => req<{ content: string }>('/api/runs/' + id + '/notes'),

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"myaudit/internal/events"
+	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
 )
 
@@ -175,6 +176,32 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		http.ServeFile(w, r, filepath.Join("runs", id.String(), clean))
+	})
+
+	// Unified diff of what the audit changed (optionally one path) vs the import
+	// baseline — how a user reviews an autonomous fix.
+	mux.HandleFunc("GET /api/runs/{id}/diff", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		path := r.URL.Query().Get("path")
+		if path != "" {
+			clean := filepath.Clean(path)
+			if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+				http.Error(w, "bad path", 400)
+				return
+			}
+			path = clean
+		}
+		ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
+		diff, err := ws.DiffFromBaseline(r.Context(), path)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, map[string]string{"path": path, "diff": diff})
 	})
 
 	// Save edits to a file in the run workspace.
