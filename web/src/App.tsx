@@ -10,7 +10,6 @@ import { HomeScreen } from './screens/HomeScreen'
 import { Chat } from './components/Chat'
 import { DevScreen } from './screens/DevScreen'
 import { ConfigScreen } from './screens/ConfigScreen'
-import { ActivityScreen } from './screens/ActivityScreen'
 import { PlaywrightScreen } from './screens/PlaywrightScreen'
 import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
@@ -24,7 +23,6 @@ const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
   { tab: 'playwright', el: <PlaywrightScreen /> },
   { tab: 'notes', el: <NotesScreen /> },
   { tab: 'dev', el: <DevScreen /> },
-  { tab: 'activity', el: <ActivityScreen /> },
   { tab: 'settings', el: <SettingsScreen /> },
 ]
 

@@ -407,6 +407,40 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .pane { padding: 32px 40px; max-width: 860px; margin: 0 auto; overflow: auto; height: 100%; }
 .pane h2 { font-size: 18px; font-weight: 500; margin: 0 0 4px; }
 .pane .sub { color: var(--text-secondary); margin: 0 0 24px; font-size: 13px; }
+
+/* ── V2 layout system ─────────────────────────────────────────────────────
+   Vercel-style dashboards: full-width, multi-column, card-based. Replaces the
+   860px centered ribbon (.pane) for content screens. */
+.dash { position: absolute; inset: 0; overflow: auto; padding: 28px 32px; }
+.dash-inner { max-width: 1400px; margin: 0 auto; }
+.dash-head { margin: 0 0 20px; }
+.dash-head h2 { font-size: 20px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.02em; }
+.dash-head .sub { color: var(--text-secondary); margin: 0; font-size: 13px; }
+/* Responsive card grid — the default multi-column layout. */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.dash-grid.tiles { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+/* Content + right rail (Vercel "main + stats"), collapses to one column narrow. */
+.rail-split { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+@media (max-width: 940px) { .rail-split { grid-template-columns: 1fr; } }
+/* Card primitive — one consistent surface across every screen. */
+.card { background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 12px; box-shadow: var(--glow-inner); }
+.card.pad { padding: 18px 20px; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border-dim); }
+.card-h .card-t { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.card-b { padding: 16px 18px; }
+/* Stat tile (KPI) */
+.tile { background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 12px; padding: 16px 18px; box-shadow: var(--glow-inner); }
+.tile .tile-k { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 8px; }
+.tile .tile-v { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; }
+.tile .tile-sub { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+/* Overview activity rail */
+.ov-activity { max-height: calc(100vh - 220px); overflow: auto; }
+.ov-evt { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border-dim); font-size: 12px; }
+.ov-evt:last-child { border-bottom: 0; }
+.ov-evt .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+.ov-evt .ts { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); flex: none; }
+.ov-evt .kind { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; flex: none; }
+.ov-evt .msg { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evt-list { display: flex; flex-direction: column; border: 1px solid var(--border-dim); border-radius: 12px; overflow: hidden; background: var(--bg-surface); }
 .evt-row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border-dim); }
 .evt-row:last-child { border-bottom: none; }
@@ -487,6 +521,28 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .md-preview table { border-collapse: collapse; }
 .md-preview th, .md-preview td { border: 1px solid var(--border-subtle); padding: 6px 10px; font-size: 12.5px; }
 .md-preview input[type=checkbox] { margin-right: 6px; }
+
+/* Report read view: full-width card, readable prose measure, and HARDENED for
+   whatever the agent dumps — wide tables and code blocks scroll inside their own
+   box instead of blowing out the page. */
+.report-read { padding: 28px 32px; overflow: auto; }
+.report-read > * { max-width: 78ch; }
+.report-read h1 { font-size: 24px; margin: 0 0 12px; letter-spacing: -.02em; }
+.report-read h2 { font-size: 18px; margin: 26px 0 10px; letter-spacing: -.01em; }
+.report-read h3 { font-size: 15px; margin: 18px 0 6px; }
+.report-read p, .report-read li { line-height: 1.72; color: var(--text-secondary); }
+.report-read a { color: var(--method-post); overflow-wrap: anywhere; }
+.report-read code { font-family: var(--font-mono); font-size: 12px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 1px 5px; color: var(--syn-str); overflow-wrap: anywhere; }
+.report-read pre { max-width: 100%; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+.report-read pre code { border: 0; background: transparent; padding: 0; white-space: pre; }
+.report-read blockquote { border-left: 3px solid var(--border-focus); margin: 8px 0; padding: 2px 14px; color: var(--text-muted); }
+.report-read ul, .report-read ol { padding-left: 22px; }
+.report-read hr { border: 0; border-top: 1px solid var(--border-dim); margin: 20px 0; }
+/* Tables: scroll inside their own box; never widen the page. */
+.report-read table { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 10px 0; }
+.report-read th, .report-read td { border: 1px solid var(--border-subtle); padding: 6px 10px; font-size: 12.5px; white-space: nowrap; }
+.report-read img { max-width: 100%; height: auto; border-radius: 8px; }
+.report-read input[type=checkbox] { margin-right: 6px; }
 
 .set-card { background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 .set-card .set-h { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); margin-bottom: 14px; }

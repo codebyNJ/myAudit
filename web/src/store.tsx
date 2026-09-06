@@ -48,7 +48,8 @@ const TABS = new Set<Tab>(['dev', 'activity', 'playwright', 'kanban', 'notes', '
 function parseHash(): { runId: string | null; tab: Tab } {
   const m = location.hash.match(/^#\/run\/([\w-]+)(?:\/(\w+))?/)
   if (!m) return { runId: null, tab: 'kanban' }
-  const t = m[2] as Tab
+  let t = m[2] as Tab
+  if ((t as string) === 'activity') t = 'playwright' // Activity merged into Overview
   return { runId: m[1], tab: TABS.has(t) ? t : 'kanban' }
 }
 
