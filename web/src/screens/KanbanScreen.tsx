@@ -34,6 +34,22 @@ const isFailed = (st: string) => st === 'failed' || st === 'reopened'
 // Which manual status a drop onto each column sets (In progress is engine-only).
 const COL_DROP: Record<string, string> = { todo: 'open', review: 'in_review', done: 'done' }
 
+const SEV_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
+const PRI_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2 }
+// Sort comparators for cards within a column.
+const SORTERS: Record<string, (a: NodeCard, b: NodeCard) => number> = {
+  default: () => 0,
+  severity: (a, b) => (SEV_RANK[a.severity ?? ''] ?? 9) - (SEV_RANK[b.severity ?? ''] ?? 9),
+  priority: (a, b) => (PRI_RANK[a.priority ?? ''] ?? 9) - (PRI_RANK[b.priority ?? ''] ?? 9),
+  newest: (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
+}
+// Per-column severity tally (high/med/low) for the column header.
+function sevCounts(items: NodeCard[]) {
+  const c = { high: 0, medium: 0, low: 0 }
+  for (const n of items) if (n.severity && n.severity in c) c[n.severity as keyof typeof c]++
+  return c
+}
+
 // icon per task type/key
 function TaskIcon({ type }: { type: string }) {
   const p = { size: 14 }
@@ -73,6 +89,9 @@ export function KanbanScreen() {
   const [fType, setFType] = useState('all')
   const [q, setQ] = useState('')
   const [showDismissed, setShowDismissed] = useState(false)
+  const [sortBy, setSortBy] = useState('default')
+  const [groupBy, setGroupBy] = useState('none')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   // Keep the open drawer in sync with polled board data (tags/status updates).
   useEffect(() => {
@@ -206,9 +225,61 @@ export function KanbanScreen() {
     return true
   })
   const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
+  if (sortBy !== 'default') visible.sort(SORTERS[sortBy])
 
-  // Flat visible order (column by column) drives prev/next in the drawer.
-  orderedRef.current = COLS.flatMap((c) => visible.filter((n) => bucket(n.status) === c.key))
+  const renderCard = (n: NodeCard) => (
+    <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
+      key={n.id} tabIndex={0} role="button"
+      draggable={n.type === 'bug'}
+      onDragStart={() => n.type === 'bug' && setDragId(n.id)}
+      onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
+      onClick={() => setSel(n)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
+      {n.type === 'bug' && (
+        <div className="kcard-actions">
+          {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
+          {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
+        </div>
+      )}
+      <div className="kcard-top">
+        <span className="kcard-ico"><TaskIcon type={n.type} /></span>
+        <span className="kt">{label(n)}</span>
+        <span className="kid">{n.id.slice(0, 6)}</span>
+      </div>
+      {(n.severity || (n.tags && n.tags.length > 0)) && (
+        <div className="ktags">
+          {n.severity && <span className="ktag" style={{ color: SEV_COLOR[n.severity] || 'var(--text-secondary)', borderColor: SEV_COLOR[n.severity] || 'var(--border-subtle)' }}>{n.severity}</span>}
+          {n.priority && <span className="ktag">{n.priority}</span>}
+          {(n.tags || []).filter((t) => t !== n.severity).map((t) => <span key={t} className="ktag">{t}</span>)}
+        </div>
+      )}
+      {n.status === 'running'
+        ? <div className="kstep"><span className="spin-sm" />{latestStep(n.id) || 'working…'}</div>
+        : n.summary && <div className="ksum">{n.summary}</div>}
+      <div className="kcard-meta">
+        <span className="kbadge" style={{ color: STATUS_COLOR[n.status], background: 'var(--bg-panel)' }}>
+          <span className="kdot" style={{ background: STATUS_COLOR[n.status] }} />{n.status}
+        </span>
+        {n.attempts > 1 && <span className="kmeta"><RefreshCw size={10} /> {n.attempts}</span>}
+        {n.files > 0 && <span className="kmeta"><FileCode2 size={10} /> {n.files}</span>}
+        {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(3)}</span>}
+        {n.events > 0 && <span className="kmeta"><ActIcon size={10} /> {n.events}</span>}
+        {n.deps > 0 && <span className="kmeta"><GitBranch size={10} /> {n.deps}</span>}
+        {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
+      </div>
+    </div>
+  )
+
+  // Swimlanes: group cards by module or severity (or one "All" lane).
+  const laneOf = (n: NodeCard) =>
+    groupBy === 'module' ? ((n.tags || []).find((t) => t.startsWith('module:'))?.slice(7) || '—')
+      : groupBy === 'severity' ? (n.severity || '—')
+      : 'All'
+  const lanes = groupBy === 'none' ? ['All'] : [...new Set(visible.map(laneOf))].sort()
+
+  // Flat visible order (lane by lane, column by column) drives prev/next.
+  orderedRef.current = lanes.flatMap((ln) =>
+    COLS.flatMap((c) => visible.filter((n) => laneOf(n) === ln && bucket(n.status) === c.key)))
 
   // Latest streamed tool-use step for a running node → live "what it's doing now".
   const events = s.detail?.events || []
@@ -236,6 +307,17 @@ export function KanbanScreen() {
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
+        <select className="bf-sel" value={sortBy} onChange={(e) => setSortBy(e.target.value)} title="Sort within column">
+          <option value="default">Sort: default</option>
+          <option value="severity">Sort: severity</option>
+          <option value="priority">Sort: priority</option>
+          <option value="newest">Sort: newest</option>
+        </select>
+        <select className="bf-sel" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} title="Group into swimlanes">
+          <option value="none">Group: none</option>
+          <option value="module">Group: module</option>
+          <option value="severity">Group: severity</option>
+        </select>
         {activeFilter && <>
           <span className="bf-count">{visible.length} / {cards.length}</span>
           <button className="btn-sm" onClick={() => { setQ(''); setFSev('all'); setFType('all') }}>Clear</button>
@@ -245,63 +327,39 @@ export function KanbanScreen() {
             onClick={() => setShowDismissed((v) => !v)}>{showDismissed ? 'Hide' : 'Show'} dismissed ({dismissedCount})</button>
         )}
       </div>
-      <div className="board">
-        {COLS.map((c) => {
-          const items = visible.filter((n) => bucket(n.status) === c.key)
-          const droppable = !!dragId && !!COL_DROP[c.key]
-          return (
-            <div className={`kcol ${dragOverCol === c.key && droppable ? 'dragover' : ''}`} key={c.key}
-              onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(c.key) } }}
-              onDragLeave={() => setDragOverCol((cur) => (cur === c.key ? null : cur))}
-              onDrop={() => onDrop(c.key)}>
-              <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
-              {items.map((n) => (
-                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
-                  key={n.id} tabIndex={0} role="button"
-                  draggable={n.type === 'bug'}
-                  onDragStart={() => n.type === 'bug' && setDragId(n.id)}
-                  onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
-                  onClick={() => setSel(n)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
-                  {n.type === 'bug' && (
-                    <div className="kcard-actions">
-                      {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
-                      {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
-                    </div>
-                  )}
-                  <div className="kcard-top">
-                    <span className="kcard-ico"><TaskIcon type={n.type} /></span>
-                    <span className="kt">{label(n)}</span>
-                    <span className="kid">{n.id.slice(0, 6)}</span>
+      {lanes.map((lane) => (
+        <div key={lane}>
+          {groupBy !== 'none' && <div className="swimlane-h">{groupBy === 'module' ? 'module:' : ''}{lane}</div>}
+          <div className="board">
+            {COLS.map((c) => {
+              const items = visible.filter((n) => laneOf(n) === lane && bucket(n.status) === c.key)
+              const colKey = lane + '/' + c.key
+              const isCollapsed = collapsed.has(c.key)
+              const droppable = !!dragId && !!COL_DROP[c.key]
+              const sc = sevCounts(items)
+              return (
+                <div className={`kcol ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
+                  onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(colKey) } }}
+                  onDragLeave={() => setDragOverCol((cur) => (cur === colKey ? null : cur))}
+                  onDrop={() => onDrop(c.key)}>
+                  <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}>
+                    <b>{c.label}</b><span className="c">{items.length}</span>
+                    {(sc.high + sc.medium + sc.low) > 0 && (
+                      <span className="kcol-sev">
+                        {sc.high > 0 && <span style={{ color: SEV_COLOR.high }}>{sc.high}H</span>}
+                        {sc.medium > 0 && <span style={{ color: SEV_COLOR.medium }}>{sc.medium}M</span>}
+                        {sc.low > 0 && <span style={{ color: SEV_COLOR.low }}>{sc.low}L</span>}
+                      </span>
+                    )}
                   </div>
-                  {(n.severity || (n.tags && n.tags.length > 0)) && (
-                    <div className="ktags">
-                      {n.severity && <span className="ktag" style={{ color: SEV_COLOR[n.severity] || 'var(--text-secondary)', borderColor: SEV_COLOR[n.severity] || 'var(--border-subtle)' }}>{n.severity}</span>}
-                      {n.priority && <span className="ktag">{n.priority}</span>}
-                      {(n.tags || []).filter((t) => t !== n.severity).map((t) => <span key={t} className="ktag">{t}</span>)}
-                    </div>
-                  )}
-                  {n.status === 'running'
-                    ? <div className="kstep"><span className="spin-sm" />{latestStep(n.id) || 'working…'}</div>
-                    : n.summary && <div className="ksum">{n.summary}</div>}
-                  <div className="kcard-meta">
-                    <span className="kbadge" style={{ color: STATUS_COLOR[n.status], background: 'var(--bg-panel)' }}>
-                      <span className="kdot" style={{ background: STATUS_COLOR[n.status] }} />{n.status}
-                    </span>
-                    {n.attempts > 1 && <span className="kmeta"><RefreshCw size={10} /> {n.attempts}</span>}
-                    {n.files > 0 && <span className="kmeta"><FileCode2 size={10} /> {n.files}</span>}
-                    {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(3)}</span>}
-                    {n.events > 0 && <span className="kmeta"><ActIcon size={10} /> {n.events}</span>}
-                    {n.deps > 0 && <span className="kmeta"><GitBranch size={10} /> {n.deps}</span>}
-                    {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
-                  </div>
+                  {!isCollapsed && items.map((n) => renderCard(n))}
+                  {!isCollapsed && !items.length && <div className="kempty">Empty</div>}
                 </div>
-              ))}
-              {!items.length && <div className="kempty">Empty</div>}
-            </div>
-          )
-        })}
-      </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
 
       {sel && (
         <>

@@ -402,11 +402,17 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .evt-row .kind { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 .evt-row .msg { color: var(--text-secondary); font-size: 13px; }
 
-.kanban-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.kanban-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; overflow: auto; }
 /* Columns keep a minimum width and the board scrolls horizontally when the window
    (or an open chat) makes 4 equal columns too thin. */
-.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 16px; padding: 24px; flex: 1; min-height: 0; overflow: auto; }
+.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 16px; padding: 16px 24px; }
 .kcol { min-height: 0; }
+.kcol-h { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.kcol-h .kcol-sev { margin-left: auto; display: inline-flex; gap: 6px; font-size: 10px; font-weight: 700; font-family: var(--font-mono); }
+/* Collapsed column → a thin vertical rail */
+.kcol.collapsed { max-height: 44px; overflow: hidden; opacity: 0.75; }
+/* Swimlane group header */
+.swimlane-h { padding: 10px 24px 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); font-family: var(--font-mono); }
 .kcol { display: flex; flex-direction: column; gap: 10px; }
 .kcol-h { display: flex; justify-content: space-between; padding: 0 4px; }
 .kcol-h b { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }
