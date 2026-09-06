@@ -35,16 +35,16 @@ func TestSettingsMerge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cur["model_tier"] != "opus-4.8" {
+	if cur["model_tier"] != "haiku-4.5" {
 		t.Fatalf("default model_tier: %v", cur["model_tier"])
 	}
-	merged, err := s.PutSettings(ctx, map[string]any{"model_tier": "haiku-4.5"})
+	merged, err := s.PutSettings(ctx, map[string]any{"model_tier": "sonnet-5"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if merged["model_tier"] != "haiku-4.5" || merged["theme"] != "dark" {
+	if merged["model_tier"] != "sonnet-5" || merged["theme"] != "dark" {
 		t.Fatalf("merge failed: %+v", merged)
 	}
 	// reset for other test runs
-	s.PutSettings(ctx, map[string]any{"model_tier": "opus-4.8"})
+	s.PutSettings(ctx, map[string]any{"model_tier": "haiku-4.5"})
 }

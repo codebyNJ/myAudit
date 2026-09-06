@@ -129,7 +129,7 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 	task += "Developer: " + msg + "\n\nRespond concisely; if you changed files, say what and why."
 
 	res, err := agent.Run(ctx, ws, task, agent.Options{
-		Model: os.Getenv("CLAUDE_MODEL"),
+		Model: resolveModel(ctx, s),
 		Allow: agent.LiveAllow,
 		Deny:  agent.LiveDeny,
 	})

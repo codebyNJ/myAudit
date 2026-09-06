@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT OR IGNORE INTO settings(id, data)
-  VALUES (1, '{"model_tier":"opus-4.8","token_budget":100000,"theme":"dark"}');
+  VALUES (1, '{"model_tier":"haiku-4.5","token_budget":100000,"theme":"dark"}');
 
 CREATE TABLE IF NOT EXISTS file_reviews (
   run_id     TEXT NOT NULL REFERENCES runs(id),

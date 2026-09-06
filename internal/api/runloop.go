@@ -17,7 +17,7 @@ import (
 // default allow/deny tool policy. Model comes from CLAUDE_MODEL (default Haiku);
 // AGENT_ISOLATE=1 runs claude inside a container.
 type realAgent struct {
-	model   string
+	store   *store.Store
 	isolate bool
 	image   string
 }
@@ -25,12 +25,40 @@ type realAgent struct {
 func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
 	allow, deny := agent.PolicyFor(mode)
 	return agent.Run(ctx, ws, task, agent.Options{
-		Model:   a.model,
+		Model:   resolveModel(ctx, a.store),
 		Allow:   allow,
 		Deny:    deny,
 		Isolate: a.isolate,
 		Image:   a.image,
 	})
+}
+
+// tierToModel maps the Settings "model tier" to a concrete claude model id.
+var tierToModel = map[string]string{
+	"opus-4.8":  "claude-opus-4-8",
+	"sonnet-5":  "claude-sonnet-5",
+	"haiku-4.5": "claude-haiku-4-5-20251001",
+}
+
+const defaultModel = "claude-haiku-4-5-20251001"
+
+// resolveModel picks the agent model, read per run so the UI takes effect live:
+// the CLAUDE_MODEL env override wins (so `make run CLAUDE_MODEL=…` still works),
+// else the model tier the user picked in Settings, else the Haiku default.
+func resolveModel(ctx context.Context, s *store.Store) string {
+	if m := os.Getenv("CLAUDE_MODEL"); m != "" {
+		return m
+	}
+	if s != nil {
+		if st, err := s.GetSettings(ctx); err == nil {
+			if tier, _ := st["model_tier"].(string); tier != "" {
+				if id := tierToModel[tier]; id != "" {
+					return id
+				}
+			}
+		}
+	}
+	return defaultModel
 }
 
 // stubAgent is the $0 dev runner: it reports success without calling a model, so
@@ -43,17 +71,13 @@ func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mod
 
 // NewRealDeps drives nodes with the REAL Claude Code agent.
 func NewRealDeps(s *store.Store) worker.Deps {
-	model := os.Getenv("CLAUDE_MODEL")
-	if model == "" {
-		model = "claude-haiku-4-5-20251001"
-	}
 	image := os.Getenv("AGENT_IMAGE")
 	if image == "" {
 		image = "myaudit-sandbox"
 	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
-		Agent:         realAgent{model: model, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image},
+		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image},
 		WorkspaceRoot: "runs", MaxRepairs: 2,
 	}
 }

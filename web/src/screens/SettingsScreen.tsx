@@ -5,9 +5,9 @@ import { AgentAvatar } from '../components/icons'
 
 export function SettingsScreen() {
   const s = useStore()
-  const [tier, setTier] = useState('opus-4.8')
+  const [tier, setTier] = useState('haiku-4.5')
   const [saving, setSaving] = useState(false)
-  useEffect(() => { api.getSettings().then((st) => setTier((st.model_tier as string) || 'opus-4.8')).catch(() => {}) }, [])
+  useEffect(() => { api.getSettings().then((st) => setTier((st.model_tier as string) || 'haiku-4.5')).catch(() => {}) }, [])
   const save = async () => {
     setSaving(true)
     try { await api.putSettings({ model_tier: tier }); s.toast('success', 'Settings saved') }
@@ -30,11 +30,13 @@ export function SettingsScreen() {
 
       <div className="set-card">
         <div className="set-h">Model policy</div>
-        <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>Default model tier</label>
+        <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>Model for QA + fixes</label>
         <select className="set-select" style={{ width: '100%' }} value={tier} onChange={(e) => setTier(e.target.value)}>
-          <option>opus-4.8</option><option>sonnet-5</option><option>haiku-4.5</option>
+          <option value="haiku-4.5">Haiku 4.5 — fast &amp; cheap</option>
+          <option value="sonnet-5">Sonnet 5 — balanced (recommended)</option>
+          <option value="opus-4.8">Opus 4.8 — deepest, slowest</option>
         </select>
-        <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>Auto-mode escalates security/irreversible tasks to the heavy model and checkpoints when the budget is exhausted.</p>
+        <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>Applies to the next node the agent runs. A <code>CLAUDE_MODEL</code> environment variable, if set, overrides this.</p>
       </div>
 
       <div className="set-card">
