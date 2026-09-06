@@ -1,35 +1,111 @@
-import { Plus, Clock } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Search, FolderGit2, CheckCircle2, Loader2, ArrowUpRight } from 'lucide-react'
 import { useStore } from '../store'
 import { AgentAvatar } from '../components/icons'
 import { HealthBanner } from '../components/HealthBanner'
+import { STATUS_COLOR } from '../components/util'
+
+function relTime(ts: string) {
+  const d = Date.now() - new Date(ts).getTime()
+  const m = Math.floor(d / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const days = Math.floor(h / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(ts).toLocaleDateString()
+}
 
 export function HomeScreen() {
   const s = useStore()
   const runs = s.runs || []
+  const [q, setQ] = useState('')
+
+  const visible = q.trim()
+    ? runs.filter((r) => (r.project || '').toLowerCase().includes(q.trim().toLowerCase()))
+    : runs
+
+  const done = runs.filter((r) => r.status === 'done').length
+  const active = runs.filter((r) => r.status === 'running' || r.status === 'ready' || r.status === 'pending').length
+
   return (
     <div className="home">
       <div className="home-inner">
-        <div className="home-head">
-          <div className="logo lg"><AgentAvatar size={40} radius={10} /></div>
-          <h1>myAudit</h1>
-          <p>Open a past audit, or import a codebase to start one.</p>
+        <div className="home-bar">
+          <div className="home-brand">
+            <AgentAvatar size={30} radius={8} />
+            <div>
+              <h1>myAudit</h1>
+              <p>Autonomous QA and repair for your codebase.</p>
+            </div>
+          </div>
+          <button className="btn-sm primary home-cta" onClick={() => s.setNewOpen(true)}>
+            <Plus size={14} /> Import codebase
+          </button>
         </div>
+
         <HealthBanner />
+
+        {runs.length > 0 && (
+          <div className="home-stats">
+            <div className="home-stat">
+              <span className="hs-k"><FolderGit2 size={13} /> Audits</span>
+              <span className="hs-v">{runs.length}</span>
+            </div>
+            <div className="home-stat">
+              <span className="hs-k"><CheckCircle2 size={13} /> Completed</span>
+              <span className="hs-v">{done}</span>
+            </div>
+            <div className="home-stat">
+              <span className="hs-k"><Loader2 size={13} /> In progress</span>
+              <span className="hs-v">{active}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="home-sec">
+          <span className="home-sec-t">Audits</span>
+          {runs.length > 4 && (
+            <div className="home-search">
+              <Search size={13} />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search audits…" />
+            </div>
+          )}
+        </div>
+
         <div className="home-grid">
           <button className="proj-card new" onClick={() => s.setNewOpen(true)}>
-            <Plus size={20} /><span>Import codebase</span>
+            <Plus size={18} />
+            <span>Import codebase</span>
           </button>
-          {runs.map((r) => (
+          {visible.map((r) => (
             <button key={r.id} className="proj-card" onClick={() => s.setRun(r.id)}>
-              <div className="proj-name">{r.project}</div>
+              <div className="proj-top">
+                <div className="proj-name">{r.project}</div>
+                <ArrowUpRight size={14} className="proj-go" />
+              </div>
               <div className="proj-meta">
-                <span className="st">{r.status || 'active'}</span>
-                <span><Clock size={11} /> {new Date(r.created_at).toLocaleDateString()}</span>
+                <span className="st">
+                  <span className="st-dot" style={{ background: STATUS_COLOR[r.status] || 'var(--text-muted)' }} />
+                  {r.status || 'active'}
+                </span>
+                <span className="proj-time">{relTime(r.created_at)}</span>
               </div>
             </button>
           ))}
         </div>
-        {s.runs && !runs.length && <div className="home-empty">No audits yet — import a codebase to start.</div>}
+
+        {s.runs && !runs.length && (
+          <div className="home-empty">
+            <FolderGit2 size={30} strokeWidth={1.5} />
+            <h3>No audits yet</h3>
+            <p>Import a codebase and myAudit will map it, run QA per module, and fix what it finds.</p>
+          </div>
+        )}
+        {s.runs && runs.length > 0 && !visible.length && (
+          <div className="home-empty"><p>No audit matches “{q}”.</p></div>
+        )}
       </div>
     </div>
   )
