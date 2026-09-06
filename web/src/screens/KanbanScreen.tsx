@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Download, BookOpen, FlaskConical, CheckCircle2, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, Activity as ActIcon, X,
+  ChevronUp, ChevronDown, FileSymlink, Link2,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { STATUS_COLOR } from '../components/util'
+import { Diff } from '../components/Diff'
 
 const label = (n: NodeCard) => n.title || n.name || n.type
 
@@ -75,13 +77,60 @@ export function KanbanScreen() {
     if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
   }, [cards]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Esc closes the open drawer.
+  const [fixDiff, setFixDiff] = useState('')
+  const orderedRef = useRef<NodeCard[]>([]) // flat visible order, for prev/next
+
+  // Step to the prev/next card in the visible order (drawer arrows + ↑/↓).
+  const step = (dir: 1 | -1) => {
+    const list = orderedRef.current
+    if (!sel || !list.length) return
+    const i = list.findIndex((c) => c.id === sel.id)
+    if (i < 0) return
+    const n = list[(i + dir + list.length) % list.length]
+    if (n) setSel(n)
+  }
+
+  // Esc closes; ↑/↓ step through cards while the drawer is open.
   useEffect(() => {
     if (!sel) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel(null) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSel(null)
+      else if (e.key === 'ArrowDown') { e.preventDefault(); step(1) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); step(-1) }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sel])
+  }, [sel]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the fix diff for a ticket that touched a file (shown inline in drawer).
+  useEffect(() => {
+    setFixDiff('')
+    if (!sel || !s.runId || sel.type !== 'bug' || !sel.file) return
+    const path = sel.file.split(':')[0]
+    let alive = true
+    api.diff(s.runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
+    return () => { alive = false }
+  }, [sel?.id, sel?.file, s.runId, s.detail]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link: open the card named in ?card= once the board has loaded.
+  const openedFromUrl = useRef(false)
+  useEffect(() => {
+    if (openedFromUrl.current || !cards) return
+    const cid = new URLSearchParams(location.search).get('card')
+    if (cid) { const c = cards.find((x) => x.id === cid); if (c) { setSel(c); openedFromUrl.current = true } }
+  }, [cards])
+
+  // Jump from a finding to its file in the editor.
+  const openFile = (card: NodeCard) => {
+    if (!card.file) return
+    s.setFile(card.file.split(':')[0])
+    s.setTab('dev')
+    setSel(null)
+  }
+  const copyLink = (card: NodeCard) => {
+    const url = `${location.origin}${location.pathname}?card=${card.id}${location.hash}`
+    navigator.clipboard?.writeText(url).then(() => s.toast('success', 'Link copied')).catch(() => {})
+  }
 
   const saveTags = async (card: NodeCard, tags: string[]) => {
     if (!s.runId) return
@@ -142,6 +191,9 @@ export function KanbanScreen() {
     return true
   })
   const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
+
+  // Flat visible order (column by column) drives prev/next in the drawer.
+  orderedRef.current = COLS.flatMap((c) => visible.filter((n) => bucket(n.status) === c.key))
 
   // Latest streamed tool-use step for a running node → live "what it's doing now".
   const events = s.detail?.events || []
@@ -227,7 +279,12 @@ export function KanbanScreen() {
             <div className="drawer-h">
               <span className="kcard-ico" style={{ width: 32, height: 32 }}><TaskIcon type={sel.type} /></span>
               <h3>{label(sel)}</h3>
-              <span className="x" onClick={() => setSel(null)}><X size={18} /></span>
+              <span className="drawer-nav">
+                <button className="icon-btn" title="Previous card (↑)" onClick={() => step(-1)}><ChevronUp size={16} /></button>
+                <button className="icon-btn" title="Next card (↓)" onClick={() => step(1)}><ChevronDown size={16} /></button>
+                <button className="icon-btn" title="Copy link to this card" onClick={() => copyLink(sel)}><Link2 size={15} /></button>
+                <button className="icon-btn" title="Close (Esc)" onClick={() => setSel(null)}><X size={17} /></button>
+              </span>
             </div>
             <div className="drawer-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -250,8 +307,22 @@ export function KanbanScreen() {
                   </select>
                 </div>
               )}
+              {/* Location → jump to the code (the key click on an audit board) */}
+              {sel.file && (
+                <button className="file-jump" onClick={() => openFile(sel)} title="Open in editor">
+                  <FileSymlink size={13} /> <code>{sel.file}</code>
+                </button>
+              )}
               {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
               {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
+
+              {/* The fix's diff, inline — see what changed without leaving the drawer */}
+              {sel.type === 'bug' && fixDiff.trim() && (
+                <div>
+                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Fix diff</div>
+                  <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border-dim)', borderRadius: 8 }}><Diff text={fixDiff} /></div>
+                </div>
+              )}
 
               {previewsFor(sel).length > 0 && (
                 <div>

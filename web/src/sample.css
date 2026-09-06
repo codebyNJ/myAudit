@@ -169,6 +169,14 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .viewseg-b { background: var(--bg-panel); border: none; color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer; }
 .viewseg-b.on { background: var(--border-focus); color: #fff; }
 
+/* Drawer header nav (prev/next/copy/close) + jump-to-file */
+.drawer-nav { margin-left: auto; display: inline-flex; gap: 2px; }
+.icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; border-radius: 6px; display: inline-flex; }
+.icon-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.file-jump { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 7px; padding: 5px 10px; color: var(--method-post); cursor: pointer; font-size: 12px; }
+.file-jump:hover { border-color: var(--border-focus); }
+.file-jump code { color: inherit; }
+
 /* Board triage filter bar */
 .board-filter { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); flex: none; }
 .board-filter .bf-search { flex: 1; max-width: 320px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; color: var(--text-primary); font-size: 13px; outline: none; }

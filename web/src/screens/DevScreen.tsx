@@ -25,9 +25,18 @@ export function DevScreen() {
   // win (that's the active fix); new files are the fallback.
   const seen = useRef<Set<string>>(new Set())
   const changedSeen = useRef<Set<string>>(new Set())
+  const primed = useRef(false)
   const changedKey = files.filter((f) => f.changed).map((f) => f.path).join(',')
   useEffect(() => {
-    if (!s.runId) { seen.current = new Set(); changedSeen.current = new Set(); return }
+    if (!s.runId) { seen.current = new Set(); changedSeen.current = new Set(); primed.current = false; return }
+    // On first render, seed the "seen" sets WITHOUT revealing anything, so arriving
+    // with a file already chosen (e.g. jumped from a finding) isn't overridden.
+    if (!primed.current) {
+      files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
+      primed.current = true
+      if (!s.file && files.length) s.setFile(files[0].path)
+      return
+    }
     const freshChanged = files.filter((f) => f.changed && !changedSeen.current.has(f.path)).map((f) => f.path)
     const freshNew = files.filter((f) => !seen.current.has(f.path)).map((f) => f.path)
     files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
