@@ -68,6 +68,7 @@ export function KanbanScreen() {
   const [fSev, setFSev] = useState('all')
   const [fType, setFType] = useState('all')
   const [q, setQ] = useState('')
+  const [showDismissed, setShowDismissed] = useState(false)
 
   // Keep the open drawer in sync with polled board data (tags/status updates).
   useEffect(() => {
@@ -90,7 +91,16 @@ export function KanbanScreen() {
       api.board(s.runId).then(setCards)
     } catch (e) { s.toast('error', 'Could not queue', (e as Error).message) }
   }
-  const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review'].includes(c.status)
+  const patch = async (card: NodeCard, p: { severity?: string; priority?: string; status?: string }) => {
+    if (!s.runId) return
+    setSel({ ...card, ...p }) // optimistic
+    try { await api.patchNode(s.runId, card.id, p); api.board(s.runId).then(setCards) }
+    catch (e) { s.toast('error', 'Update failed', (e as Error).message) }
+  }
+  const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); s.toast('info', 'Ticket dismissed'); setSel(null) }
+  const restore = async (card: NodeCard) => patch(card, { status: 'open' })
+  // Re-queue the autonomous dev for a ticket — including reopening a closed one.
+  const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
   const previewsFor = (c: NodeCard) =>
     c.type === 'qa' ? (s.detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path)) : []
 
@@ -109,7 +119,9 @@ export function KanbanScreen() {
   // Client-side triage filter over the polled cards (data already carries
   // severity/type/tags), so ~80 cards become a worklist you can narrow.
   const ql = q.trim().toLowerCase()
+  const dismissedCount = cards.filter((n) => n.status === 'dismissed').length
   const visible = cards.filter((n) => {
+    if (n.status === 'dismissed' && !showDismissed) return false
     if (fSev !== 'all' && n.severity !== fSev) return false
     if (fType === 'bug' && n.type !== 'bug') return false
     if (fType === 'qa' && n.type !== 'qa') return false
@@ -142,6 +154,10 @@ export function KanbanScreen() {
           <span className="bf-count">{visible.length} / {cards.length}</span>
           <button className="btn-sm" onClick={() => { setQ(''); setFSev('all'); setFType('all') }}>Clear</button>
         </>}
+        {dismissedCount > 0 && (
+          <button className={`btn-sm ${showDismissed ? 'primary' : ''}`} style={{ marginLeft: 'auto' }}
+            onClick={() => setShowDismissed((v) => !v)}>{showDismissed ? 'Hide' : 'Show'} dismissed ({dismissedCount})</button>
+        )}
       </div>
       <div className="board">
         {COLS.map((c) => {
@@ -150,7 +166,7 @@ export function KanbanScreen() {
             <div className="kcol" key={c.key}>
               <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
               {items.map((n) => (
-                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''}`} key={n.id} onClick={() => setSel(n)}>
+                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''}`} key={n.id} onClick={() => setSel(n)}>
                   <div className="kcard-top">
                     <span className="kcard-ico"><TaskIcon type={n.type} /></span>
                     <span className="kt">{label(n)}</span>
@@ -197,8 +213,22 @@ export function KanbanScreen() {
                 <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
                   <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
                 </span>
-                {canRefix(sel) && <button className="btn-sm primary" onClick={() => runFix(sel)}>▶ Re-run fix</button>}
+                {canRefix(sel) && <button className="btn-sm primary" onClick={() => runFix(sel)}>{sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}</button>}
+                {sel.type === 'bug' && sel.status === 'dismissed' && <button className="btn-sm" onClick={() => restore(sel)}>Restore</button>}
+                {sel.type === 'bug' && sel.status !== 'dismissed' && <button className="btn-sm" onClick={() => dismiss(sel)}>Dismiss</button>}
               </div>
+
+              {/* Triage: edit severity / priority (bug tickets) */}
+              {sel.type === 'bug' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select className="bf-sel" value={sel.severity || 'medium'} onChange={(e) => patch(sel, { severity: e.target.value })}>
+                    <option value="high">high</option><option value="medium">medium</option><option value="low">low</option>
+                  </select>
+                  <select className="bf-sel" value={sel.priority || 'P1'} onChange={(e) => patch(sel, { priority: e.target.value })}>
+                    <option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option>
+                  </select>
+                </div>
+              )}
               {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
               {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
 

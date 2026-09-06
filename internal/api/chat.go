@@ -68,6 +68,49 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 		w.WriteHeader(202)
 	})
 
+	// Manual triage: edit a ticket's severity/priority and/or move its status
+	// (e.g. dismissed). Snapshot fields merge into input_snapshot; status is the
+	// node status column.
+	mux.HandleFunc("PATCH /api/runs/{id}/nodes/{nid}", func(w http.ResponseWriter, r *http.Request) {
+		nid, err := uuid.Parse(r.PathValue("nid"))
+		if err != nil {
+			http.Error(w, "bad node id", 400)
+			return
+		}
+		var b struct {
+			Severity string `json:"severity"`
+			Priority string `json:"priority"`
+			Status   string `json:"status"`
+		}
+		json.NewDecoder(r.Body).Decode(&b)
+		patch := map[string]any{}
+		if b.Severity == "high" || b.Severity == "medium" || b.Severity == "low" {
+			patch["severity"] = b.Severity
+		}
+		if b.Priority == "P0" || b.Priority == "P1" || b.Priority == "P2" {
+			patch["priority"] = b.Priority
+		}
+		if len(patch) > 0 {
+			if err := s.MergeNodeSnapshot(r.Context(), nid, patch); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
+		// Allowlisted manual status moves (dismiss / restore).
+		if b.Status != "" {
+			ok := map[string]bool{"open": true, "dismissed": true, "in_review": true}
+			if !ok[b.Status] {
+				http.Error(w, "status not allowed", 400)
+				return
+			}
+			if err := s.SetNodeStatus(r.Context(), nid, b.Status); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+		}
+		w.WriteHeader(200)
+	})
+
 	// Manual tagging: replace a card's tags (bug ticket or audit node).
 	mux.HandleFunc("POST /api/runs/{id}/nodes/{nid}/tags", func(w http.ResponseWriter, r *http.Request) {
 		nid, err := uuid.Parse(r.PathValue("nid"))

@@ -38,6 +38,8 @@ export const api = {
     req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/tags', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tags }) }),
   enqueue: (id: string, nodeId: string) =>
     req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/enqueue', { method: 'POST' }),
+  patchNode: (id: string, nodeId: string, patch: { severity?: string; priority?: string; status?: string }) =>
+    req<void>('/api/runs/' + id + '/nodes/' + nodeId, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
   rawUrl: (id: string, path: string) => '/api/runs/' + id + '/raw?path=' + encodeURIComponent(path),
   review: (id: string, path: string, status: 'accepted' | 'rejected') =>
     req<void>('/api/runs/' + id + '/review', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, status }) }),

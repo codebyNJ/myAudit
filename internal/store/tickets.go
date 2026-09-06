@@ -99,6 +99,21 @@ func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID,
 	return ids, rows.Err()
 }
 
+// MergeNodeSnapshot merges keys into a node's input_snapshot JSON — used for
+// manual triage edits (severity, priority, …) that the board reads back out.
+func (s *Store) MergeNodeSnapshot(ctx context.Context, node uuid.UUID, patch map[string]any) error {
+	var raw []byte
+	_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(input_snapshot,'{}') FROM nodes WHERE id=?`, node).Scan(&raw)
+	m := map[string]any{}
+	_ = json.Unmarshal(raw, &m)
+	for k, v := range patch {
+		m[k] = v
+	}
+	b, _ := json.Marshal(m)
+	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET input_snapshot=? WHERE id=?`, string(b), node)
+	return err
+}
+
 // SetNodeStatus moves a card to a new lifecycle status (used to advance bug
 // tickets: open → in_progress → in_review → verified, or failed/reopened).
 func (s *Store) SetNodeStatus(ctx context.Context, node uuid.UUID, status string) error {
