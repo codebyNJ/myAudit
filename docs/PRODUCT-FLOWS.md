@@ -108,6 +108,41 @@ pitch. Each: *what I'd expect → what happens today → the flow to build.*
 
 ---
 
+## Kanban board UX gaps (the board people actually expect)
+
+Measured against standard kanban conventions (Trello/Jira/Linear;
+[UX Patterns for Developers](https://uxpatterns.dev/patterns/data-display/kanban-board),
+[Eleken drag-and-drop UX](https://www.eleken.co/blog-posts/drag-and-drop-ui)).
+Our board today: 4 columns, filter bar, click a card → drawer. That's it — most
+expected interactions are absent.
+
+### K1 — Detail view (the drawer) is thin
+- **Open the file from a finding.** A bug names `app/x.tsx:42` but you can't click
+  it to see the code — the single most-expected click on an *audit* board. Build:
+  "Open in editor" → Files tab at that file (and scroll to the line).
+- **Prev / next card** without closing. Reviewing 12 findings means 12
+  open-read-close cycles. Build: ↑/↓ + on-screen arrows to step through cards.
+- **Copy link to this card.** No way to share/bookmark a specific finding. Build:
+  card id in the URL + a copy button.
+- **See the fix's diff in the drawer.** The diff exists on the Files tab but a
+  bug's drawer doesn't show what its fix changed. Build: inline diff for fixed
+  tickets.
+
+### K2 — Card interactions are missing
+- **Drag-and-drop between columns** — the defining kanban gesture, entirely
+  absent; status only changes via buttons. Build: drag a ticket To do⇄Review⇄Done
+  as a manual triage move (engine nodes stay non-draggable).
+- **Quick actions on the card** (open / dismiss / fix) — today you must open the
+  drawer for everything. Research: key actions shouldn't be buried. Build: a small
+  action row on hover/focus.
+- **Keyboard operable** — cards aren't focusable; no arrow-to-move, Enter-to-open.
+  Build: focusable cards, roving focus, Enter opens.
+
+### K3 — Board controls are shallow
+- **Sort within a column** (severity / priority / newest) — none; order is fixed.
+- **Group by** module or severity (swimlanes), not just status.
+- **Collapse a column**; show counts by severity in the header.
+
 ## Suggested first slice
 **F1 (get fixes out) → F3 (audit-only mode) → F2 (budget cap) → F4 (sample run).**
 F1 makes the output real; F3+F2 make the first run safe to try; F4 earns trust
