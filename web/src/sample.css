@@ -169,6 +169,24 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .health-banner { display: flex; align-items: center; gap: 8px; margin: 0 auto 18px; max-width: 640px; padding: 10px 14px;
   background: rgba(224,169,46,0.1); border: 1px solid rgba(224,169,46,0.4); border-radius: 8px; color: #e0a92e; font-size: 13px; }
 
+/* Code landing: PR-style changed-files list */
+.cl-wrap { position: absolute; inset: 0; overflow: auto; padding: 20px 28px; }
+.cl-head { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.cl-head .cl-n { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); background: var(--bg-panel); border-radius: 999px; padding: 1px 8px; }
+.cl-list { border: 1px solid var(--border-dim); border-radius: 10px; overflow: hidden; background: var(--bg-surface); max-width: 900px; }
+.cl-row { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border-dim); cursor: pointer; }
+.cl-row:last-child { border-bottom: 0; }
+.cl-row:hover { background: var(--bg-hover); }
+.cl-badge { flex: none; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; }
+.cl-badge.mod { color: #e0a92e; background: rgba(224,169,46,.14); }
+.cl-badge.add { color: var(--method-get); background: var(--method-get-bg); }
+.cl-path { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-path .cl-dir { color: var(--text-muted); }
+.cl-path .cl-base { color: var(--text-primary); font-weight: 500; }
+.cl-rev { margin-left: auto; font-size: 10.5px; font-family: var(--font-mono); }
+.cl-rev.ok { color: var(--diff-add-text); }
+.cl-rev.no { color: var(--text-muted); }
+
 /* Changed-file stepper in the editor header */
 .chg-step { display: inline-flex; align-items: center; gap: 6px; }
 .chg-step-c { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); white-space: nowrap; }
@@ -475,8 +493,31 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .kcard-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .kmeta { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); }
 .kbadge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; }
-.kempty { border: 1px dashed var(--border-subtle); border-radius: 10px; padding: 14px; text-align: center; color: var(--text-muted); font-size: 11px; }
+.kempty { border: 1px dashed var(--border-dim); border-radius: 10px; padding: 20px 14px; text-align: center; color: var(--text-muted); font-size: 11px; opacity: 0.6; }
 .kdot { width: 6px; height: 6px; border-radius: 999px; }
+
+/* ── JIRA-style card face ─────────────────────────────────────────────── */
+.kcard.jira { padding: 11px 12px 10px 14px; border-radius: 8px; }
+.kcard.jira::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 8px 0 0 8px; background: var(--stripe, var(--border-subtle)); }
+.kcard.jira .jtitle { font-weight: 500; font-size: 13px; line-height: 1.35; color: var(--text-primary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kcard.jira .ksum { -webkit-line-clamp: 2; margin-top: 6px; }
+.kcard.jira .ktags { margin: 8px 0 2px; }
+.jsev { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #0a0a0a; border-radius: 4px; padding: 1px 6px; }
+.jfoot { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.jkey { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--text-secondary); }
+.jkey-ico { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 4px; background: var(--bg-panel); border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.jprio { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.jprio.p-p0 { color: #f87171; border-color: rgba(248,113,113,.5); }
+.jprio.p-p1 { color: #e0a92e; border-color: rgba(224,169,46,.5); }
+.jfoot-meta { display: inline-flex; align-items: center; gap: 8px; margin-left: 2px; overflow: hidden; }
+.jassignee { margin-left: auto; flex: none; display: grid; place-items: center; border-radius: 999px; overflow: hidden; box-shadow: 0 0 0 1px var(--border-subtle); }
+
+/* Column header accent bars (To do / In progress / Review / Done) */
+.kcol-h { border-top: 2px solid var(--border-subtle); padding-top: 8px; }
+.kcol.col-todo .kcol-h { border-top-color: #6b7280; }
+.kcol.col-active .kcol-h { border-top-color: var(--method-post); }
+.kcol.col-review .kcol-h { border-top-color: #e0a92e; }
+.kcol.col-done .kcol-h { border-top-color: var(--method-get); }
 /* detail drawer */
 .drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 90; }
 .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 92vw; background: var(--bg-surface); border-left: 1px solid var(--border-subtle); box-shadow: var(--shadow-float); z-index: 91; display: flex; flex-direction: column; }

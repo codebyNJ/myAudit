@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Download, Search, Bug,
-  GitBranch, RefreshCw, Clock, FileCode2, Activity as ActIcon, X,
+  GitBranch, RefreshCw, Clock, FileCode2, X,
   ChevronUp, ChevronDown, FileSymlink, Link2,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { STATUS_COLOR } from '../components/util'
 import { Diff } from '../components/Diff'
+import { AgentAvatar } from '../components/icons'
 
 const label = (n: NodeCard) => n.title || n.name || n.type
+
+// JIRA-style issue key: type prefix + short id (e.g. BUG-1a2b, QA-9f0e).
+const KEY_PREFIX: Record<string, string> = { bug: 'BUG', qa: 'QA', map: 'MAP', import: 'IMP' }
+const keyFor = (n: NodeCard) => `${KEY_PREFIX[n.type] || 'AUD'}-${n.id.slice(0, 4)}`
 
 const SEV_COLOR: Record<string, string> = { high: '#f87171', medium: '#e0a92e', low: '#60a5fa' }
 
@@ -261,9 +266,16 @@ export function KanbanScreen() {
   const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
   if (sortBy !== 'default') visible.sort(SORTERS[sortBy])
 
-  const renderCard = (n: NodeCard) => (
-    <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
-      key={n.id} tabIndex={0} role="button"
+  // JIRA-style card: priority stripe · title · label chips · footer (issue key +
+  // type icon + assignee avatar). Behaviour (drag, quick-actions, running step)
+  // is unchanged — only the face is rebuilt.
+  const renderCard = (n: NodeCard) => {
+    const stripe = SEV_COLOR[n.severity || ''] || STATUS_COLOR[n.status] || 'var(--border-subtle)'
+    const moduleTag = (n.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
+    const otherTags = (n.tags || []).filter((t) => t !== n.severity && !t.startsWith('module:') && t !== ('from:qa'))
+    return (
+    <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
+      key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
       draggable={n.type === 'bug'}
       onDragStart={() => n.type === 'bug' && setDragId(n.id)}
       onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
@@ -271,38 +283,36 @@ export function KanbanScreen() {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
       {n.type === 'bug' && (
         <div className="kcard-actions">
+          <button className="ka-btn" title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
           {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
           {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
         </div>
       )}
-      <div className="kcard-top">
-        <span className="kcard-ico"><TaskIcon type={n.type} /></span>
-        <span className="kt">{label(n)}</span>
-        <span className="kid">{n.id.slice(0, 6)}</span>
-      </div>
-      {(n.severity || (n.tags && n.tags.length > 0)) && (
-        <div className="ktags">
-          {n.severity && <span className="ktag" style={{ color: SEV_COLOR[n.severity] || 'var(--text-secondary)', borderColor: SEV_COLOR[n.severity] || 'var(--border-subtle)' }}>{n.severity}</span>}
-          {n.priority && <span className="ktag">{n.priority}</span>}
-          {(n.tags || []).filter((t) => t !== n.severity).map((t) => <span key={t} className="ktag">{t}</span>)}
-        </div>
-      )}
+      <div className="jtitle">{label(n)}</div>
       {n.status === 'running'
         ? <div className="kstep"><span className="spin-sm" />{latestStep(n.id) || 'working…'}</div>
         : n.summary && <div className="ksum">{n.summary}</div>}
-      <div className="kcard-meta">
-        <span className="kbadge" style={{ color: STATUS_COLOR[n.status], background: 'var(--bg-panel)' }}>
-          <span className="kdot" style={{ background: STATUS_COLOR[n.status] }} />{n.status}
+      {(n.severity || moduleTag || otherTags.length > 0) && (
+        <div className="ktags">
+          {n.severity && <span className="jsev" style={{ background: SEV_COLOR[n.severity] || 'var(--text-muted)' }}>{n.severity}</span>}
+          {moduleTag && <span className="ktag">{moduleTag}</span>}
+          {otherTags.map((t) => <span key={t} className="ktag">{t}</span>)}
+        </div>
+      )}
+      <div className="jfoot">
+        <span className="jkey" title={n.type}><span className="jkey-ico"><TaskIcon type={n.type} /></span>{keyFor(n)}</span>
+        {n.priority && <span className={`jprio p-${n.priority}`} title={`priority ${n.priority}`}>{n.priority}</span>}
+        <span className="jfoot-meta">
+          {n.attempts > 1 && <span className="kmeta"><RefreshCw size={10} /> {n.attempts}</span>}
+          {n.files > 0 && <span className="kmeta"><FileCode2 size={10} /> {n.files}</span>}
+          {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(2)}</span>}
+          {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
         </span>
-        {n.attempts > 1 && <span className="kmeta"><RefreshCw size={10} /> {n.attempts}</span>}
-        {n.files > 0 && <span className="kmeta"><FileCode2 size={10} /> {n.files}</span>}
-        {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(3)}</span>}
-        {n.events > 0 && <span className="kmeta"><ActIcon size={10} /> {n.events}</span>}
-        {n.deps > 0 && <span className="kmeta"><GitBranch size={10} /> {n.deps}</span>}
-        {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
+        <span className="jassignee" title="Assigned to the audit agent"><AgentAvatar size={20} radius={999} /></span>
       </div>
     </div>
-  )
+    )
+  }
 
   // Swimlanes: group cards by module or severity (or one "All" lane).
   const laneOf = (n: NodeCard) =>
@@ -382,7 +392,7 @@ export function KanbanScreen() {
               const droppable = !!dragId && !!COL_DROP[c.key]
               const sc = sevCounts(items)
               return (
-                <div className={`kcol ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
+                <div className={`kcol col-${c.key} ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
                   onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(colKey) } }}
                   onDragLeave={() => setDragOverCol((cur) => (cur === colKey ? null : cur))}
                   onDrop={() => onDrop(c.key)}>

@@ -3,10 +3,30 @@ import { X } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
 import { IcFile } from '../components/icons'
-import { Code } from '../components/Code'
 import { Diff } from '../components/Diff'
+import { Mono } from '../components/Monaco'
 
 const baseName = (p: string) => p.split('/').pop() || p
+const dirName = (p: string) => { const i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i + 1) }
+
+// PR-style "Files changed" list — the Code landing before you open a file.
+function ChangedList({ files, onOpen }: { files: { path: string; review?: string; action?: string }[]; onOpen: (p: string) => void }) {
+  return (
+    <div className="cl-wrap">
+      <div className="cl-head">Changed files <span className="cl-n">{files.length}</span></div>
+      <div className="cl-list">
+        {files.map((f) => (
+          <div className="cl-row" key={f.path} onClick={() => onOpen(f.path)} title={f.path}>
+            <span className={`cl-badge ${f.action === 'created' ? 'add' : 'mod'}`}>{f.action === 'created' ? 'A' : 'M'}</span>
+            <span className="cl-path"><span className="cl-dir">{dirName(f.path)}</span><span className="cl-base">{baseName(f.path)}</span></span>
+            {f.review === 'accepted' && <span className="cl-rev ok">✓ accepted</span>}
+            {f.review === 'rejected' && <span className="cl-rev no">rejected</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export function DevScreen() {
   const s = useStore()
@@ -45,15 +65,17 @@ export function DevScreen() {
     if (!primed.current) {
       files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
       primed.current = true
-      if (!s.file && files.length) s.setFile(files[0].path)
+      // Don't force a file open — with nothing selected the Code tab shows the
+      // changed-files LIST first ("list before code").
       return
     }
+    // During a live run, still auto-reveal a file the moment it's fixed/created,
+    // so you watch the work land. Changed wins; new files are the fallback.
     const freshChanged = files.filter((f) => f.changed && !changedSeen.current.has(f.path)).map((f) => f.path)
-    const freshNew = files.filter((f) => !seen.current.has(f.path)).map((f) => f.path)
+    const freshNew = files.filter((f) => !seen.current.has(f.path) && !f.path.startsWith('.myaudit/')).map((f) => f.path)
     files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
     if (freshChanged.length) s.setFile(freshChanged[freshChanged.length - 1])
     else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
-    else if (!s.file && files.length) s.setFile(files[0].path)
   }, [files.map((f) => f.path).join(',') + '|' + changedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Content is loaded lazily per file (the tree only carries paths).
@@ -127,8 +149,9 @@ export function DevScreen() {
         )}
         <div className="ed-head">
           <div className="ed-head-left">
+            {sel && changedFiles.length > 0 && <button className="btn-sm" title="Back to changed files" onClick={() => s.setFile('')} style={{ marginRight: 4 }}>‹ Files</button>}
             <IcFile />
-            <span className="path">{sel ? sel.path : 'no file selected'}</span>
+            <span className="path">{sel ? sel.path : `${changedFiles.length} changed file${changedFiles.length === 1 ? '' : 's'}`}</span>
             {sel?.changed && <span className="chg-pill" style={{ marginLeft: 8 }}>changed</span>}
             {sel?.review === 'accepted' && <span style={{ color: 'var(--diff-add-text)', marginLeft: 8 }}>✓ accepted</span>}
           </div>
@@ -161,15 +184,17 @@ export function DevScreen() {
         </div>
         {sel
           ? (editing
-              ? <textarea className="code-edit" value={draft} onChange={(e) => setDraft(e.target.value)} spellCheck={false} />
+              ? <Mono path={sel.path} value={draft} readOnly={false} onChange={setDraft} />
               : (sel.changed && showDiff
                   ? <Diff text={diff} />
-                  : <Code path={sel.path} content={loading ? '' : (content ?? '')} />))
+                  : <Mono path={sel.path} value={loading ? '' : (content ?? '')} readOnly />))
           : (
-            <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
-              <h3>{s.runId ? 'No file selected' : 'No project open'}</h3>
-              <p>{s.runId ? (files.length ? 'Pick a file from the Explorer.' : 'No files yet — the audit is still importing.') : 'Import a codebase from the home screen.'}</p>
-            </div>
+            changedFiles.length > 0
+              ? <ChangedList files={changedFiles} onOpen={(p) => s.setFile(p)} />
+              : <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
+                  <h3>{s.runId ? 'No changes yet' : 'No project open'}</h3>
+                  <p>{s.runId ? (files.length ? 'The audit hasn’t changed any files yet. Browse the tree in the Explorer.' : 'No files yet — the audit is still importing.') : 'Import a codebase from the home screen.'}</p>
+                </div>
           )}
       </div>
   )
