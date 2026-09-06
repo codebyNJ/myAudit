@@ -8,14 +8,11 @@ import * as monaco from 'monaco-editor'
 }
 loader.config({ monaco })
 
-let themed = false
-function ensureTheme(m: typeof monaco) {
-  if (themed) return
-  themed = true
-  m.editor.defineTheme('cursor-dark', {
+monaco.editor.defineTheme('cursor-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [
+      { token: '', foreground: 'e4e4e7' },
       { token: 'comment', foreground: '52525b', fontStyle: 'italic' },
       { token: 'keyword', foreground: 'f43f5e' },
       { token: 'string', foreground: '7dd3fc' },
@@ -23,6 +20,32 @@ function ensureTheme(m: typeof monaco) {
       { token: 'type', foreground: '38bdf8' },
       { token: 'function', foreground: 'c084fc' },
       { token: 'variable', foreground: 'e4e4e7' },
+      { token: 'operator', foreground: 'a1a1aa' },
+      { token: 'delimiter', foreground: 'a1a1aa' },
+      { token: 'tag', foreground: 'd7ba7d' },
+      { token: 'attribute.name', foreground: '9cdcfe' },
+      { token: 'attribute.value', foreground: 'ce9178' },
+      { token: 'attribute.value.number', foreground: 'b5cea8' },
+      { token: 'attribute.value.unit', foreground: 'b5cea8' },
+      { token: 'attribute.value.hex', foreground: 'ce9178' },
+      { token: 'keyword.css', foreground: 'c586c0' },
+      { token: 'tag.css', foreground: 'd7ba7d' },
+      { token: 'attribute.name.css', foreground: '9cdcfe' },
+      { token: 'attribute.value.css', foreground: 'ce9178' },
+      { token: 'delimiter.css', foreground: 'a1a1aa' },
+      { token: 'delimiter.bracket.css', foreground: 'a1a1aa' },
+      { token: 'delimiter.parenthesis.css', foreground: 'a1a1aa' },
+      { token: 'function.css', foreground: 'c084fc' },
+      { token: 'string.css', foreground: '7dd3fc' },
+      { token: 'number.css', foreground: 'b5cea8' },
+      { token: 'comment.css', foreground: '52525b', fontStyle: 'italic' },
+      { token: 'key', foreground: '9cdcfe' },
+      { token: 'string.key', foreground: '9cdcfe' },
+      { token: 'string.value', foreground: '7dd3fc' },
+      { token: 'metatag', foreground: 'c586c0' },
+      { token: 'attribute.name.html', foreground: '9cdcfe' },
+      { token: 'attribute.value.html', foreground: 'ce9178' },
+      { token: 'tag.html', foreground: '38bdf8' },
     ],
     colors: {
       'editor.background': '#0c0c0e',
@@ -38,9 +61,9 @@ function ensureTheme(m: typeof monaco) {
       'scrollbarSlider.background': '#ffffff14',
       'scrollbarSlider.hoverBackground': '#ffffff24',
       'scrollbarSlider.activeBackground': '#ffffff34',
-    },
-  })
-}
+  },
+})
+monaco.editor.setTheme('cursor-dark')
 
 const EXT_LANG_MAP: Record<string, string> = {
   ts: 'typescript',
@@ -115,7 +138,7 @@ export function Mono({ path, value, readOnly, onChange }: {
   readOnly: boolean
   onChange?: (v: string) => void
 }) {
-  const onMount: OnMount = (_editor, m) => ensureTheme(m)
+  const onMount: OnMount = (_editor, m) => m.editor.setTheme('cursor-dark')
   return (
     <Editor
       key={path}
