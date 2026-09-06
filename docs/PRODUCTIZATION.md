@@ -4,6 +4,13 @@ Deduped findings from a four-lens deep audit of our own codebase (onboarding,
 core workflow, UX, code health). Prioritized by **user impact**, not cost.
 Tags in brackets = which lenses flagged it (cross-confirmed items rank higher).
 
+## Progress
+
+- **Batch 1 — trust & correctness (done):** #3, #4, #7, #10, #19, #20, #21, #22, #27.
+- **Batch 2 — autonomous-fix trust loop (done):** #8, #9 (reopen; auto-revert
+  deferred), #11, #12, #13.
+- **Next — Batch 3 (control & real-repo safety):** #2, #6, #14, #17, #18.
+
 Legend: **P0** breaks/blocks core value · **P1** major friction, missing
 table-stakes, trust, or real-repo failure · **P2** polish / cleanup / robustness.
 Size = rough effort (S/M/L).
