@@ -25,6 +25,9 @@ type Store = {
   explorerW: number
   setExplorerW: (n: number) => void
   setTab: (t: Tab) => void
+  focusCard: string | null       // in-app "open this card on the board" signal
+  openCard: (id: string) => void // set focusCard + switch to Board
+  clearFocusCard: () => void
   setRun: (id: string) => void
   goHome: () => void
   setFile: (p: string) => void
@@ -56,6 +59,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState<RunDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [tab, setTab] = useState<Tab>(initial.tab)
+  const [focusCard, setFocusCard] = useState<string | null>(null)
   const [file, setFileState] = useState<string | null>(null)
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -158,6 +162,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     chatOpen, toggleChat: () => setChatOpen(!chatOpen), setChatOpen,
     explorerW, setExplorerW,
     setTab,
+    focusCard, openCard: (id) => { setFocusCard(id); setTab('kanban') }, clearFocusCard: () => setFocusCard(null),
     setRun: (id) => { setRunId(id); setNewOpen(false); clearFiles(); setTab('kanban') },
     goHome: () => { setRunId(null); setNewOpen(false); clearFiles() },
     setFile, toast, dismiss,

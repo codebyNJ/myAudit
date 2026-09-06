@@ -50,6 +50,26 @@ function sevCounts(items: NodeCard[]) {
   return c
 }
 
+// Live phase banner: import → map → QA (n/m) → fixes. Returns null once the run
+// has drained (no active nodes), so a finished board isn't cluttered.
+function progressLine(cards: NodeCard[]): { text: string; done: number; total: number } | null {
+  const active = cards.filter((n) => n.status === 'ready' || n.status === 'running' || n.status === 'pending')
+  if (!active.length) return null
+  const imp = cards.find((n) => n.type === 'import')
+  const map = cards.find((n) => n.type === 'map')
+  const qas = cards.filter((n) => n.type === 'qa')
+  const qaDone = qas.filter((n) => n.status === 'done').length
+  const bugs = cards.filter((n) => n.type === 'bug')
+  const bugDone = bugs.filter((n) => n.status === 'done').length
+  let text: string
+  if (imp && imp.status !== 'done') text = 'Importing the codebase…'
+  else if (map && map.status !== 'done') text = 'Mapping modules…'
+  else if (qas.length && qaDone < qas.length) text = `Reviewing modules — QA ${qaDone}/${qas.length}`
+  else if (bugs.length) text = `Fixing — ${bugDone}/${bugs.length} done`
+  else text = 'Working…'
+  return { text, done: qaDone + bugDone, total: qas.length + bugs.length }
+}
+
 // icon per task type/key
 // Icons for the four live node types (import → map → qa → bug).
 function TaskIcon({ type }: { type: string }) {
@@ -132,13 +152,21 @@ export function KanbanScreen() {
     return () => { alive = false }
   }, [sel?.id, sel?.file, s.runId, s.detail]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Deep-link: open the card named in ?card= once the board has loaded.
+  // Deep-link on first load: open the card named in ?card= (copy-link / shared URL).
   const openedFromUrl = useRef(false)
   useEffect(() => {
     if (openedFromUrl.current || !cards) return
     const cid = new URLSearchParams(location.search).get('card')
     if (cid) { const c = cards.find((x) => x.id === cid); if (c) { setSel(c); openedFromUrl.current = true } }
   }, [cards])
+
+  // In-app focus: another screen (e.g. Summary) asked to open a card on the board.
+  useEffect(() => {
+    if (!s.focusCard || !cards) return
+    const c = cards.find((x) => x.id === s.focusCard)
+    if (c) setSel(c)
+    s.clearFocusCard()
+  }, [s.focusCard, cards]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Jump from a finding to its file in the editor.
   const openFile = (card: NodeCard) => {
@@ -211,7 +239,7 @@ export function KanbanScreen() {
   }, [s.runId])
 
   if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
-  if (cards == null) return <div className="empty-mid"><div className="spin" /></div>
+  if (cards == null) return <div className="empty-mid"><div className="spin" /><p style={{ marginTop: 12 }}>Setting up your audit…</p></div>
 
   // Client-side triage filter over the polled cards (data already carries
   // severity/type/tags), so ~80 cards become a worklist you can narrow.
@@ -297,8 +325,18 @@ export function KanbanScreen() {
     return ''
   }
 
+  const prog = progressLine(cards)
   return (
     <div className="kanban-wrap">
+      {prog && (
+        <div className="run-banner">
+          <span className="spin-sm" />
+          <span className="rb-text">{prog.text}</span>
+          {prog.total > 0 && (
+            <span className="rb-bar"><span className="rb-fill" style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></span>
+          )}
+        </div>
+      )}
       <div className="board-filter">
         <input className="bf-search" placeholder="Filter cards…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="bf-sel" value={fType} onChange={(e) => setFType(e.target.value)}>

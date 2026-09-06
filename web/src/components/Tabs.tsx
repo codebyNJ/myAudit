@@ -2,12 +2,15 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { useStore, type Tab } from '../store'
 
 // Tabs shown in the segmented control (Settings is reachable via the account menu).
+// Labels use audit vocabulary; ids are unchanged so URLs/deep-links stay valid.
+// Order: Board (triage) · Summary (rollup) · Report (narrative+exports) ·
+// Code (diff review) · Activity (event feed).
 const TABS: { id: Tab; label: string }[] = [
   { id: 'kanban', label: 'Board' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'dev', label: 'Files' },
+  { id: 'playwright', label: 'Summary' },
+  { id: 'notes', label: 'Report' },
+  { id: 'dev', label: 'Code' },
   { id: 'activity', label: 'Activity' },
-  { id: 'playwright', label: 'Verify' },
 ]
 
 export function Tabs() {

@@ -5,6 +5,11 @@ import { AccountMenu } from './AccountMenu'
 import { useStore } from '../store'
 import { api } from '../api'
 
+// Human labels for the live run-pill (was printing raw node types like "qa running").
+const RUN_VERB: Record<string, string> = {
+  import: 'Importing', map: 'Mapping modules', qa: 'Reviewing', bug: 'Fixing',
+}
+
 // Header: product logo + workspace switcher + branch | centered tabs | account avatar.
 // (Search moved into the Explorer.)
 export function Header() {
@@ -28,7 +33,7 @@ export function Header() {
         <div className="branch-tag"><IcBranch /> main</div>
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}
         {running
-          ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{running.type} running{queued > 0 ? ` · ${queued} queued` : ''}</div>
+          ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{RUN_VERB[running.type] || running.type}{queued > 0 ? ` · ${queued} queued` : ''}</div>
           : queued > 0 ? <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>
           : runStatus === 'failed' ? <div className="run-pill failed" title="The audit failed">✗ failed</div>
           : runStatus === 'cancelled' ? <div className="run-pill idle" title="Audit cancelled">■ cancelled</div>

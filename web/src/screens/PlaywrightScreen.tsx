@@ -47,7 +47,7 @@ export function PlaywrightScreen() {
       <div className="set-card">
         <div className="set-h">Fix verification</div>
         {bugs.length ? bugs.map((b) => (
-          <div className="v-row" key={b.id}>
+          <div className="v-row v-click" key={b.id} title="Open on the board" onClick={() => s.openCard(b.id)}>
             {fixIcon(b.status)}
             <span className="v-title">{b.title || b.name}</span>
             <span className={`v-word v-${b.status}`}>{fixWord(b.status)}</span>

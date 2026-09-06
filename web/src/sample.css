@@ -154,6 +154,8 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 /* Verification dashboard rows */
 .v-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-dim); font-size: 13px; }
 .v-row:last-child { border-bottom: none; }
+.v-row.v-click { cursor: pointer; }
+.v-row.v-click:hover { background: var(--bg-hover); }
 .v-row .v-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .v-word { font-size: 11px; font-family: var(--font-mono); }
 .v-word.v-done { color: var(--diff-add-text); }
@@ -186,6 +188,12 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .file-jump { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 7px; padding: 5px 10px; color: var(--method-post); cursor: pointer; font-size: 12px; }
 .file-jump:hover { border-color: var(--border-focus); }
 .file-jump code { color: inherit; }
+
+/* Live run banner across the top of the board (hides when the run drains) */
+.run-banner { display: flex; align-items: center; gap: 10px; padding: 9px 16px; background: rgba(88,166,255,0.07); border-bottom: 1px solid rgba(88,166,255,0.25); flex: none; }
+.run-banner .rb-text { font-size: 12.5px; color: var(--method-post); font-weight: 500; }
+.run-banner .rb-bar { flex: 1; max-width: 280px; height: 4px; border-radius: 999px; background: var(--bg-panel); overflow: hidden; }
+.run-banner .rb-fill { display: block; height: 100%; background: var(--method-post); transition: width .4s ease; }
 
 /* Board triage filter bar */
 .board-filter { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); flex: none; }
