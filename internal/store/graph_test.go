@@ -6,35 +6,33 @@ import (
 	"testing"
 )
 
-func TestCreateGraphStoresResourceSpec(t *testing.T) {
+func TestCreateGraphStoresSpec(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))
 	defer s.Close()
 
-	res := Resource{Name: "Project", Fields: []Field{{Name: "title", Type: "string"}, {Name: "status", Type: "string"}}}
 	specs := []TaskSpec{
-		{Key: "scaffold", Type: "scaffold"},
-		{Key: "config", Type: "config", DepKeys: []string{"scaffold"}},
-		{Key: "feature_Project", Type: "feature", DepKeys: []string{"config"}, Spec: res},
-		{Key: "finalize", Type: "finalize", DepKeys: []string{"feature_Project"}},
+		{Key: "import", Type: "import"},
+		{Key: "map", Type: "map", DepKeys: []string{"import"}},
+		{Key: "qa", Type: "qa", DepKeys: []string{"map"}, Spec: map[string]any{"module": "auth", "path": "src/auth"}},
 	}
 	_, ids, err := s.CreateGraph(ctx, "proj", specs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 4 {
-		t.Fatalf("want 4 nodes, got %d", len(ids))
+	if len(ids) != 3 {
+		t.Fatalf("want 3 nodes, got %d", len(ids))
 	}
 	var snap []byte
-	if err := s.db.QueryRowContext(ctx, `SELECT input_snapshot FROM nodes WHERE id=?`, ids["feature_Project"]).Scan(&snap); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT input_snapshot FROM nodes WHERE id=?`, ids["qa"]).Scan(&snap); err != nil {
 		t.Fatal(err)
 	}
-	var got Resource
+	var got map[string]string
 	if err := json.Unmarshal(snap, &got); err != nil {
 		t.Fatalf("spec did not round-trip as JSON: %v (%s)", err, snap)
 	}
-	if got.Name != "Project" || len(got.Fields) != 2 || got.Fields[0].Name != "title" {
-		t.Fatalf("resource spec round-trip wrong: %+v", got)
+	if got["module"] != "auth" || got["path"] != "src/auth" {
+		t.Fatalf("spec round-trip wrong: %+v", got)
 	}
 }
 

@@ -107,13 +107,16 @@ func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) 
 // PromoteReady moves pending nodes whose every dependency is done to ready.
 // Returns the number promoted.
 func (q *Queue) PromoteReady(ctx context.Context) (int, error) {
+	// Promote once no dependency is still ACTIVE (pending/ready/running). A dep
+	// that ended in any terminal state — done, but also failed/cancelled — unblocks
+	// its dependents, so one failed node can't strand the rest of the graph forever.
 	res, err := q.db.ExecContext(ctx, `
 		UPDATE nodes SET status='ready'
 		WHERE status='pending'
 		  AND NOT EXISTS (
 			SELECT 1 FROM json_each(nodes.deps) AS d
 			JOIN nodes dn ON dn.id = d.value
-			WHERE dn.status <> 'done'
+			WHERE dn.status IN ('pending','ready','running')
 		  )`)
 	if err != nil {
 		return 0, err

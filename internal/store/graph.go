@@ -8,19 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Resource is a per-project domain entity a node spec may carry. Retained as a
-// generic node-spec payload; the inverted pipeline uses its own spec shapes too.
-type Resource struct {
-	Name   string  `json:"name"`
-	Fields []Field `json:"fields"`
-}
-
-// Field is one attribute of a Resource.
-type Field struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
-}
-
 // TaskSpec describes one node in a graph. Deps are referenced by Key so a plan
 // can be written before any ids exist; CreateGraph resolves them.
 type TaskSpec struct {

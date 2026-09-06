@@ -5,11 +5,9 @@ import (
 	"path/filepath"
 	"sort"
 
+	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
 )
-
-// skipTreeDir are directories excluded from the workspace file tree.
-var skipTreeDir = map[string]bool{".git": true, "node_modules": true, "dist": true, "build": true, ".next": true}
 
 // listWorkspaceFiles walks a run's on-disk workspace and returns every file,
 // sorted by path, flagging changed files and carrying review status. Rejected
@@ -22,7 +20,7 @@ func listWorkspaceFiles(runID string, changed map[string]bool, reviews map[strin
 			return nil
 		}
 		if info.IsDir() {
-			if p != root && skipTreeDir[info.Name()] {
+			if p != root && sandbox.SkipDir(info.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

@@ -14,6 +14,7 @@ export function Header() {
   const running = nodes.find((n) => n.status === 'running')
   const queued = nodes.filter((n) => n.status === 'ready' || n.status === 'pending').length
   const active = !!running || queued > 0
+  const runStatus = s.detail?.run?.status
   const stop = async () => {
     if (!s.runId) return
     try { await api.cancelRun(s.runId); s.toast('info', 'Audit stopped'); s.reloadDetail() }
@@ -28,7 +29,11 @@ export function Header() {
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}
         {running
           ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{running.type} running{queued > 0 ? ` · ${queued} queued` : ''}</div>
-          : queued > 0 && <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>}
+          : queued > 0 ? <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>
+          : runStatus === 'failed' ? <div className="run-pill failed" title="The audit failed">✗ failed</div>
+          : runStatus === 'cancelled' ? <div className="run-pill idle" title="Audit cancelled">■ cancelled</div>
+          : runStatus === 'done' ? <div className="run-pill done" title="Audit complete">✓ done</div>
+          : null}
         {active && <button className="btn-sm stop-btn" onClick={stop} title="Stop this audit">■ Stop</button>}
       </div>
       <div className="h-center"><Tabs /></div>

@@ -27,6 +27,12 @@ var excludeDirs = map[string]bool{
 	".vercel": true, ".turbo": true, ".output": true, ".cache": true, // build output / caches
 }
 
+// SkipDir reports whether a directory name is heavy/derived and should be
+// excluded from copies and file-tree walks. Shared so every walker uses one list
+// (the live QA step regenerates .venv/target/node_modules etc, which a lean list
+// would let balloon the tree returned to the UI every poll).
+func SkipDir(name string) bool { return excludeDirs[name] }
+
 // Import copies the repo at src into <root>/<runID> (skipping excludeDirs) and
 // gives it a single committed baseline so per-node git diffs have a clean start.
 // The user's original repo is never touched.

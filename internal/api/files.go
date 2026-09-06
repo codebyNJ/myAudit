@@ -9,14 +9,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
 )
 
-// wsExcludeDir mirrors the tree/search skip set (heavy/derived dirs).
-var wsExcludeDir = map[string]bool{
-	".git": true, "node_modules": true, "dist": true, "build": true, ".next": true,
-	"target": true, ".venv": true, "venv": true, "__pycache__": true, "vendor": true,
-}
 
 // wsPath resolves a workspace-relative path to an absolute path under the run's
 // workspace, rejecting empty/absolute/escaping paths. ok=false ⇒ already 400'd.
@@ -151,7 +147,7 @@ func searchWorkspace(root, q string, max int) []searchHit {
 			return nil
 		}
 		if info.IsDir() {
-			if p != root && wsExcludeDir[info.Name()] {
+			if p != root && sandbox.SkipDir(info.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

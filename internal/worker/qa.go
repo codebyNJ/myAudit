@@ -214,7 +214,7 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 	if !ok {
 		return testNotRunnable, "no test runner detected"
 	}
-	ensureInstalled(ctx, ws) // make the runner resolvable (idempotent)
+	_, imsg := ensureInstalled(ctx, ws) // make the runner resolvable (idempotent)
 	out, code, err := ws.Run(ctx, name, args...)
 	if err != nil {
 		return testNotRunnable, err.Error()
@@ -223,6 +223,11 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 		return testPass, out
 	}
 	if code == 127 || looksNotRunnable(out) {
+		// Distinguish "we couldn't even run the tests" from a genuine failure, and
+		// name a broken dependency install when that's the cause.
+		if strings.Contains(imsg, "failed") {
+			return testNotRunnable, "dependency install failed — tests could not run:\n" + imsg + "\n" + out
+		}
 		return testNotRunnable, out
 	}
 	return testFail, out

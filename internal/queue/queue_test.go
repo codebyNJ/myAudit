@@ -50,6 +50,29 @@ func TestClaimGatingAndComplete(t *testing.T) {
 	}
 }
 
+// A dependency that ends FAILED still unblocks its dependents — a failed node
+// must not strand the rest of the graph in 'pending' forever.
+func TestPromoteReadyUnblocksOnFailedDep(t *testing.T) {
+	ctx := context.Background()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	q := New(s.DB())
+	run, _ := s.CreateRun(ctx, "x")
+	a, _ := s.AddNode(ctx, run, "qa", nil)
+	b, _ := s.AddNode(ctx, run, "bug", []uuid.UUID{a})
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='failed' WHERE id=?`, a)
+
+	if _, err := q.PromoteReady(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetNode(ctx, b); got.Status != "ready" {
+		t.Fatalf("dependent should promote once its dep is terminal (failed), got %s", got.Status)
+	}
+}
+
 // RecoverStuck requeues 'running' nodes under the attempt cap and fails poison
 // ones — so a crash/restart self-heals instead of wedging the run forever.
 func TestRecoverStuck(t *testing.T) {
