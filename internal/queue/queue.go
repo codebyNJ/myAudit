@@ -85,6 +85,25 @@ func (q *Queue) Requeue(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// RecoverStuck reclaims nodes left 'running' by a crashed/killed process (no
+// worker is actually running them after a restart). Nodes under maxAttempts are
+// requeued to 'ready'; those that have already burned maxAttempts are failed
+// (poison guard) so a repeatedly-crashing node can't loop forever. Returns the
+// number requeued. Call once on startup.
+func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) {
+	if _, err := q.db.ExecContext(ctx,
+		`UPDATE nodes SET status='failed' WHERE status='running' AND attempts >= ?`, maxAttempts); err != nil {
+		return 0, err
+	}
+	res, err := q.db.ExecContext(ctx,
+		`UPDATE nodes SET status='ready' WHERE status='running' AND attempts < ?`, maxAttempts)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // PromoteReady moves pending nodes whose every dependency is done to ready.
 // Returns the number promoted.
 func (q *Queue) PromoteReady(ctx context.Context) (int, error) {

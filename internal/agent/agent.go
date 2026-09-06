@@ -13,6 +13,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
+
+	"github.com/google/uuid"
 
 	"myaudit/internal/sandbox"
 )
@@ -92,17 +96,40 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs
 	}
+	var c *exec.Cmd
 	if o.Isolate {
 		img := o.Image
 		if img == "" {
 			img = "myaudit-sandbox"
 		}
-		docker := []string{"run", "--rm", "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
+		name := "myaudit-run-" + uuid.NewString()[:8]
+		docker := []string{"run", "--rm", "--name", name, "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
 		docker = append(docker, o.Args(task, "/work")...)
-		return exec.CommandContext(ctx, "docker", docker...)
+		c = exec.CommandContext(ctx, "docker", docker...)
+		// Killing the `docker run` client alone leaves the container running, so on
+		// cancel/timeout force-remove it by name.
+		c.Cancel = func() error {
+			_ = exec.Command("docker", "rm", "-f", name).Run()
+			if c.Process != nil {
+				return c.Process.Kill()
+			}
+			return nil
+		}
+	} else {
+		c = exec.CommandContext(ctx, "claude", o.Args(task, dir)...)
+		c.Dir = dir
+		// Run claude in its own process group so that on cancel/timeout we can kill
+		// the WHOLE group — including any dev server the live agent spawned via Bash
+		// (otherwise it's orphaned and holds its port, breaking later modules).
+		c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		c.Cancel = func() error {
+			if c.Process != nil {
+				_ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
+			}
+			return nil
+		}
 	}
-	c := exec.CommandContext(ctx, "claude", o.Args(task, dir)...)
-	c.Dir = dir
+	c.WaitDelay = 10 * time.Second
 	return c
 }
 

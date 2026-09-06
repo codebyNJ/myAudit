@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -153,6 +154,9 @@ func enqueueFixes(ctx context.Context, s *store.Store, run uuid.UUID) string {
 	return fmt.Sprintf("Queued %d ticket(s) for the autonomous dev — they'll move to **In progress** on the board, get a root-cause fix + regression, and auto-close on green. Watch the board.", len(ids))
 }
 
+// chatTimeout bounds one chat turn (a live agent may install/run things).
+const chatTimeout = 10 * time.Minute
+
 // chatReply is a real Claude Code turn over the workspace: full tools (Bash
 // included), grounded on the run's notes — the chat is the same agent as the rest
 // of the IDE, so it can actually act, not just describe. Stub when REAL_CLAUDE is
@@ -171,10 +175,21 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 	}
 	task += "Developer: " + msg + "\n\nRespond concisely; if you changed files, say what and why."
 
+	// Chat is a live (Bash) agent like the rest of the IDE, so it gets the same
+	// guardrails: a timeout so a hung turn can't hang forever, and it honors
+	// AGENT_ISOLATE (previously chat silently escaped the container jail).
+	ctx, cancel := context.WithTimeout(ctx, chatTimeout)
+	defer cancel()
+	image := os.Getenv("AGENT_IMAGE")
+	if image == "" {
+		image = "myaudit-sandbox"
+	}
 	res, err := agent.Run(ctx, ws, task, agent.Options{
-		Model: resolveModel(ctx, s),
-		Allow: agent.LiveAllow,
-		Deny:  agent.LiveDeny,
+		Model:   resolveModel(ctx, s),
+		Allow:   agent.LiveAllow,
+		Deny:    agent.LiveDeny,
+		Isolate: os.Getenv("AGENT_ISOLATE") != "",
+		Image:   image,
 	})
 	if err != nil {
 		return "chat failed: " + err.Error()

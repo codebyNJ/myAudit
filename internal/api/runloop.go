@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
@@ -116,7 +117,11 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 
 // StartRunLoop ticks the graph forward until ctx is cancelled. Ticks run
 // sequentially; after a node is processed it waits `every`, else polls gently.
+// On start it recovers nodes left 'running' by a prior crash so restarts self-heal.
 func StartRunLoop(ctx context.Context, deps worker.Deps, every time.Duration) {
+	if n, err := deps.Queue.RecoverStuck(ctx, 3); err == nil && n > 0 {
+		slog.Info("recovered stuck nodes on startup", "count", n)
+	}
 	for {
 		if ctx.Err() != nil {
 			return
