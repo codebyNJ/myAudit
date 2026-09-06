@@ -71,14 +71,6 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 		return d.qa(ctx, c, ws)
 	case "bug":
 		return d.bug(ctx, c, ws)
-	case "understand":
-		return d.understand(ctx, c, ws)
-	case "testgen":
-		return d.testgen(ctx, c, ws)
-	case "verify":
-		return d.verify(ctx, c, ws)
-	case "review":
-		return d.review(ctx, c, ws)
 	default:
 		d.fail(ctx, c, "unknown node type: "+c.Type)
 		return true, nil
@@ -103,109 +95,10 @@ func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 	return true, nil
 }
 
-// understand drives a read-only agent to summarize the codebase and its flows,
-// writing the result to the run's notes.
-func (d Deps) understand(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	r, ok := d.runAgent(ctx, c, ws, understandTask, agent.ReadOnly)
-	if !ok {
-		return true, nil
-	}
-	_ = d.Store.PutNotes(ctx, c.RunID, "# Understanding\n\n"+r.Summary)
-	d.Log.Log(ctx, event(c, "understand.done", "wrote understanding + flows to notes"))
-	d.complete(ctx, c, nodeOutput{Kind: "understand", Summary: firstN(r.Summary, 140), CostUSD: r.CostUSD, Tokens: r.Tokens})
-	return true, nil
-}
-
-// testgen drives the agent to write one test for an identified flow, grounded on
-// the understanding notes, then captures the new file(s).
-func (d Deps) testgen(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	notes, _ := d.Store.GetNotes(ctx, c.RunID)
-	r, ok := d.runAgent(ctx, c, ws, testgenTask(notes), agent.Write)
-	if !ok {
-		return true, nil
-	}
-	diff, _ := ws.Diff(ctx)
-	_ = ws.Commit(ctx, "testgen: add test")
-	d.complete(ctx, c, nodeOutput{
-		Kind: "testgen", Summary: r.Summary, CostUSD: r.CostUSD, Tokens: r.Tokens,
-		Changed: changedFiles(diff),
-	})
-	return true, nil
-}
-
-// verify runs the project's tests. Inverting the base's RED gate: the code
-// already exists, so a passing suite confirms behavior and a failing one is a
-// finding (never a node failure).
-func (d Deps) verify(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	name, args, ok := detectTestCmd(ws.Dir)
-	if !ok {
-		d.Log.Log(ctx, event(c, "verify.skip", "no test runner detected"))
-		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "no test runner detected"})
-		return true, nil
-	}
-	out, code, err := ws.Run(ctx, name, args...)
-	if err != nil {
-		d.fail(ctx, c, "verify run: "+err.Error())
-		return true, nil
-	}
-	if code == 0 {
-		d.Log.Log(ctx, event(c, "verify.pass", "tests passed — behavior confirmed"))
-		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests passed"})
-	} else {
-		// A failing test on existing code is a finding → file a bug ticket.
-		bug := store.Bug{
-			Title:    "Test failure",
-			Name:     "test failure",
-			Severity: "high",
-			Priority: "P1",
-			Detail:   "The generated test failed against the current code:\n\n" + firstN(out, 1500),
-			Tags:     []string{"from:verify", "test-failure"},
-		}
-		if bid, err := d.Store.CreateBug(ctx, c.RunID, bug); err == nil {
-			nid := bid
-			d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "finding", Msg: "test failure: " + firstLine(out)})
-		}
-		d.complete(ctx, c, nodeOutput{Kind: "verify", Summary: "tests failed — bug filed"})
-	}
-	return true, nil
-}
-
-// review drives a read-only agent to flag bugs and best-practice misses, then
-// files one bug ticket per finding (tagged with severity) and records a summary
-// in the notes.
-func (d Deps) review(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	r, ok := d.runAgent(ctx, c, ws, reviewTask, agent.ReadOnly)
-	if !ok {
-		return true, nil
-	}
-	findings := parseFindings(r.Summary)
-	for _, f := range findings {
-		sev := strings.ToLower(f.Severity)
-		if sev != "high" && sev != "medium" && sev != "low" {
-			sev = "medium"
-		}
-		bug := store.Bug{
-			Title:    f.Title,
-			Name:     f.Title,
-			File:     f.File,
-			Severity: sev,
-			Priority: map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
-			Detail:   f.Detail,
-			Tags:     []string{"from:review", sev},
-		}
-		if bid, err := d.Store.CreateBug(ctx, c.RunID, bug); err == nil {
-			nid := bid
-			d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "finding", Msg: f.Title})
-		}
-	}
-	cur, _ := d.Store.GetNotes(ctx, c.RunID)
-	_ = d.Store.PutNotes(ctx, c.RunID, cur+"\n\n# Findings (review)\n\n"+findingsMarkdown(findings, r.Summary))
-	d.complete(ctx, c, nodeOutput{
-		Kind: "review", Summary: fmt.Sprintf("%d finding(s) filed", len(findings)),
-		CostUSD: r.CostUSD, Tokens: r.Tokens,
-	})
-	return true, nil
-}
+// The live audit graph is import → map → qa → bug (see qa.go). The earlier
+// understand/testgen/verify/review nodes were removed when the pipeline inverted
+// to the QA-led flow; their shared helpers (parseFindings, findingsMarkdown,
+// detectTestCmd, changedFiles, firstN) live below and are used by qa.go.
 
 // runAgent runs the agent with bounded retries. On an infra error it fails the
 // node; on repeated agent-level failure it raises a checkpoint. Returns the
@@ -266,30 +159,7 @@ func event(c *queue.ClaimedNode, kind, msg string) events.Event {
 	return events.Event{RunID: c.RunID, NodeID: &nid, Kind: kind, Msg: msg}
 }
 
-// --- prompts ---
-
-const understandTask = "Read this codebase and explain, as concise markdown: " +
-	"(1) what the project does, (2) its high-level architecture and main components, " +
-	"(3) the key user and data flows you can identify — name the real files each flow touches. " +
-	"Do NOT modify any files; your final message IS the analysis."
-
-const reviewTask = "Review this codebase for real bugs, correctness issues, and clear " +
-	"best-practice violations. Do NOT modify any files.\n\n" +
-	"Return ONLY a JSON array (no prose, no markdown fences) of findings, each:\n" +
-	`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<problem + why + fix>"}` +
-	"\nReturn [] if there are no real issues. Order by severity (high first). Max 10."
-
-func testgenTask(notes string) string {
-	ctx := ""
-	if strings.TrimSpace(notes) != "" {
-		ctx = "Here is an understanding of this codebase:\n\n" + notes + "\n\n"
-	}
-	return ctx + "Pick the single most important flow and write ONE focused test that " +
-		"exercises it, in the project's existing test style/framework. Create a NEW test " +
-		"file; do NOT modify existing source files. Keep it runnable."
-}
-
-// --- review findings parsing ---
+// --- review findings parsing (shared with qa.go) ---
 
 type finding struct {
 	Title    string `json:"title"`
@@ -373,13 +243,6 @@ func changedFiles(diff string) []string {
 		out = append(out, g[1])
 	}
 	return out
-}
-
-func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s
 }
 
 func firstN(s string, n int) string {

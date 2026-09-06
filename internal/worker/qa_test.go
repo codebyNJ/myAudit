@@ -118,3 +118,77 @@ func nodesOfType(t *testing.T, s *store.Store, run uuid.UUID, typ string) []stor
 	}
 	return out
 }
+
+// classifyTests decides "fixed vs broken vs unverifiable" — the core of the
+// auto-close guarantee. Exercise all three branches with a real tiny go module.
+func TestClassifyTests(t *testing.T) {
+	ctx := context.Background()
+
+	if state, _ := classifyTests(ctx, sandbox.Workspace{Dir: t.TempDir()}); state != testNotRunnable {
+		t.Fatalf("empty workspace should be not-runnable, got %v", state)
+	}
+
+	pass := t.TempDir()
+	writeGoModule(t, pass, "func TestX(t *testing.T){}")
+	if state, out := classifyTests(ctx, sandbox.Workspace{Dir: pass}); state != testPass {
+		t.Fatalf("passing suite should be testPass, got %v out=%s", state, out)
+	}
+
+	fail := t.TempDir()
+	writeGoModule(t, fail, "func TestX(t *testing.T){ t.Fatal(\"boom\") }")
+	if state, _ := classifyTests(ctx, sandbox.Workspace{Dir: fail}); state != testFail {
+		t.Fatalf("failing assertion should be testFail, got %v", state)
+	}
+}
+
+// scanModules shapes the whole board fan-out; a regression here mis-splits every
+// repo. Cover flat, multi-dir (with exclusions), and container-descent layouts.
+func TestScanModules(t *testing.T) {
+	flat := t.TempDir()
+	mkFile(t, flat, "main.go")
+	if m := scanModules(flat); len(m) != 1 || m[0].Path != "." {
+		t.Fatalf("flat repo → single (root) module, got %+v", m)
+	}
+
+	multi := t.TempDir()
+	mkFile(t, multi, "internal/x.go")
+	mkFile(t, multi, "web/app.ts")
+	mkFile(t, multi, "node_modules/dep/index.js") // skip-dir
+	mkFile(t, multi, "docs/readme.md")            // no code → excluded
+	got := modulePaths(scanModules(multi))
+	if !got["internal"] || !got["web"] {
+		t.Fatalf("want internal+web modules, got %v", got)
+	}
+	if got["node_modules"] || got["docs"] {
+		t.Fatalf("node_modules/docs must be excluded, got %v", got)
+	}
+
+	mono := t.TempDir()
+	mkFile(t, mono, "src/a/a.go")
+	mkFile(t, mono, "src/b/b.go")
+	got = modulePaths(scanModules(mono))
+	if !got["src/a"] || !got["src/b"] {
+		t.Fatalf("src container should descend one level, got %v", got)
+	}
+}
+
+func writeGoModule(t *testing.T, dir, testBody string) {
+	t.Helper()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module t\n\ngo 1.21\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "t_test.go"), []byte("package t\nimport \"testing\"\n"+testBody+"\n"), 0o644)
+}
+
+func mkFile(t *testing.T, root, rel string) {
+	t.Helper()
+	p := filepath.Join(root, rel)
+	os.MkdirAll(filepath.Dir(p), 0o755)
+	os.WriteFile(p, []byte("x"), 0o644)
+}
+
+func modulePaths(mods []module) map[string]bool {
+	m := map[string]bool{}
+	for _, x := range mods {
+		m[x.Path] = true
+	}
+	return m
+}

@@ -27,20 +27,6 @@ type Result struct {
 	Err     string  // failure reason when !OK
 }
 
-// DefaultAllow is the tool policy for the write node (testgen): native file
-// tools only. Bash is deliberately excluded — it's the one tool that can escape
-// the workspace via `../..`, and writing a test file needs Write/Edit, not a
-// shell. verify runs the tests separately (deterministically), so the agent
-// never needs Bash.
-var DefaultAllow = []string{
-	"Read", "Glob", "Grep", "Write", "Edit", "MultiEdit",
-}
-
-// DefaultDeny blocks Bash (workspace-escape + destructive surface) and network.
-var DefaultDeny = []string{
-	"Bash", "WebFetch", "WebSearch",
-}
-
 // ReadOnlyAllow is the policy for comprehension/review nodes: read the imported
 // code, never mutate it, never shell out. Native Read/Glob/Grep are confined to
 // the workspace + --add-dir, so there is no way up into the host repo.
@@ -68,26 +54,21 @@ var LiveDeny = []string{
 	"WebFetch", "WebSearch",
 }
 
-// Mode selects a node's tool policy. It replaces a bare read-only bool so we can
-// express the third capability tier (Live: Bash-enabled) the QA/dev loop needs.
+// Mode selects a node's tool policy: read-only comprehension (map overview) vs.
+// the Bash-enabled live path (QA, dev fix, chat) that actually runs the product.
 type Mode int
 
 const (
-	ReadOnly Mode = iota // comprehension/review: Read/Glob/Grep only
-	Write                // legacy write node (testgen): native file tools, no Bash
+	ReadOnly Mode = iota // map overview / chat questions: Read/Glob/Grep only
 	Live                 // QA + dev fix: file tools + Bash to run the product
 )
 
 // PolicyFor returns the allow/deny tool lists for a mode.
 func PolicyFor(m Mode) (allow, deny []string) {
-	switch m {
-	case Live:
+	if m == Live {
 		return LiveAllow, LiveDeny
-	case Write:
-		return DefaultAllow, DefaultDeny
-	default:
-		return ReadOnlyAllow, ReadOnlyDeny
 	}
+	return ReadOnlyAllow, ReadOnlyDeny
 }
 
 // Options configure the claude invocation.

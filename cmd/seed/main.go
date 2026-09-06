@@ -30,10 +30,8 @@ func main() {
 
 	run, ids, err := s.CreateGraph(ctx, "demo-repo", []store.TaskSpec{
 		{Key: "import", Type: "import", Spec: map[string]any{"repo_path": "/path/to/demo-repo"}},
-		{Key: "understand", Type: "understand", DepKeys: []string{"import"}},
-		{Key: "testgen", Type: "testgen", DepKeys: []string{"understand"}},
-		{Key: "verify", Type: "verify", DepKeys: []string{"testgen"}},
-		{Key: "review", Type: "review", DepKeys: []string{"understand"}},
+		{Key: "map", Type: "map", DepKeys: []string{"import"}},
+		{Key: "qa", Type: "qa", DepKeys: []string{"map"}, Spec: map[string]any{"module": "auth", "path": "src/auth", "title": "QA · auth", "tags": []string{"qa", "module:auth"}}},
 	})
 	if err != nil {
 		slog.Error("graph", "err", err)
@@ -43,10 +41,15 @@ func main() {
 		s.DB().ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, ids[key])
 	}
 	set("import", "done")
-	set("understand", "done")
-	set("testgen", "running")
-	set("verify", "pending")
-	set("review", "running")
+	set("map", "done")
+	set("qa", "running")
+
+	// A demo bug ticket filed by QA (dep-gated on the qa card, like the real flow).
+	_, _ = s.CreateBug(ctx, run, store.Bug{
+		Title: "password compared with == (timing leak)", File: "src/auth/login.go:42",
+		Severity: "high", Priority: "P0", Detail: "Use a constant-time compare.",
+		Tags: []string{"from:qa", "module:auth", "high"},
+	}, ids["qa"])
 
 	log := events.New(s.DB())
 	ev := func(node, kind, msg string) {
@@ -59,11 +62,10 @@ func main() {
 	}
 	ev("", "run.start", "demo-repo — importing codebase")
 	ev("import", "node.end", "copied repo into workspace")
-	ev("understand", "node.start", "reading codebase")
-	ev("understand", "understand.done", "wrote understanding + flows to notes")
-	ev("testgen", "node.start", "writing a test for the login flow")
-	ev("review", "finding", "auth: password compared with == (timing leak) — high")
+	ev("map", "map.module", "auth → qa card")
+	ev("qa", "node.start", "QA · auth — exercising the module")
+	ev("qa", "finding", "auth: password compared with == (timing leak) — high")
 
-	_ = s.PutNotes(ctx, run, "# Understanding\n\nDemo notes: a small web app with a login flow.\n")
+	_ = s.PutNotes(ctx, run, "# Audit map\n\nDemo notes: a small web app with a login flow.\n")
 	fmt.Println("seeded run:", run)
 }

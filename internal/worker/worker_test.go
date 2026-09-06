@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"myaudit/internal/agent"
@@ -79,35 +78,6 @@ func TestParseFindings(t *testing.T) {
 	}
 }
 
-func TestReviewFilesBugTickets(t *testing.T) {
-	ctx := context.Background()
-	s := newStore(t)
-	run, _ := s.CreateRun(ctx, "proj")
-	nid, _ := s.AddNode(ctx, run, "review", nil)
-	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
-
-	fa := &recordingAgent{result: agent.Result{OK: true, Summary: `[{"title":"XSS in render","file":"view.tsx:20","severity":"high","detail":"escape it"}]`}}
-	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
-		t.Fatal(err)
-	}
-	if fa.lastMode != agent.ReadOnly {
-		t.Fatal("review must run read-only")
-	}
-	cards, _ := s.NodeDetailsForRun(ctx, run)
-	var bug *store.NodeDetail
-	for i := range cards {
-		if cards[i].Type == "bug" {
-			bug = &cards[i]
-		}
-	}
-	if bug == nil {
-		t.Fatalf("review should have filed a bug ticket; cards=%+v", cards)
-	}
-	if bug.Title != "XSS in render" || bug.Severity != "high" || bug.Status != "open" {
-		t.Fatalf("bug ticket wrong: %+v", bug)
-	}
-}
-
 func TestDetectTestCmd(t *testing.T) {
 	node := t.TempDir()
 	os.WriteFile(filepath.Join(node, "package.json"), []byte("{}"), 0o644)
@@ -124,43 +94,4 @@ func TestDetectTestCmd(t *testing.T) {
 	}
 }
 
-// --- DB-backed dispatch tests (SQLite) ---
-
-func TestUnderstandWritesNotesReadOnly(t *testing.T) {
-	ctx := context.Background()
-	s := newStore(t)
-	run, _ := s.CreateRun(ctx, "proj")
-	nid, _ := s.AddNode(ctx, run, "understand", nil)
-	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
-
-	fa := &recordingAgent{result: agent.Result{OK: true, Summary: "does X. Flow: login → session"}}
-	if _, err := RunOnce(ctx, newDeps(s, fa, t.TempDir())); err != nil {
-		t.Fatal(err)
-	}
-	if fa.calls != 1 || fa.lastMode != agent.ReadOnly {
-		t.Fatalf("understand should call agent once read-only: calls=%d mode=%v", fa.calls, fa.lastMode)
-	}
-	if n, _ := s.GetNode(ctx, nid); n.Status != "done" {
-		t.Fatalf("status=%s", n.Status)
-	}
-	notes, _ := s.GetNotes(ctx, run)
-	if !strings.Contains(notes, "does X") {
-		t.Fatalf("notes missing understanding: %q", notes)
-	}
-}
-
-func TestVerifySkipsWhenNoRunner(t *testing.T) {
-	ctx := context.Background()
-	s := newStore(t)
-	run, _ := s.CreateRun(ctx, "proj")
-	nid, _ := s.AddNode(ctx, run, "verify", nil)
-	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, nid)
-
-	// Workspace dir has no project markers → verify skips (still completes).
-	if _, err := RunOnce(ctx, newDeps(s, &recordingAgent{}, t.TempDir())); err != nil {
-		t.Fatal(err)
-	}
-	if n, _ := s.GetNode(ctx, nid); n.Status != "done" {
-		t.Fatalf("verify should complete, status=%s", n.Status)
-	}
-}
+// (map/qa/bug dispatch is covered end-to-end in qa_test.go's TestQALedFlow.)

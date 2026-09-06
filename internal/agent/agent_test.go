@@ -77,27 +77,25 @@ func TestParseSuccess(t *testing.T) {
 	}
 }
 
-func TestDefaultPolicyRendersAndIsSafe(t *testing.T) {
-	got := strings.Join(Options{Allow: DefaultAllow, Deny: DefaultDeny}.Args("x", "/ws"), " ")
-	if !strings.Contains(got, "Write") || !strings.Contains(got, "Read") {
-		t.Fatalf("write policy should allow native file tools: %s", got)
-	}
-	// Bash is the workspace-escape surface (`cat ../..`) — never allowed, always
-	// denied, for both the write and read-only policies.
-	for _, a := range append(append([]string{}, DefaultAllow...), ReadOnlyAllow...) {
-		if strings.HasPrefix(a, "Bash") {
-			t.Fatalf("Bash must never be in an allow policy: %q", a)
+func TestPoliciesRenderAndAreSafe(t *testing.T) {
+	// Live: file tools + Bash (it must run the product); web tools denied.
+	la, ld := PolicyFor(Live)
+	live := strings.Join(Options{Allow: la, Deny: ld}.Args("x", "/ws"), " ")
+	for _, want := range []string{"Read", "Write", "Bash"} {
+		if !strings.Contains(live, want) {
+			t.Fatalf("Live policy should allow %s: %s", want, live)
 		}
 	}
-	for _, bad := range []string{"Bash", "WebFetch", "WebSearch"} {
-		if !strings.Contains(got, bad) {
-			t.Fatalf("expected %s denied: %s", bad, got)
+	for _, bad := range []string{"WebFetch", "WebSearch"} {
+		if !strings.Contains(live, bad) {
+			t.Fatalf("Live policy should deny %s: %s", bad, live)
 		}
 	}
-	// read-only nodes must not be able to mutate the imported code
-	for _, a := range ReadOnlyAllow {
-		if a == "Write" || a == "Edit" || a == "MultiEdit" {
-			t.Fatalf("ReadOnlyAllow must be read-only: %v", ReadOnlyAllow)
+	// ReadOnly: never able to mutate or shell — no Write/Edit/Bash in allow.
+	ra, _ := PolicyFor(ReadOnly)
+	for _, a := range ra {
+		if a == "Write" || a == "Edit" || a == "MultiEdit" || strings.HasPrefix(a, "Bash") {
+			t.Fatalf("ReadOnlyAllow must be read-only: %v", ra)
 		}
 	}
 }
