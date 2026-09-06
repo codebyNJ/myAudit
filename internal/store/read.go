@@ -262,3 +262,37 @@ func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]E
 	}
 	return out, nil
 }
+
+// FlowsForRun returns the raw flows document from the most recent completed
+// flows node of a run, or nil when the run has none yet.
+func (s *Store) FlowsForRun(ctx context.Context, run uuid.UUID) (json.RawMessage, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT output FROM nodes WHERE run_id=? AND type='flows' AND output IS NOT NULL ORDER BY created_at DESC`, run)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var out struct {
+			Flows json.RawMessage `json:"flows"`
+		}
+		if json.Unmarshal(raw, &out) != nil || len(out.Flows) == 0 {
+			continue
+		}
+		return out.Flows, nil
+	}
+	return nil, rows.Err()
+}
+
+// HasPendingFlows reports whether a flows node is already queued or running,
+// so the API doesn't stack duplicates.
+func (s *Store) HasPendingFlows(ctx context.Context, run uuid.UUID) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM nodes WHERE run_id=? AND type='flows' AND status IN ('pending','ready','running')`, run).Scan(&n)
+	return n > 0, err
+}

@@ -47,6 +47,7 @@ type nodeOutput struct {
 	CostUSD float64  `json:"cost_usd,omitempty"`
 	Tokens  int      `json:"tokens,omitempty"`
 	Changed []string `json:"changed,omitempty"`
+	Flows   json.RawMessage `json:"flows,omitempty"`
 }
 
 // running maps a run id to the cancel func of its in-flight node, so a cancel
@@ -89,6 +90,8 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 		return d.doImport(ctx, c, ws)
 	case "map":
 		return d.doMap(ctx, c, ws)
+	case "flows":
+		return d.doFlows(ctx, c, ws)
 	case "qa":
 		return d.qa(ctx, c, ws)
 	case "bug":

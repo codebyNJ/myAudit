@@ -60,6 +60,11 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	}
 	_ = d.Store.PutNotes(ctx, c.RunID, b.String())
 
+	if _, err := d.Store.AddNodeFull(ctx, c.RunID, "flows", []uuid.UUID{c.ID},
+		map[string]any{"title": "Flows · data & product", "tags": []string{"flows"}}, "pending"); err != nil {
+		d.Log.Log(ctx, event(c, "node.error", "flows node: "+err.Error()))
+	}
+
 	for _, m := range mods {
 		id, err := d.Store.AddNodeFull(ctx, c.RunID, "qa", []uuid.UUID{c.ID},
 			map[string]any{

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Download, Search, Bug,
-  GitBranch, RefreshCw, Clock, FileCode2, X,
+  GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
   ChevronUp, ChevronDown, FileSymlink, Link2,
 } from 'lucide-react'
 import { useStore } from '../store'
@@ -12,7 +12,7 @@ import { AgentAvatar } from '../components/icons'
 
 const label = (n: NodeCard) => n.title || n.name || n.type
 
-const KEY_PREFIX: Record<string, string> = { bug: 'BUG', qa: 'QA', map: 'MAP', import: 'IMP' }
+const KEY_PREFIX: Record<string, string> = { bug: 'BUG', qa: 'QA', map: 'MAP', import: 'IMP', flows: 'FLW' }
 const keyFor = (n: NodeCard) => `${KEY_PREFIX[n.type] || 'AUD'}-${n.id.slice(0, 4)}`
 
 const SEV_COLOR: Record<string, string> = { high: '#f87171', medium: '#e0a92e', low: '#60a5fa' }
@@ -75,6 +75,7 @@ function TaskIcon({ type }: { type: string }) {
   if (type === 'import') return <Download {...p} />
   if (type === 'map') return <GitBranch {...p} />
   if (type === 'qa') return <Search {...p} />
+  if (type === 'flows') return <Workflow {...p} />
   if (type === 'bug') return <Bug {...p} />
   return <FileCode2 {...p} />
 }

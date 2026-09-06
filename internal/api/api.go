@@ -4,6 +4,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -343,6 +344,44 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		w.WriteHeader(200)
+	})
+
+	mux.HandleFunc("GET /api/runs/{id}/flows", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		raw, err := s.FlowsForRun(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		pending, _ := s.HasPendingFlows(r.Context(), id)
+		w.Header().Set("content-type", "application/json")
+		if len(raw) == 0 {
+			fmt.Fprintf(w, `{"ready":false,"pending":%t}`, pending)
+			return
+		}
+		fmt.Fprintf(w, `{"ready":true,"pending":%t,"flows":%s}`, pending, raw)
+	})
+
+	mux.HandleFunc("POST /api/runs/{id}/flows", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		if pending, _ := s.HasPendingFlows(r.Context(), id); pending {
+			w.WriteHeader(202)
+			return
+		}
+		if _, err := s.AddNodeFull(r.Context(), id, "flows", nil,
+			map[string]any{"title": "Flows · data & product", "tags": []string{"flows"}}, "ready"); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.WriteHeader(202)
 	})
 
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
