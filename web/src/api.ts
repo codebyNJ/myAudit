@@ -32,8 +32,6 @@ export const api = {
   getNotes: (id: string) => req<{ content: string }>('/api/runs/' + id + '/notes'),
   putNotes: (id: string, content: string) =>
     req<void>('/api/runs/' + id + '/notes', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content }) }),
-  steer: (id: string, message: string) =>
-    req<void>('/api/runs/' + id + '/steer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
   chat: (id: string, message: string) =>
     req<{ reply: string }>('/api/runs/' + id + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
   setNodeTags: (id: string, nodeId: string, tags: string[]) =>

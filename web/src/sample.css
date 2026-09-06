@@ -124,6 +124,8 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
   border: 1px solid var(--border-subtle); background: var(--text-primary); color: var(--bg-base); cursor: pointer;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 28px rgba(0,0,0,0.5); transition: transform .12s; }
 .chat-fab:hover { transform: translateY(-2px); }
+.chat-fab.has-cp { border-color: #e0a92e; }
+.fab-badge { position: absolute; top: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; background: #e0a92e; border: 2px solid var(--bg-base); animation: run-pulse 1.2s ease-in-out infinite; }
 /* Explorer "Changed only" toggle */
 .ex-changed { display: block; width: calc(100% - 16px); margin: 0 8px 6px; padding: 5px 10px; text-align: left; font-size: 12px; cursor: pointer;
   background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 6px; color: #4ade80; }

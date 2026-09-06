@@ -56,21 +56,3 @@ func TestSettingsEndpoint(t *testing.T) {
 	s.PutSettings(context.Background(), map[string]any{"model_tier": "opus-4.8"})
 }
 
-func TestSteerEndpoint(t *testing.T) {
-	ctx := context.Background()
-	s := newStore(t)
-	defer s.Close()
-	run, _ := s.CreateRun(ctx, "acme")
-	srv := httptest.NewServer(NewMux(s, nil))
-	defer srv.Close()
-
-	resp, _ := http.Post(srv.URL+"/api/runs/"+run.String()+"/steer", "application/json", bytes.NewBufferString(`{"message":"add rate limiting"}`))
-	if resp.StatusCode != 202 {
-		t.Fatalf("steer want 202, got %d", resp.StatusCode)
-	}
-	var n int
-	s.DB().QueryRowContext(ctx, `SELECT count(*) FROM events WHERE run_id=? AND kind='steer'`, run).Scan(&n)
-	if n != 1 {
-		t.Fatalf("expected 1 steer event, got %d", n)
-	}
-}

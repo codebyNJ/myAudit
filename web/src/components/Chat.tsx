@@ -34,10 +34,15 @@ export function Chat() {
   }
 
   // Floating, toggleable dock (myIntern-style): a bubble opens it, × closes it.
+  // A pulsing badge signals a pending checkpoint so a blocked run isn't mistaken
+  // for an idle one while the dock is closed.
+  const hasCheckpoint = (s.detail?.checkpoints?.length ?? 0) > 0
   if (!s.chatOpen) {
     return (
-      <button className="chat-fab" title="Open chat" onClick={() => s.setChatOpen(true)}>
+      <button className={`chat-fab ${hasCheckpoint ? 'has-cp' : ''}`}
+        title={hasCheckpoint ? 'The audit needs your input' : 'Open chat'} onClick={() => s.setChatOpen(true)}>
         <MessageSquare size={20} />
+        {hasCheckpoint && <span className="fab-badge" />}
       </button>
     )
   }

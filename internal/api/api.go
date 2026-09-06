@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -55,7 +56,13 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		events, err := s.EventsForRun(r.Context(), id, 200)
+		// Default 200 newest events; ?events=N (capped) lets Activity/API callers
+		// pull more history when a long run blows past the default.
+		evLimit := 200
+		if n, err := strconv.Atoi(r.URL.Query().Get("events")); err == nil && n > 0 {
+			evLimit = min(n, 5000)
+		}
+		events, err := s.EventsForRun(r.Context(), id, evLimit)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -336,24 +343,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		w.WriteHeader(200)
-	})
-
-	mux.HandleFunc("POST /api/runs/{id}/steer", func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "bad id", 400)
-			return
-		}
-		var b struct {
-			Message string `json:"message"`
-		}
-		json.NewDecoder(r.Body).Decode(&b)
-		if b.Message == "" {
-			http.Error(w, "message required", 400)
-			return
-		}
-		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "steer", Msg: b.Message})
-		w.WriteHeader(202)
 	})
 
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
