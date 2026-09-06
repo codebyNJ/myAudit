@@ -51,7 +51,7 @@ export function PromptBar({
               e.currentTarget.form?.requestSubmit()
             }
           }}
-          placeholder={disabled ? 'Create a project in Config to start…' : 'Ask the intern to edit code, or type / for commands...'} />
+          placeholder={disabled ? 'Import a codebase to start…' : 'Ask about the code, or type fix to queue the open tickets…'} />
         <div className="prompt-footer">
           <div className="pf-left">
             <button type="button" className="model-select">opus-4.8 <IcChevron size={10} /></button>

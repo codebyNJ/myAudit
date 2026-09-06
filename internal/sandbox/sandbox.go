@@ -1,7 +1,7 @@
 // Package sandbox creates a per-run workspace by copying an imported codebase
 // into an isolated directory with a committed git baseline. All node work
-// (understanding, test generation, review) happens on this copy, never the
-// user's original repo.
+// (mapping, QA, and autonomous fixes) happens on this copy, never the user's
+// original repo.
 package sandbox
 
 import (
@@ -99,7 +99,7 @@ func (w Workspace) Commit(ctx context.Context, msg string) error {
 		return err
 	}
 	out, code, err := w.Run(ctx, "git",
-		"-c", "user.email=myaudit@local", "-c", "user.name=myIntern", "commit", "-q", "-m", msg)
+		"-c", "user.email=myaudit@local", "-c", "user.name=myaudit", "commit", "-q", "-m", msg)
 	if err != nil {
 		return err
 	}

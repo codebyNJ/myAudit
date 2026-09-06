@@ -1,9 +1,9 @@
-// Package worker runs one node of an audit graph. Nodes dispatch by type:
+// Package worker runs one node of the audit graph. Nodes dispatch by type:
 // import copies the target repo into an isolated workspace ($0, deterministic);
-// understand and review drive Claude Code read-only to analyze the code; testgen
-// drives it to write one test; verify runs the tests deterministically. The
-// Agent is an interface so tests inject a fake and prod injects the real
-// claude-backed runner.
+// map reads it and fans out one qa card per module; qa drives Claude Code live
+// (Bash) to exercise a module and file bug tickets; bug drives it to fix a ticket
+// and verify the fix (see qa.go). The Agent is an interface so tests inject a
+// fake and prod injects the real claude-backed runner.
 package worker
 
 import (

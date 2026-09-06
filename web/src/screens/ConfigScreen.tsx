@@ -35,7 +35,7 @@ export function ConfigScreen() {
       <div className="wiz-main wide">
         <div className="wiz-header">
           <h1>Import a codebase</h1>
-          <p>Point myAudit at a local repository. It copies the code into an isolated workspace, then reads it, maps the flows, writes a test for one, runs it, and reviews for bugs — all tracked on the board.</p>
+          <p>Point myAudit at a local repository. It copies the code into an isolated workspace, maps it into modules, runs a QA pass per module to find bugs (with reproduce steps), then autonomously fixes each one and verifies it — all tracked on the board.</p>
         </div>
 
         <div className="cfg-section">

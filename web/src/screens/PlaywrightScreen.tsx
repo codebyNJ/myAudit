@@ -3,12 +3,12 @@ import { IcCircleCheck, IcCircleX } from '../components/icons'
 
 export function PlaywrightScreen() {
   const s = useStore()
-  if (!s.runId) return <div className="empty-mid"><h3>No run</h3><p>Create a project to see verification results.</p></div>
-  const checks = (s.detail?.events || []).filter((e) => /verify|checkpoint|node\.fail/.test(e.kind))
+  if (!s.runId) return <div className="empty-mid"><h3>No run</h3><p>Import a codebase to see verification results.</p></div>
+  const checks = (s.detail?.events || []).filter((e) => /verify|regression|checkpoint|node\.fail|qa\.install/.test(e.kind))
   return (
     <div className="pane">
       <h2>Verification</h2>
-      <p className="sub">Each generated feature must pass a real check (syntax + build/boot) before it lands.</p>
+      <p className="sub">Test runs and regression checks behind each autonomous fix — passes, failures, and anything needing your review.</p>
       {checks.length ? (
         <div className="evt-list">
           {checks.map((e, i) => (
@@ -19,7 +19,7 @@ export function PlaywrightScreen() {
             </div>
           ))}
         </div>
-      ) : <div className="empty-mid" style={{ position: 'static', paddingTop: 40 }}><h3>All clear</h3><p>Verification results (and any failures that need your review) appear here as features are generated.</p></div>}
+      ) : <div className="empty-mid" style={{ position: 'static', paddingTop: 40 }}><h3>No verification events yet</h3><p>As QA runs suites and the dev loop checks its fixes, the results appear here.</p></div>}
     </div>
   )
 }

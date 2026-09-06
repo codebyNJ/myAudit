@@ -37,7 +37,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
             <g clipPath="url(#s-clip)"><use href="#s-rot" /></g>
           </svg>
         </div>
-        <div className="splash-text">myIntern</div>
+        <div className="splash-text">myAudit</div>
         <div className="splash-loading-bar"><div className="splash-progress" /></div>
       </div>
       <div className="sea-wave wave-front" />

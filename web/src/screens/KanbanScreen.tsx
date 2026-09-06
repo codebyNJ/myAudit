@@ -45,7 +45,19 @@ function TaskIcon({ type }: { type: string }) {
 function since(ts: string) {
   const d = Math.max(0, Date.now() - new Date(ts).getTime())
   const m = Math.floor(d / 60000), s = Math.floor((d % 60000) / 1000)
+  const h = Math.floor(m / 60)
+  if (h > 0) return `${h}h ${m % 60}m`
   return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+// Work that's finished shows no live timer (a Done card ticking "1197m" reads as
+// stuck). Running cards count from when they were claimed ("running for X");
+// queued/triage cards count from creation.
+const TERMINAL = new Set(['done', 'closed', 'verified', 'failed'])
+function ageOf(n: NodeCard): string | null {
+  if (TERMINAL.has(n.status)) return null
+  if (n.status === 'running' && n.claimed_at) return since(n.claimed_at)
+  return since(n.created_at)
 }
 
 export function KanbanScreen() {
@@ -123,7 +135,7 @@ export function KanbanScreen() {
                     {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(3)}</span>}
                     {n.events > 0 && <span className="kmeta"><ActIcon size={10} /> {n.events}</span>}
                     {n.deps > 0 && <span className="kmeta"><GitBranch size={10} /> {n.deps}</span>}
-                    <span className="kmeta"><Clock size={10} /> {since(n.created_at)}</span>
+                    {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
                   </div>
                 </div>
               ))}

@@ -1,4 +1,4 @@
-// Command serve exposes the run API + UI over Postgres.
+// Command serve runs the myAudit API + embedded UI over a single SQLite file.
 package main
 
 import (

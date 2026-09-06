@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
-import { AgentAvatar } from '../components/icons'
 
 export function SettingsScreen() {
   const s = useStore()
@@ -14,22 +13,13 @@ export function SettingsScreen() {
     catch (e) { s.toast('error', 'Save failed', (e as Error).message) }
     finally { setSaving(false) }
   }
-  const integ: [string, string][] = [['Claude CLI', 'connected'], ['GitHub', 'connected'], ['ELEVENLABS_API_KEY', 'not set'], ['S3 / MinIO', 'connected']]
   return (
     <div className="pane">
-      <h2>Account &amp; Settings</h2>
-      <p className="sub">Profile, model policy, and integrations.</p>
+      <h2>Settings</h2>
+      <p className="sub">Which model the audit uses, and what it runs on.</p>
 
       <div className="set-card">
-        <div className="set-h">Account</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden' }}><AgentAvatar size={40} radius={0} /></div>
-          <div><div style={{ fontWeight: 600 }}>nijeesh</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pro · connected</div></div>
-        </div>
-      </div>
-
-      <div className="set-card">
-        <div className="set-h">Model policy</div>
+        <div className="set-h">Model</div>
         <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>Model for QA + fixes</label>
         <select className="set-select" style={{ width: '100%' }} value={tier} onChange={(e) => setTier(e.target.value)}>
           <option value="haiku-4.5">Haiku 4.5 — fast &amp; cheap</option>
@@ -40,11 +30,12 @@ export function SettingsScreen() {
       </div>
 
       <div className="set-card">
-        <div className="set-h">Integrations</div>
-        {integ.map(([k, v]) => (
-          <div className="set-row" key={k}><span>{k}</span><span style={{ color: v === 'connected' ? 'var(--method-get)' : 'var(--text-muted)' }}>{v}</span></div>
-        ))}
-        <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>Keys are read from the environment — presence shown, never the value.</p>
+        <div className="set-h">Runtime</div>
+        <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+          myAudit runs entirely on your machine. The agent uses your logged-in <b>Claude Code</b> CLI
+          (<code>claude</code>) and <b>git</b> from your <code>PATH</code> — no API keys, no accounts, nothing stored.
+          Set <code>AGENT_ISOLATE=1</code> to run each agent inside a container.
+        </p>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

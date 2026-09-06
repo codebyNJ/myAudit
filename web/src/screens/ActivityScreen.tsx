@@ -3,7 +3,7 @@ import { evColor, fmtTime } from '../components/util'
 
 export function ActivityScreen() {
   const s = useStore()
-  if (!s.runId) return <div className="empty-mid"><h3>No activity</h3><p>Create a project in Config to see its live activity.</p></div>
+  if (!s.runId) return <div className="empty-mid"><h3>No activity</h3><p>Import a codebase to see its live activity.</p></div>
   const events = s.detail?.events || []
   return (
     <div className="pane">

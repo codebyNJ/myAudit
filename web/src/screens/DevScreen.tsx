@@ -121,7 +121,7 @@ export function DevScreen() {
           : (
             <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
               <h3>{s.runId ? 'No file selected' : 'No project open'}</h3>
-              <p>{s.runId ? (files.length ? 'Pick a file from the Explorer.' : 'No files yet — steer the intern or generate in Config.') : 'Open a project from the home screen.'}</p>
+              <p>{s.runId ? (files.length ? 'Pick a file from the Explorer.' : 'No files yet — the audit is still importing.') : 'Import a codebase from the home screen.'}</p>
             </div>
           )}
       </div>

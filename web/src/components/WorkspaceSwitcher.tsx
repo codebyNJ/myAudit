@@ -20,7 +20,7 @@ export function WorkspaceSwitcher() {
               {r.project}
               <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{r.status}</span>
             </div>
-          )) : <div style={{ padding: 12, color: 'var(--text-muted)', textAlign: 'center' }}>No projects — use Config.</div>}
+          )) : <div style={{ padding: 12, color: 'var(--text-muted)', textAlign: 'center' }}>No audits yet — import a codebase.</div>}
         </div>
       )}
     </div>

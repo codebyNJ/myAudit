@@ -90,5 +90,5 @@ export function NotesScreen() {
 }
 
 function defaultDoc() {
-  return `# Project notes\n\n## Decisions\n- \n\n## TODO\n- [ ] \n\n## Reminders\n> The template is ground truth — the intern only writes per-project deltas.\n`
+  return `# Audit notes\n\n## Product map\n- \n\n## Findings\n- \n\n## Fixes\n> The audit appends its map, per-module QA, and every fix here as it runs.\n`
 }
