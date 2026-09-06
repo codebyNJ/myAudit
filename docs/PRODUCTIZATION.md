@@ -11,8 +11,11 @@ Tags in brackets = which lenses flagged it (cross-confirmed items rank higher).
   deferred), #11, #12, #13.
 - **Batch 3 — control & real-repo safety (done):** #2, #6, #14 (PR deferred),
   #17, #18 (edit-race serialization deferred).
-- **Next — Batch 4 (live feedback & onboarding):** #1 (streaming, the last P0),
-  #15 (claude preflight), #16 (import UX), #24, #25, #26.
+- **Batch 4 — live feedback & onboarding (partial):** #1 (streaming — done),
+  #15 (preflight — done), #16 (import UX — done). Remaining: #24 (Verify tab),
+  #25 (a11y), #26 (deep-linking).
+- **All P0s + the trust/control/onboarding P1s are done.** Remaining: #24/#25/#26
+  and the P2 polish list (#28–#41, #43).
 
 Legend: **P0** breaks/blocks core value · **P1** major friction, missing
 table-stakes, trust, or real-repo failure · **P2** polish / cleanup / robustness.
