@@ -39,12 +39,23 @@ type Store = {
 const Ctx = createContext<Store>(null as unknown as Store)
 export const useStore = () => useContext(Ctx)
 
+// Deep-link state lives in the URL hash (#/run/<id>/<tab>), so a reload — or the
+// Tauri shell reloading — restores the open run + tab, and links are shareable.
+const TABS = new Set<Tab>(['dev', 'activity', 'playwright', 'kanban', 'notes', 'settings'])
+function parseHash(): { runId: string | null; tab: Tab } {
+  const m = location.hash.match(/^#\/run\/([\w-]+)(?:\/(\w+))?/)
+  if (!m) return { runId: null, tab: 'kanban' }
+  const t = m[2] as Tab
+  return { runId: m[1], tab: TABS.has(t) ? t : 'kanban' }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<Run[] | null>(null)
-  const [runId, setRunId] = useState<string | null>(null)
+  const initial = parseHash()
+  const [runId, setRunId] = useState<string | null>(initial.runId)
   const [detail, setDetail] = useState<RunDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [tab, setTab] = useState<Tab>('kanban')
+  const [tab, setTab] = useState<Tab>(initial.tab)
   const [file, setFileState] = useState<string | null>(null)
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -93,6 +104,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { loadRuns() }, [loadRuns])
   useEffect(() => { if (runId) loadDetail(runId, true) }, [runId, loadDetail])
+
+  // Keep the URL hash in sync with the open run + tab (deep-linking / reload).
+  useEffect(() => {
+    const want = runId ? `#/run/${runId}/${tab}` : '#/'
+    if (location.hash !== want) history.replaceState(null, '', want)
+  }, [runId, tab])
+  // Honor back/forward + externally-changed hashes.
+  useEffect(() => {
+    const onHash = () => {
+      const h = parseHash()
+      setRunId((cur) => (cur === h.runId ? cur : h.runId))
+      setTab((cur) => (cur === h.tab ? cur : h.tab))
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
   // poll detail while a run is open (the audit graph advances in the background)
   useEffect(() => {
     if (!runId) return
