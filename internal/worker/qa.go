@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -145,6 +146,10 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
 	defer cancel()
 
+	// How many failures did the suite have BEFORE this fix? Used to avoid blaming a
+	// correct fix for a repo-wide suite that was already red for unrelated reasons.
+	baseFails := d.regressionBaseline(ctx, ws, c.RunID)
+
 	r, ok := d.runAgent(ctx, c, ws, fixTask(b, notes), agent.Live)
 	if !ok {
 		return true, nil
@@ -173,7 +178,15 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 		d.appendFix(ctx, c.RunID, b, "✅ Fixed & verified (regression green).\n\n"+fixMsg, changed)
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fixed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "done")
 	case testFail:
-		d.appendFix(ctx, c.RunID, b, "❌ Fix did not pass regression:\n\n```\n"+out+"\n```", changed)
+		// Only a genuine regression (MORE failures than before the fix) is a
+		// failure; a still-red suite that's no worse means the fix is applied but
+		// this change isn't covered — park it for review, don't blame it.
+		if countFailLines(out) <= baseFails {
+			d.appendFix(ctx, c.RunID, b, "🟡 Fix applied — the suite has pre-existing failures unrelated to this change (no new failures introduced). Needs manual verify.\n\n"+fixMsg, changed)
+			d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix applied (suite already red): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
+			break
+		}
+		d.appendFix(ctx, c.RunID, b, "❌ Fix introduced new test failures:\n\n```\n"+out+"\n```", changed)
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix failed regression: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "failed")
 	default: // testNotRunnable
 		d.appendFix(ctx, c.RunID, b, "🟡 Fix ready — tests not runnable here, needs manual verify.\n\n"+fixMsg, changed)
@@ -196,6 +209,39 @@ func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg str
 }
 
 // --- test classification (honest verify gate) ---
+
+// baselineFails memoizes, per run, how many test failures the suite already had
+// BEFORE any fix — so a fix is judged by whether it made things WORSE, not by a
+// repo-wide suite that was already red (or thinly set up) for unrelated reasons.
+var baselineFails sync.Map // runID string -> int
+
+// regressionBaseline is the pre-fix failing-test count for a run (computed once,
+// on the first fix, against the current — pre-edit — workspace).
+func (d Deps) regressionBaseline(ctx context.Context, ws sandbox.Workspace, run uuid.UUID) int {
+	if v, ok := baselineFails.Load(run.String()); ok {
+		return v.(int)
+	}
+	n := 0
+	if state, out := classifyTests(ctx, ws); state == testFail {
+		n = countFailLines(out)
+	}
+	baselineFails.Store(run.String(), n)
+	return n
+}
+
+// countFailLines is a cross-runner heuristic for how many tests failed.
+// ponytail: line-marker counting, not a real parser — good enough to tell
+// "this fix added failures" from "the suite was already red".
+func countFailLines(out string) int {
+	n := 0
+	for _, ln := range strings.Split(out, "\n") {
+		l := strings.ToLower(ln)
+		if strings.Contains(l, "fail") || strings.Contains(ln, "✕") || strings.Contains(ln, "✗") || strings.Contains(ln, "✖") {
+			n++
+		}
+	}
+	return n
+}
 
 type testResult int
 

@@ -172,6 +172,19 @@ func TestScanModules(t *testing.T) {
 	}
 }
 
+// countFailLines underpins the relative regression gate (fix judged worse-or-not
+// vs a pre-fix baseline), so it must roughly track how many tests failed.
+func TestCountFailLines(t *testing.T) {
+	green := "PASS ok  3 passed"
+	if countFailLines(green) != 0 {
+		t.Fatalf("clean output should count 0 failures, got %d", countFailLines(green))
+	}
+	red := "✓ add works\n✕ subtracts by mistake\nFAIL src/math.test.js\n2 failed, 1 passed"
+	if countFailLines(red) < 2 {
+		t.Fatalf("red output should count multiple failures, got %d", countFailLines(red))
+	}
+}
+
 func writeGoModule(t *testing.T, dir, testBody string) {
 	t.Helper()
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module t\n\ngo 1.21\n"), 0o644)
