@@ -78,7 +78,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		reviews, _ := s.Reviews(r.Context(), id)
 		files := listWorkspaceFiles(id.String(), changedSet, reviews)
 		cost, _ := s.RunCostUSD(r.Context(), id)
-		writeJSON(w, RunDetail{Run: store.RunSummary{ID: id}, Nodes: nodes, Events: events, Checkpoints: checkpoints, Files: files, CostUSD: cost})
+		run, err := s.GetRun(r.Context(), id)
+		if err != nil {
+			run = store.RunSummary{ID: id} // fall back to a bare id if the row is gone
+		}
+		writeJSON(w, RunDetail{Run: run, Nodes: nodes, Events: events, Checkpoints: checkpoints, Files: files, CostUSD: cost})
 	})
 
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {

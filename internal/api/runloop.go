@@ -77,6 +77,13 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Mark any drained run finished and announce it (drives the runs list off the
+	// perpetual "running" and gives the UI a completion signal to toast).
+	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
+		for _, r := range finished {
+			deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run." + r.Status, Msg: "audit " + r.Status})
+		}
+	}
 	if did {
 		return 1, nil
 	}

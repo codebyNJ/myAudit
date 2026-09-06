@@ -23,6 +23,51 @@ func (s *Store) CreateRun(ctx context.Context, project string) (uuid.UUID, error
 	return id, err
 }
 
+// FinalizeDrainedRuns flips any still-'running' run whose nodes are all terminal
+// (none pending/ready/running) to a real end state: 'failed' if a root node
+// (import/map) failed — the audit never really started, e.g. claude isn't logged
+// in — otherwise 'done'. Returns the runs it just finalized so the caller can
+// emit a completion event. Idempotent; safe to call every tick.
+func (s *Store) FinalizeDrainedRuns(ctx context.Context) ([]RunSummary, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT r.id, r.project, r.created_at FROM runs r
+		WHERE r.status='running'
+		  AND EXISTS (SELECT 1 FROM nodes n WHERE n.run_id=r.id)
+		  AND NOT EXISTS (SELECT 1 FROM nodes n WHERE n.run_id=r.id
+		                  AND n.status IN ('pending','ready','running'))`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var drained []RunSummary
+	for rows.Next() {
+		var r RunSummary
+		if err := rows.Scan(&r.ID, &r.Project, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		drained = append(drained, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range drained {
+		var rootFail int
+		_ = s.db.QueryRowContext(ctx,
+			`SELECT count(*) FROM nodes WHERE run_id=? AND type IN ('import','map') AND status='failed'`,
+			drained[i].ID).Scan(&rootFail)
+		drained[i].Status = "done"
+		if rootFail > 0 {
+			drained[i].Status = "failed"
+		}
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE runs SET status=? WHERE id=? AND status='running'`,
+			drained[i].Status, drained[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	return drained, nil
+}
+
 // AddNode appends a node to a run's graph. deps may be nil.
 func (s *Store) AddNode(ctx context.Context, run uuid.UUID, typ string, deps []uuid.UUID) (uuid.UUID, error) {
 	id := uuid.New()

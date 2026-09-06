@@ -235,8 +235,19 @@ func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 }
 
 func (d Deps) complete(ctx context.Context, c *queue.ClaimedNode, out nodeOutput) {
+	d.finish(ctx, c, out, "done")
+}
+
+// finish persists a node's output + explicit terminal status in one write, then
+// logs cost + node.end. Used directly by the bug handler so failed / in_review
+// outcomes are atomic (no done-then-override race).
+func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, status string) {
 	b, _ := json.Marshal(out)
-	_ = d.Queue.Complete(ctx, c.ID, b)
+	if err := d.Queue.Finish(ctx, c.ID, b, status); err != nil {
+		e := event(c, "node.error", "persist status: "+err.Error())
+		e.Level = "error"
+		d.Log.Log(ctx, e)
+	}
 	if out.CostUSD > 0 {
 		d.Log.Log(ctx, event(c, "agent.cost", fmt.Sprintf("$%.4f (%d tokens)", out.CostUSD, out.Tokens)))
 	}

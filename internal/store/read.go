@@ -26,6 +26,16 @@ type EventRow struct {
 	NodeID *uuid.UUID `json:"node_id,omitempty"`
 }
 
+// GetRun loads a single run row (project/status/created), so the detail endpoint
+// returns real metadata instead of a bare id.
+func (s *Store) GetRun(ctx context.Context, id uuid.UUID) (RunSummary, error) {
+	var r RunSummary
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, project, status, created_at FROM runs WHERE id=?`, id).
+		Scan(&r.ID, &r.Project, &r.Status, &r.CreatedAt)
+	return r, err
+}
+
 // ListRuns returns recent runs, newest first.
 func (s *Store) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 	if limit <= 0 {
@@ -217,13 +227,16 @@ func (s *Store) OpenCheckpointsForRun(ctx context.Context, run uuid.UUID) ([]Che
 	return out, rows.Err()
 }
 
-// EventsForRun returns a run's events, oldest first.
+// EventsForRun returns a run's most recent `limit` events, oldest-first.
+// It selects the newest by id DESC (id is monotonic; ts ties at 1s resolution)
+// then reverses, so a long run keeps showing its LATEST activity instead of
+// freezing on the first 200 events (chat/activity/verify all read this).
 func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]EventRow, error) {
 	if limit <= 0 {
 		limit = 200
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT ts, kind, level, COALESCE(msg,''), node_id FROM events WHERE run_id=? ORDER BY ts LIMIT ?`, run, limit)
+		`SELECT ts, kind, level, COALESCE(msg,''), node_id FROM events WHERE run_id=? ORDER BY id DESC LIMIT ?`, run, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -238,5 +251,12 @@ func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]E
 		e.NodeID = nullUUID(node)
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// reverse newest-first → oldest-first for chronological rendering
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
 }

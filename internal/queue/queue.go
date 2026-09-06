@@ -61,7 +61,15 @@ func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 
 // Complete marks a node done and stores its output.
 func (q *Queue) Complete(ctx context.Context, id uuid.UUID, output []byte) error {
-	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, string(output), id)
+	return q.Finish(ctx, id, output, "done")
+}
+
+// Finish stores a node's output and sets its terminal status in ONE write, so a
+// non-done outcome (failed / in_review) can't be lost by a fire-and-forget
+// follow-up update — the bug handler relies on this for its "never a false
+// fixed" guarantee.
+func (q *Queue) Finish(ctx context.Context, id uuid.UUID, output []byte, status string) error {
+	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status=?, output=? WHERE id=?`, status, string(output), id)
 	return err
 }
 

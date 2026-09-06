@@ -23,6 +23,10 @@ import (
 // ponytail: fixed 20m ceiling; make it an env knob if a real target needs more.
 const liveTimeout = 20 * time.Minute
 
+// mapTimeout bounds the read-only map overview call (no Bash, just reading), so a
+// hung model call on the critical path can't stall the run loop.
+const mapTimeout = 5 * time.Minute
+
 // This file holds the QA-led pipeline that mirrors a real org: map the product
 // into modules, let QA (priority) find bugs + test gaps per module and file
 // tickets with reproduce detail, then let the autonomous dev loop fix each
@@ -35,10 +39,14 @@ const liveTimeout = 20 * time.Minute
 func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	mods := scanModules(ws.Dir)
 
+	// map is on the critical path of every run and gates the whole fan-out; bound
+	// the read-only overview call so a hang can't wedge the (single) run loop.
 	overview := ""
-	if r, err := d.Agent.Run(ctx, ws, mapTask, agent.ReadOnly); err == nil {
+	mapCtx, cancel := context.WithTimeout(ctx, mapTimeout)
+	if r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly); err == nil {
 		overview = strings.TrimSpace(r.Summary)
 	}
+	cancel()
 
 	var b strings.Builder
 	b.WriteString("# Audit map\n\n")
@@ -146,8 +154,7 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 
 	if strings.TrimSpace(diff) == "" {
 		d.appendFix(ctx, c.RunID, b, "No code change was produced — the ticket may not be a real defect, or needs a human.", nil)
-		d.complete(ctx, c, nodeOutput{Kind: "bug", Summary: "no change: " + b.Title, CostUSD: r.CostUSD, Tokens: r.Tokens})
-		_ = d.Store.SetNodeStatus(ctx, c.ID, "in_review")
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "no change: " + b.Title, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
 		return true, nil
 	}
 	_ = ws.Commit(ctx, "fix: "+b.Title)
@@ -159,19 +166,18 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 	}
 	out = firstN(out, 1200) // keep embedded command output readable in notes
 
+	// One atomic write per outcome (finish) — a failed/in_review result can never
+	// be lost to a follow-up update, so a broken fix never shows green.
 	switch state {
 	case testPass:
 		d.appendFix(ctx, c.RunID, b, "✅ Fixed & verified (regression green).\n\n"+fixMsg, changed)
-		d.complete(ctx, c, nodeOutput{Kind: "bug", Summary: "fixed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens})
-		// complete() already set status=done → auto-closed on green.
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fixed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "done")
 	case testFail:
 		d.appendFix(ctx, c.RunID, b, "❌ Fix did not pass regression:\n\n```\n"+out+"\n```", changed)
-		d.complete(ctx, c, nodeOutput{Kind: "bug", Summary: "fix failed regression: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens})
-		_ = d.Store.SetNodeStatus(ctx, c.ID, "failed")
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix failed regression: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "failed")
 	default: // testNotRunnable
 		d.appendFix(ctx, c.RunID, b, "🟡 Fix ready — tests not runnable here, needs manual verify.\n\n"+fixMsg, changed)
-		d.complete(ctx, c, nodeOutput{Kind: "bug", Summary: "fix ready (unverified): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens})
-		_ = d.Store.SetNodeStatus(ctx, c.ID, "in_review")
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix ready (unverified): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
 	}
 	return true, nil
 }
