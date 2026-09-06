@@ -82,7 +82,11 @@ export function NotesScreen() {
         </div>
       )}
 
-      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a className="btn-sm" href={api.reportUrl(s.runId)} download="report.md">↓ report.md</a>
+          <a className="btn-sm" href={api.findingsUrl(s.runId)} download="findings.json">↓ findings.json</a>
+        </div>
         <button className="btn-sm primary" style={{ padding: '8px 16px' }} disabled={saving || loading} onClick={save}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
     </div>

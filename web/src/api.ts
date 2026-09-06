@@ -5,7 +5,7 @@ export type EventRow = { ts: string; kind: string; level: string; msg: string; n
 export type Checkpoint = { id: string; run_id: string; node_id: string; question: string; resolved: boolean; answer: string }
 export type FileEntry = { path: string; content?: string; action?: string; changed?: boolean; review?: string }
 export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number }
-export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; severity?: string; priority?: string; detail?: string; tags?: string[] }
+export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; file?: string; severity?: string; priority?: string; detail?: string; tags?: string[] }
 export type CreateRunBody = { repo_path: string; project?: string }
 export type SearchHit = { path: string; line: number; text: string }
 
@@ -42,6 +42,8 @@ export const api = {
   patchNode: (id: string, nodeId: string, patch: { severity?: string; priority?: string; status?: string }) =>
     req<void>('/api/runs/' + id + '/nodes/' + nodeId, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
   rawUrl: (id: string, path: string) => '/api/runs/' + id + '/raw?path=' + encodeURIComponent(path),
+  reportUrl: (id: string) => '/api/runs/' + id + '/report.md',
+  findingsUrl: (id: string) => '/api/runs/' + id + '/findings.json',
   review: (id: string, path: string, status: 'accepted' | 'rejected') =>
     req<void>('/api/runs/' + id + '/review', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, status }) }),
   search: (id: string, q: string) => req<SearchHit[]>('/api/runs/' + id + '/search?q=' + encodeURIComponent(q)),

@@ -75,6 +75,7 @@ type NodeDetail struct {
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
 	// Ticket fields (bug/feature cards) — read from input_snapshot JSON.
 	Title    string   `json:"title,omitempty"`
+	File     string   `json:"file,omitempty"`
 	Severity string   `json:"severity,omitempty"`
 	Priority string   `json:"priority,omitempty"`
 	Detail   string   `json:"detail,omitempty"`
@@ -114,6 +115,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		       (SELECT count(*) FROM events e WHERE e.node_id = n.id),
 		       n.created_at, n.claimed_at,
 		       coalesce(json_extract(n.input_snapshot,'$.title'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.file'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.severity'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.priority'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.detail'),''),
@@ -128,7 +130,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		var d NodeDetail
 		var claimed sql.NullTime
 		var tags string
-		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.Severity, &d.Priority, &d.Detail, &tags); err != nil {
+		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.File, &d.Severity, &d.Priority, &d.Detail, &tags); err != nil {
 			return nil, err
 		}
 		if claimed.Valid {
