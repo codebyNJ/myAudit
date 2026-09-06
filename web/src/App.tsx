@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties } from 'react'
-import { StoreProvider, useStore } from './store'
+import { StoreProvider, useStore, type Tab } from './store'
 import { Header } from './components/Header'
 import { Explorer } from './components/Explorer'
 import { Toasts } from './components/Toasts'
@@ -16,16 +16,27 @@ import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
-function Screen() {
+// All screens mount once and toggle visibility via .screen/.screen.on, so
+// switching tabs never unmounts a screen — in-progress Notes/Code edits and the
+// board's filter/sort/collapse state survive tab changes (they used to reset).
+const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
+  { tab: 'kanban', el: <KanbanScreen /> },
+  { tab: 'playwright', el: <PlaywrightScreen /> },
+  { tab: 'notes', el: <NotesScreen /> },
+  { tab: 'dev', el: <DevScreen /> },
+  { tab: 'activity', el: <ActivityScreen /> },
+  { tab: 'settings', el: <SettingsScreen /> },
+]
+
+function Screens() {
   const { tab } = useStore()
-  switch (tab) {
-    case 'dev': return <DevScreen />
-    case 'activity': return <ActivityScreen />
-    case 'playwright': return <PlaywrightScreen />
-    case 'kanban': return <KanbanScreen />
-    case 'notes': return <NotesScreen />
-    case 'settings': return <SettingsScreen />
-  }
+  return (
+    <>
+      {SCREENS.map((s) => (
+        <div key={s.tab} className={`screen ${s.tab === tab ? 'on' : ''}`}>{s.el}</div>
+      ))}
+    </>
+  )
 }
 
 function Shell() {
@@ -53,7 +64,7 @@ function Shell() {
         <main>
           {!collapsed && <div className={`resizer ${dragging ? 'drag' : ''}`} onMouseDown={startDrag} title="Drag to resize" />}
           {collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
-          <div className="screen on"><Screen /></div>
+          <Screens />
         </main>
       </div>
       <Chat />

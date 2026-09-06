@@ -83,12 +83,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
 
+  const pollFailed = useRef(false)
   const loadDetail = useCallback(async (id: string, spinner: boolean) => {
     if (spinner) setLoadingDetail(true)
     try {
       setDetail(await api.runDetail(id))
+      pollFailed.current = false // recovered — silent
     } catch (e) {
-      toast('error', 'Failed to load run', (e as Error).message)
+      // Toast ONCE on transition into failure, not every 2s tick (was a flood).
+      if (!pollFailed.current) {
+        pollFailed.current = true
+        toast('error', 'Lost connection to the run', (e as Error).message)
+      }
     } finally {
       setLoadingDetail(false)
     }

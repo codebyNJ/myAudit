@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Download, BookOpen, FlaskConical, CheckCircle2, Search, Bug,
+  Download, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, Activity as ActIcon, X,
   ChevronUp, ChevronDown, FileSymlink, Link2,
 } from 'lucide-react'
@@ -51,13 +51,12 @@ function sevCounts(items: NodeCard[]) {
 }
 
 // icon per task type/key
+// Icons for the four live node types (import → map → qa → bug).
 function TaskIcon({ type }: { type: string }) {
   const p = { size: 14 }
   if (type === 'import') return <Download {...p} />
-  if (type === 'understand') return <BookOpen {...p} />
-  if (type === 'testgen') return <FlaskConical {...p} />
-  if (type === 'verify') return <CheckCircle2 {...p} />
-  if (type === 'review') return <Search {...p} />
+  if (type === 'map') return <GitBranch {...p} />
+  if (type === 'qa') return <Search {...p} />
   if (type === 'bug') return <Bug {...p} />
   return <FileCode2 {...p} />
 }
@@ -192,8 +191,15 @@ export function KanbanScreen() {
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
   // Re-queue the autonomous dev for a ticket — including reopening a closed one.
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
-  const previewsFor = (c: NodeCard) =>
-    c.type === 'qa' ? (s.detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path)) : []
+  // Only THIS module's preview screenshot — the QA agent saves it as
+  // .myaudit/preview/<module>.png and the card is tagged module:<module>.
+  const previewsFor = (c: NodeCard) => {
+    if (c.type !== 'qa') return []
+    const mod = (c.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
+    return (s.detail?.files || []).filter((f) =>
+      f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path) &&
+      (!mod || f.path.includes(mod)))
+  }
 
   useEffect(() => {
     if (!s.runId) { setCards(null); return }
