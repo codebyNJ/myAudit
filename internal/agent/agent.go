@@ -5,6 +5,7 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -85,6 +86,10 @@ type Options struct {
 	Resume         bool     // true → --resume SessionID (continue), else --session-id
 	Isolate        bool     // run claude inside a docker container (blast-radius isolation)
 	Image          string   // container image when Isolate (default "myaudit-sandbox")
+	// OnStep, if set, switches to streamed output: it's called with a short
+	// human description of each tool the agent uses (e.g. "$ npm test", "Edit
+	// x.ts") so the UI can show live progress instead of dead air.
+	OnStep func(step string)
 }
 
 // command builds the exec.Cmd, either running claude directly (cwd = workspace)
@@ -139,13 +144,21 @@ func (o Options) Args(task, wsDir string) []string {
 	if pm == "" {
 		pm = "acceptEdits"
 	}
-	args := []string{
-		"-p", task,
-		"--output-format", "json",
+	// Streamed mode (OnStep set) needs stream-json, which requires --verbose in -p.
+	format := "json"
+	args := []string{"-p", task}
+	if o.OnStep != nil {
+		format = "stream-json"
+	}
+	args = append(args, "--output-format", format)
+	if o.OnStep != nil {
+		args = append(args, "--verbose")
+	}
+	args = append(args,
 		"--add-dir", wsDir,
 		"--permission-mode", pm,
 		"--setting-sources", "project", // template CLAUDE.md, not the dev's global one
-	}
+	)
 	if o.Model != "" {
 		args = append(args, "--model", o.Model)
 	}
@@ -221,10 +234,15 @@ func parseEnvelope(b []byte) Result {
 
 // Run invokes claude in the workspace and returns the parsed Result. err is only
 // for failures to launch/collect the process; agent-level failures are in Result.
+// When opt.OnStep is set it streams (stream-json), forwarding each tool use as a
+// step; otherwise it uses the simple buffered json path.
 func Run(ctx context.Context, ws sandbox.Workspace, task string, opt Options) (Result, error) {
 	cmd := opt.command(ctx, ws, task)
 	cmd.Stdin = nil // CRITICAL: -p mode blocks forever waiting on stdin EOF
 	cmd.Env = agentEnv()
+	if opt.OnStep != nil {
+		return runStreaming(cmd, opt.OnStep)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -239,4 +257,100 @@ func Run(ctx context.Context, ws sandbox.Workspace, task string, opt Options) (R
 		return Result{}, fmt.Errorf("claude exec: %s", msg)
 	}
 	return Result{}, fmt.Errorf("claude produced no output")
+}
+
+// runStreaming reads stream-json line-by-line: each assistant tool_use becomes an
+// OnStep call; the final "result" line is parsed into the Result. Keeps the same
+// error contract as Run (err only for launch/collect failures).
+func runStreaming(cmd *exec.Cmd, onStep func(string)) (Result, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return Result{}, err
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return Result{}, err
+	}
+	var final Result
+	var haveFinal bool
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024) // tool_result lines can be large
+	for sc.Scan() {
+		line := sc.Bytes()
+		var ev struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(line, &ev) != nil {
+			continue
+		}
+		switch ev.Type {
+		case "assistant":
+			for _, step := range extractSteps(line) {
+				onStep(step)
+			}
+		case "result":
+			final = parseEnvelope(line)
+			haveFinal = true
+		}
+	}
+	waitErr := cmd.Wait()
+	if !haveFinal {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" && waitErr != nil {
+			msg = waitErr.Error()
+		}
+		if msg == "" {
+			msg = "no result from claude stream"
+		}
+		return Result{}, fmt.Errorf("claude stream: %s", msg)
+	}
+	return final, nil
+}
+
+// extractSteps pulls short tool-use descriptions out of one stream-json assistant
+// line (e.g. "$ npm test", "Edit app/x.ts").
+func extractSteps(line []byte) []string {
+	var m struct {
+		Message struct {
+			Content []struct {
+				Type  string         `json:"type"`
+				Name  string         `json:"name"`
+				Input map[string]any `json:"input"`
+			} `json:"content"`
+		} `json:"message"`
+	}
+	if json.Unmarshal(line, &m) != nil {
+		return nil
+	}
+	var out []string
+	for _, c := range m.Message.Content {
+		if c.Type == "tool_use" {
+			out = append(out, describeTool(c.Name, c.Input))
+		}
+	}
+	return out
+}
+
+func describeTool(name string, in map[string]any) string {
+	str := func(k string) string { s, _ := in[k].(string); return s }
+	first := func(s string) string {
+		s = strings.TrimSpace(s)
+		if i := strings.IndexByte(s, '\n'); i >= 0 {
+			s = s[:i]
+		}
+		return s
+	}
+	switch name {
+	case "Bash":
+		return "$ " + first(str("command"))
+	case "Read", "Edit", "Write", "MultiEdit", "NotebookEdit":
+		return name + " " + str("file_path")
+	case "Grep":
+		return "grep " + str("pattern")
+	case "Glob":
+		return "glob " + str("pattern")
+	default:
+		return name
+	}
 }

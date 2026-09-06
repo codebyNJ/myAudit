@@ -23,7 +23,7 @@ type realAgent struct {
 	image   string
 }
 
-func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
+func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
 	allow, deny := agent.PolicyFor(mode)
 	return agent.Run(ctx, ws, task, agent.Options{
 		Model:   resolveModel(ctx, a.store),
@@ -31,6 +31,7 @@ func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, m
 		Deny:    deny,
 		Isolate: a.isolate,
 		Image:   a.image,
+		OnStep:  onStep,
 	})
 }
 
@@ -66,7 +67,7 @@ func resolveModel(ctx context.Context, s *store.Store) string {
 // the UI/graph can be exercised without spending tokens.
 type stubAgent struct{}
 
-func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
+func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
 	return agent.Result{OK: true, Summary: "[stub] node skipped (dev mode)"}, nil
 }
 

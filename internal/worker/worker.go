@@ -27,7 +27,7 @@ import (
 // mode selects the tool policy (read-only comprehension/review, write, or live
 // Bash-enabled QA/dev).
 type Agent interface {
-	Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error)
+	Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error)
 }
 
 // Deps are RunOnce's collaborators.
@@ -126,13 +126,24 @@ func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 // node; on repeated agent-level failure it raises a checkpoint. Returns the
 // result and whether the caller should proceed.
 func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, bool) {
+	// Stream the agent's tool use as live "agent.step" events (deduped + truncated)
+	// so a running card shows what it's doing instead of dead air for minutes.
+	var lastStep string
+	onStep := func(step string) {
+		step = firstN(step, 140)
+		if step == "" || step == lastStep {
+			return
+		}
+		lastStep = step
+		d.Log.Log(ctx, event(c, "agent.step", step))
+	}
 	var last agent.Result
 	for attempt := 0; attempt <= d.MaxRepairs; attempt++ {
 		t := task
 		if attempt > 0 && last.Err != "" {
 			t = task + "\n\nThe previous attempt failed with:\n" + last.Err + "\nTry again."
 		}
-		r, err := d.Agent.Run(ctx, ws, t, mode)
+		r, err := d.Agent.Run(ctx, ws, t, mode, onStep)
 		if err != nil {
 			d.fail(ctx, c, "agent: "+err.Error())
 			return r, false

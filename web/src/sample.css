@@ -118,6 +118,11 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 /* Failed tickets live in the Review column, flagged red so they stand out. */
 .kcard.failed { border-left: 2px solid var(--method-del); }
 .kcard.dismissed { opacity: 0.5; }
+/* Running card: a live step line + a gently pulsing accent so it reads as active. */
+.kcard.running { border-color: rgba(88,166,255,0.5); animation: card-pulse 1.8s ease-in-out infinite; }
+@keyframes card-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(88,166,255,0.0); } 50% { box-shadow: 0 0 0 2px rgba(88,166,255,0.18); } }
+.kstep { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--method-post); margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spin-sm { width: 9px; height: 9px; border: 1.5px solid var(--method-post); border-top-color: transparent; border-radius: 50%; flex: none; animation: sp 0.7s linear infinite; }
 
 /* Preflight banner (missing claude/git) */
 .health-banner { display: flex; align-items: center; gap: 8px; margin: 0 auto 18px; max-width: 640px; padding: 10px 14px;

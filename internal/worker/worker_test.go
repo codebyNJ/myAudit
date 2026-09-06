@@ -22,7 +22,7 @@ type recordingAgent struct {
 	writeFile string
 }
 
-func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode) (agent.Result, error) {
+func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
 	f.calls++
 	f.lastMode = mode
 	if f.writeFile != "" {

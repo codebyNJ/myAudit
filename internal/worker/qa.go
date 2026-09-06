@@ -43,7 +43,7 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	// the read-only overview call so a hang can't wedge the (single) run loop.
 	overview := ""
 	mapCtx, cancel := context.WithTimeout(ctx, mapTimeout)
-	if r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly); err == nil {
+	if r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly, nil); err == nil {
 		overview = strings.TrimSpace(r.Summary)
 	}
 	cancel()

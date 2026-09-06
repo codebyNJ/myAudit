@@ -293,6 +293,14 @@ Size = rough effort (S/M/L).
     type (`graph.go:13`). Fix: rewrite comments; delete if unreferenced. **S**
 
 42. **Investigate the stray "aux" run** on Home (unexpected; origin unknown). [self]
+    — resolved: it was an old run stuck on the perpetual-"running" bug (fixed #7);
+    it now finalizes to a real end state.
+
+43. **Regression precision** — the dev-fix gate runs the repo-wide `npm test`, so
+    one ticket's fix can be marked `failed` due to an unrelated failing test (or a
+    thin/absent test setup). Scope the regression to the changed module, or treat
+    "no real test for this change" distinctly from "this change broke a test."
+    Surfaced while verifying streaming on a contrived tiny repo. [self] — P2
 
 ---
 

@@ -135,6 +135,16 @@ export function KanbanScreen() {
   })
   const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
 
+  // Latest streamed tool-use step for a running node → live "what it's doing now".
+  const events = s.detail?.events || []
+  const latestStep = (nodeId: string): string => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]
+      if (e.node_id === nodeId && e.kind === 'agent.step') return e.msg
+    }
+    return ''
+  }
+
   return (
     <div className="kanban-wrap">
       <div className="board-filter">
@@ -167,7 +177,7 @@ export function KanbanScreen() {
             <div className="kcol" key={c.key}>
               <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
               {items.map((n) => (
-                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''}`} key={n.id} onClick={() => setSel(n)}>
+                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''}`} key={n.id} onClick={() => setSel(n)}>
                   <div className="kcard-top">
                     <span className="kcard-ico"><TaskIcon type={n.type} /></span>
                     <span className="kt">{label(n)}</span>
@@ -180,7 +190,9 @@ export function KanbanScreen() {
                       {(n.tags || []).filter((t) => t !== n.severity).map((t) => <span key={t} className="ktag">{t}</span>)}
                     </div>
                   )}
-                  {n.summary && <div className="ksum">{n.summary}</div>}
+                  {n.status === 'running'
+                    ? <div className="kstep"><span className="spin-sm" />{latestStep(n.id) || 'working…'}</div>
+                    : n.summary && <div className="ksum">{n.summary}</div>}
                   <div className="kcard-meta">
                     <span className="kbadge" style={{ color: STATUS_COLOR[n.status], background: 'var(--bg-panel)' }}>
                       <span className="kdot" style={{ background: STATUS_COLOR[n.status] }} />{n.status}
