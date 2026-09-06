@@ -75,6 +75,14 @@ export function KanbanScreen() {
     if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
   }, [cards]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Esc closes the open drawer.
+  useEffect(() => {
+    if (!sel) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSel(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sel])
+
   const saveTags = async (card: NodeCard, tags: string[]) => {
     if (!s.runId) return
     setSel({ ...card, tags })

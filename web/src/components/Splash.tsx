@@ -6,13 +6,18 @@ import './splash.css'
 export function Splash({ onDone }: { onDone: () => void }) {
   const [exiting, setExiting] = useState(false)
   useEffect(() => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduce) { onDone(); return } // skip the animation entirely for reduced-motion
     const t1 = setTimeout(() => setExiting(true), 2600)
     const t2 = setTimeout(onDone, 3400)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
+    // Click or any key skips the splash.
+    const skip = () => onDone()
+    window.addEventListener('keydown', skip)
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('keydown', skip) }
   }, [onDone])
 
   return (
-    <div id="splash" className={exiting ? 'exiting' : ''}>
+    <div id="splash" className={exiting ? 'exiting' : ''} onClick={onDone} title="Click to skip">
       <div className="noise-overlay" />
       <div className="splash-glow" />
       <div className="sea-wave wave-back" />

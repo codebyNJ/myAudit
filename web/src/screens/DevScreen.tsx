@@ -119,9 +119,9 @@ export function DevScreen() {
             </>}
             {sel && !editing && <>
               {sel.changed && (
-                <div className="seg">
-                  <button className={`seg-b ${showDiff ? 'on' : ''}`} onClick={() => setShowDiff(true)}>Diff</button>
-                  <button className={`seg-b ${!showDiff ? 'on' : ''}`} onClick={() => setShowDiff(false)}>File</button>
+                <div className="viewseg">
+                  <button className={`viewseg-b ${showDiff ? 'on' : ''}`} onClick={() => setShowDiff(true)}>Diff</button>
+                  <button className={`viewseg-b ${!showDiff ? 'on' : ''}`} onClick={() => setShowDiff(false)}>File</button>
                 </div>
               )}
               <button className="btn-sm" onClick={startEdit}>Edit</button>

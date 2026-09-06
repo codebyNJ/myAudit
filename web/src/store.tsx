@@ -78,7 +78,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((type: Toast['type'], title: string, msg?: string) => {
     const id = ++tid.current
     setToasts((t) => [...t, { id, type, title, msg }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3600)
+    // Errors linger (and stay dismissible) so a failure isn't missed; others auto-clear.
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), type === 'error' ? 9000 : 3600)
   }, [])
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
 

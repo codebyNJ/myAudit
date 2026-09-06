@@ -19,10 +19,11 @@ export function Tabs() {
     if (active) setSlider({ left: active.offsetLeft, width: active.offsetWidth })
   }, [s.tab])
   return (
-    <div className="seg" ref={ref}>
+    <div className="seg" ref={ref} role="tablist">
       <div className="slider" style={{ transform: `translateX(${slider.left - 3}px)`, width: slider.width }} />
       {TABS.map((t) => (
-        <div key={t.id} className={`tab ${s.tab === t.id ? 'on' : ''}`} onClick={() => s.setTab(t.id)}>{t.label}</div>
+        <button key={t.id} type="button" role="tab" aria-selected={s.tab === t.id}
+          className={`tab ${s.tab === t.id ? 'on' : ''}`} onClick={() => s.setTab(t.id)}>{t.label}</button>
       ))}
     </div>
   )

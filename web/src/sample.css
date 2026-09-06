@@ -1,4 +1,16 @@
 /* Verbatim design + layout from docs/sample.html (Deep Zinc / Linear Dark). */
+
+/* A11y: a visible keyboard focus ring on every interactive element (mouse users
+   don't see it thanks to :focus-visible), and honor reduced-motion. */
+:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+/* Dismiss button on toasts */
+.toast { display: flex; align-items: flex-start; gap: 10px; }
+.toast-x { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; margin-left: auto; flex: none; }
+.toast-x:hover { color: var(--text-primary); }
+
 :root {
   --bg-base: #000000;
   --bg-surface: #09090b;
@@ -50,7 +62,7 @@ header { display: grid; grid-template-columns: 240px 1fr 240px; align-items: cen
 .branch-tag { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border-subtle); padding: 2px 6px; border-radius: 4px; }
 .h-center { justify-self: center; display: flex; align-items: center; gap: 16px; }
 .seg { position: relative; display: flex; gap: 2px; background: var(--bg-panel); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle); z-index: 1; }
-.seg .tab { position: relative; z-index: 2; padding: 4px 14px; border-radius: 6px; color: var(--text-secondary); font-weight: 500; cursor: pointer; transition: color 0.2s ease; font-size: 12px; }
+.seg .tab { position: relative; z-index: 2; padding: 4px 14px; border-radius: 6px; color: var(--text-secondary); font-weight: 500; cursor: pointer; transition: color 0.2s ease; font-size: 12px; background: none; border: none; font-family: inherit; }
 .seg .tab:hover { color: var(--text-primary); }
 .seg .tab.on { color: var(--text-primary); }
 .seg .slider { position: absolute; top: 3px; bottom: 3px; left: 0; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.5), var(--glow-inner); z-index: 0; pointer-events: none; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), width 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
@@ -148,9 +160,9 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .diff .dl-meta { color: var(--text-muted); }
 .diff-empty { padding: 24px; color: var(--text-muted); font-size: 13px; }
 /* Segmented Diff/File toggle */
-.seg { display: inline-flex; border: 1px solid var(--border-subtle); border-radius: 7px; overflow: hidden; }
-.seg-b { background: var(--bg-panel); border: none; color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer; }
-.seg-b.on { background: var(--border-focus); color: #fff; }
+.viewseg { display: inline-flex; border: 1px solid var(--border-subtle); border-radius: 7px; overflow: hidden; }
+.viewseg-b { background: var(--bg-panel); border: none; color: var(--text-secondary); font-size: 12px; padding: 4px 10px; cursor: pointer; }
+.viewseg-b.on { background: var(--border-focus); color: #fff; }
 
 /* Board triage filter bar */
 .board-filter { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); flex: none; }
