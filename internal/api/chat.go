@@ -97,9 +97,9 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 				return
 			}
 		}
-		// Allowlisted manual status moves (dismiss / restore).
+		// Allowlisted manual status moves (dismiss / restore / drag between columns).
 		if b.Status != "" {
-			ok := map[string]bool{"open": true, "dismissed": true, "in_review": true}
+			ok := map[string]bool{"open": true, "dismissed": true, "in_review": true, "done": true}
 			if !ok[b.Status] {
 				http.Error(w, "status not allowed", 400)
 				return

@@ -31,6 +31,8 @@ const bucket = (st: string) => {
   }
 }
 const isFailed = (st: string) => st === 'failed' || st === 'reopened'
+// Which manual status a drop onto each column sets (In progress is engine-only).
+const COL_DROP: Record<string, string> = { todo: 'open', review: 'in_review', done: 'done' }
 
 // icon per task type/key
 function TaskIcon({ type }: { type: string }) {
@@ -130,6 +132,19 @@ export function KanbanScreen() {
   const copyLink = (card: NodeCard) => {
     const url = `${location.origin}${location.pathname}?card=${card.id}${location.hash}`
     navigator.clipboard?.writeText(url).then(() => s.toast('success', 'Link copied')).catch(() => {})
+  }
+
+  // Drag-and-drop triage: bug tickets can be dragged between To do / Review / Done
+  // (each maps to a manual status). Engine nodes (import/map/qa) aren't draggable.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const onDrop = (colKey: string) => {
+    const status = COL_DROP[colKey]
+    const card = (cards || []).find((c) => c.id === dragId)
+    setDragId(null); setDragOverCol(null)
+    if (!status || !card || card.type !== 'bug' || bucket(card.status) === colKey) return
+    patch(card, { status })
+    s.toast('info', 'Moved', card.title || card.name)
   }
 
   const saveTags = async (card: NodeCard, tags: string[]) => {
@@ -233,11 +248,27 @@ export function KanbanScreen() {
       <div className="board">
         {COLS.map((c) => {
           const items = visible.filter((n) => bucket(n.status) === c.key)
+          const droppable = !!dragId && !!COL_DROP[c.key]
           return (
-            <div className="kcol" key={c.key}>
+            <div className={`kcol ${dragOverCol === c.key && droppable ? 'dragover' : ''}`} key={c.key}
+              onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(c.key) } }}
+              onDragLeave={() => setDragOverCol((cur) => (cur === c.key ? null : cur))}
+              onDrop={() => onDrop(c.key)}>
               <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
               {items.map((n) => (
-                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''}`} key={n.id} onClick={() => setSel(n)}>
+                <div className={`kcard ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
+                  key={n.id} tabIndex={0} role="button"
+                  draggable={n.type === 'bug'}
+                  onDragStart={() => n.type === 'bug' && setDragId(n.id)}
+                  onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
+                  onClick={() => setSel(n)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
+                  {n.type === 'bug' && (
+                    <div className="kcard-actions">
+                      {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
+                      {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
+                    </div>
+                  )}
                   <div className="kcard-top">
                     <span className="kcard-ico"><TaskIcon type={n.type} /></span>
                     <span className="kt">{label(n)}</span>
