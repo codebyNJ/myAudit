@@ -28,6 +28,7 @@ export function Chat() {
       await api.chat(s.runId, msg)
       s.reloadDetail() // pulls in the persisted chat.user + chat.assistant events
     } catch (e) {
+      setDraft(msg) // restore the typed message so a transient error doesn't lose it
       s.toast('error', 'Chat failed', (e as Error).message)
     } finally { setBusy(false) }
   }

@@ -74,6 +74,7 @@ function FileRow({ name, path, depth, chg, onMenu }: {
 export function Explorer() {
   const s = useStore()
   const [q, setQ] = useState('')
+  const [changedOnly, setChangedOnly] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [menu, setMenu] = useState<Menu | null>(null)
   const [ask, setAsk] = useState<Ask | null>(null)
@@ -111,9 +112,18 @@ export function Explorer() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter files… (⌘P to open, ⌘⇧F to search)" />
       </div>
 
+      {changed.size > 0 && (
+        <button className={`ex-changed ${changedOnly ? 'on' : ''}`} onClick={() => setChangedOnly((v) => !v)}>
+          {changedOnly ? '◄ All files' : `● Changed (${changed.size})`}
+        </button>
+      )}
+
       <div className="tree">
         {!s.runId ? <div className="tree-empty">No project selected</div>
           : !files.length ? <div className="tree-empty">Importing…</div>
+          : changedOnly
+              ? files.filter((f) => changed.has(f.path)).map((f) => (
+                  <FileRow key={f.path} name={f.path} path={f.path} depth={0} chg onMenu={openMenu} />))
           : q ? (matches.length
               ? matches.map((f) => (
                   <FileRow key={f.path} name={f.path} path={f.path} depth={0} chg={changed.has(f.path)} onMenu={openMenu} />))

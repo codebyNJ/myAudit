@@ -239,6 +239,11 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 // whether it ran and a short message. Bounded by an inner timeout so a wedged
 // install can't consume the whole node budget.
 func ensureInstalled(ctx context.Context, ws sandbox.Workspace) (bool, string) {
+	// Stub/dev mode ($0, no real agent) shouldn't run a real `npm install` — that
+	// contradicts "exercise the UI/graph for free" and surprises `make dev`.
+	if os.Getenv("REAL_CLAUDE") == "" {
+		return false, ""
+	}
 	dir := ws.Dir
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()

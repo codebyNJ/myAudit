@@ -144,7 +144,7 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 	steps := [][]string{
 		{"-C", dir, "init", "-q"},
 		{"-C", dir, "add", "-A"},
-		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myaudit", "commit", "-q", "-m", "import baseline"},
+		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myaudit", "commit", "-q", "--allow-empty", "-m", "import baseline"},
 	}
 	for _, args := range steps {
 		if out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput(); err != nil {

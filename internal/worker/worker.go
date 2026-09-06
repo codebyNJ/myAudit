@@ -113,6 +113,10 @@ func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 		d.fail(ctx, c, "import: "+err.Error())
 		return true, nil
 	}
+	if !hasCode(ws.Dir) {
+		d.fail(ctx, c, "No source files found to audit in "+filepath.Base(sp.RepoPath))
+		return true, nil
+	}
 	d.complete(ctx, c, nodeOutput{Kind: "import", Summary: "imported " + filepath.Base(sp.RepoPath)})
 	return true, nil
 }

@@ -124,6 +124,11 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
   border: 1px solid var(--border-subtle); background: var(--text-primary); color: var(--bg-base); cursor: pointer;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 28px rgba(0,0,0,0.5); transition: transform .12s; }
 .chat-fab:hover { transform: translateY(-2px); }
+/* Explorer "Changed only" toggle */
+.ex-changed { display: block; width: calc(100% - 16px); margin: 0 8px 6px; padding: 5px 10px; text-align: left; font-size: 12px; cursor: pointer;
+  background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 6px; color: #4ade80; }
+.ex-changed.on { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.4); }
+
 /* Changed-file marker in the Explorer. */
 .row.file .chg-m { margin-left: auto; font-size: 10px; font-weight: 700; color: #4ade80; padding-right: 4px; }
 
@@ -380,7 +385,10 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .evt-row .msg { color: var(--text-secondary); font-size: 13px; }
 
 .kanban-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
-.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px; flex: 1; min-height: 0; overflow: auto; }
+/* Columns keep a minimum width and the board scrolls horizontally when the window
+   (or an open chat) makes 4 equal columns too thin. */
+.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 16px; padding: 24px; flex: 1; min-height: 0; overflow: auto; }
+.kcol { min-height: 0; }
 .kcol { display: flex; flex-direction: column; gap: 10px; }
 .kcol-h { display: flex; justify-content: space-between; padding: 0 4px; }
 .kcol-h b { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }
@@ -389,7 +397,7 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .kcard:hover { border-color: var(--border-focus); }
 .kcard-top { display: flex; align-items: center; gap: 8px; }
 .kcard-ico { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 7px; background: var(--bg-panel); border: 1px solid var(--border-subtle); color: var(--text-secondary); }
-.kcard .kt { font-weight: 500; font-size: 13px; }
+.kcard .kt { font-weight: 500; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .kcard .kid { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
 .kcard .ksum { color: var(--text-secondary); font-size: 12px; margin-top: 8px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .kcard-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }

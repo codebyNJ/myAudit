@@ -3,10 +3,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
+	"syscall"
 	"time"
 
 	"myaudit/internal/api"
@@ -57,7 +59,12 @@ func main() {
 	}
 	slog.Info("myAudit UI serving", "addr", "http://localhost"+addr)
 	if err := http.ListenAndServe(addr, api.NewMux(s, api.StaticHandler())); err != nil {
-		slog.Error("serve", "err", err)
+		if errors.Is(err, syscall.EADDRINUSE) {
+			slog.Error("port already in use — another myAudit (or app) is on "+addr+
+				". Stop it, or set PORT to a free port (e.g. PORT=7799).", "err", err)
+		} else {
+			slog.Error("serve", "err", err)
+		}
 		os.Exit(1)
 	}
 }

@@ -58,14 +58,20 @@ per-module QA + every fix's what & why).
 ## Run it
 
 Prereqs: **Go 1.23+**, **Node 18+**, the **`claude` CLI** (logged in), and **git**.
-Live QA also uses whatever the target repo needs on `PATH` (e.g. `npm`).
+Live QA also uses whatever the target repo needs on `PATH` (e.g. `npm`). The
+desktop shell additionally needs **Rust + `cargo install tauri-cli`**. On boot the
+UI shows a banner if `claude`/`git` aren't found.
 
 ```bash
 make run      # UI + API at http://localhost:7788, REAL Claude Code agent
-make dev      # same, but the $0 stub agent (no tokens — exercise the UI/graph)
+make dev      # $0 stub agent — exercises the UI/graph; files no tickets, no npm install
+make seed     # populate a demo board instantly (no agent, no tokens) — best first look
 make test     # full Go suite (temp SQLite per test; no services)
-make desktop  # native Tauri shell (auto-starts the server on :7788)
+make desktop  # native Tauri shell (needs Rust; auto-starts the server on :7788)
 ```
+
+`PORT=7799 make run` if 7788 is taken. Set `CLAUDE_MODEL=claude-sonnet-5` (or pick
+in Settings) for deeper QA + fixes than the Haiku default.
 
 Start an audit from the UI (**Import codebase**), or over the API:
 
