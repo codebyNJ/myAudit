@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { 
-  X, Check, Copy, Sparkles, 
-  FileCode, ArrowLeft, ArrowRight, CheckCheck, Terminal
+  X, Check, Copy,
+  FileCode, ArrowLeft, ArrowRight, CheckCheck
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -272,28 +272,19 @@ export function DevScreen() {
         </div>
 
         <div className="cursor-actions">
-          {changedFiles.length > 1 && !editing && (
+          {changedFiles.length > 1 && !editing && changedIdx >= 0 && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6 }}>
               <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(-1)}>
                 <ArrowLeft size={12} />
               </button>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-                {changedIdx >= 0 ? changedIdx + 1 : '–'}/{changedFiles.length}
+                {changedIdx + 1}/{changedFiles.length}
               </span>
               <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(1)}>
                 <ArrowRight size={12} />
               </button>
             </div>
           )}
-
-          <div 
-            className="cursor-ai-pill" 
-            style={{ cursor: 'pointer' }}
-            onClick={() => s.setChatOpen(true)}
-            title="Open Claude Code Assistant with file context"
-          >
-            <Sparkles size={11} /> ⌘L Cursor AI
-          </div>
 
           {sel && !editing && (
             <button className="btn-sm" onClick={copyCode} title="Copy code content">
@@ -361,30 +352,10 @@ export function DevScreen() {
       </div>
 
       <div className="cursor-statusbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="cursor-status-item">
-            <Terminal size={11} /> main
-          </div>
-          {sel && (
-            <div className="cursor-status-item">
-              {lineCount} lines
-            </div>
-          )}
-          <div className="cursor-status-item">
-            UTF-8
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="cursor-status-item">
-            Spaces: 2
-          </div>
-          <div className="cursor-status-item" style={{ textTransform: 'capitalize' }}>
-            {detectedLang}
-          </div>
-          <div className="cursor-status-item" style={{ color: '#c084fc' }}>
-            ✦ Cursor AI Ready
-          </div>
+        <div className="cursor-status-item">{sel ? sel.path : ''}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {sel && <div className="cursor-status-item">{lineCount} lines</div>}
+          {sel && <div className="cursor-status-item" style={{ textTransform: 'capitalize' }}>{detectedLang}</div>}
         </div>
       </div>
     </div>
