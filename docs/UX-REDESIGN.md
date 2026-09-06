@@ -97,6 +97,17 @@ the QA loop installs), not a repo you cloned. Stop presenting it as a folder tre
 
 ---
 
+## Status — ✅ shipped
+- **U1** no-unmount tabs, scoped QA previews, poll errors, node icons — done.
+- **U2** audit tab names (Board·Summary·Report·Code·Activity), Board progress
+  banner, humanized run-pill, Summary→Board click-through — done.
+- **U3** explorer scoped to Code, changed-first default, PR-style diff stepper — done.
+- **U4/U5** checkpoint FAB badge, error boundary, deleted PromptBar + dead steer,
+  event `?events=N` — done.
+- **Deferred (low value):** U3.3 severity-color on changed rows (needs a FileEntry
+  field), U3.5 accept-state dimming, U4.2 palette mouse button, U4.3 a11y for the
+  remaining menu `<div>`s, U4.4 loadingDetail wiring.
+
 ## Suggested build order
 U1 (correctness/structural) → U2 (front door: tabs + landing) → U3 (explorer as
 review queue) → U4 (polish) → U5 (cleanup). U1.1 first — it's the root cause of
