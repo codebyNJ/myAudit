@@ -108,7 +108,13 @@ pitch. Each: *what I'd expect → what happens today → the flow to build.*
 
 ---
 
-## Kanban board UX gaps (the board people actually expect)
+## Kanban board UX gaps (the board people actually expect) — ✅ DONE (K1–K3)
+
+Shipped: K1 detail view (jump-to-code, prev/next, copy-link, inline fix diff),
+K2 card interactions (drag-and-drop triage, hover/focus quick actions, keyboard),
+K3 controls (sort, group-by swimlanes, collapse, per-column severity counts).
+Original gap list retained below for reference.
+
 
 Measured against standard kanban conventions (Trello/Jira/Linear;
 [UX Patterns for Developers](https://uxpatterns.dev/patterns/data-display/kanban-board),
