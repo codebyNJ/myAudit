@@ -42,6 +42,37 @@ func TestCreateBugShowsOnBoardWithTags(t *testing.T) {
 	}
 }
 
+// Filing the same finding twice (same title+file) collapses to one ticket;
+// a different file with the same title is kept as a distinct ticket.
+func TestCreateBugDedups(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(ctx, testURL(t))
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+
+	b := Bug{Title: "Missing rel=noreferrer", File: "TopBar.tsx:34", Severity: "low"}
+	id1, _ := s.CreateBug(ctx, run, b)
+	id2, _ := s.CreateBug(ctx, run, b) // exact dup → same ticket
+	if id1 != id2 {
+		t.Fatalf("duplicate finding should return the same ticket: %s vs %s", id1, id2)
+	}
+	// same title, different file → distinct ticket
+	id3, _ := s.CreateBug(ctx, run, Bug{Title: "Missing rel=noreferrer", File: "PoweredBy.tsx:5", Severity: "low"})
+	if id3 == id1 {
+		t.Fatal("different file should be a distinct ticket")
+	}
+	cards, _ := s.NodeDetailsForRun(ctx, run)
+	bugs := 0
+	for _, c := range cards {
+		if c.Type == "bug" {
+			bugs++
+		}
+	}
+	if bugs != 2 {
+		t.Fatalf("want 2 tickets after dedup, got %d", bugs)
+	}
+}
+
 func TestSetNodeTagsRoundtrip(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))

@@ -118,6 +118,13 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 /* Failed tickets live in the Review column, flagged red so they stand out. */
 .kcard.failed { border-left: 2px solid var(--method-del); }
 
+/* Board triage filter bar */
+.board-filter { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); flex: none; }
+.board-filter .bf-search { flex: 1; max-width: 320px; background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; color: var(--text-primary); font-size: 13px; outline: none; }
+.board-filter .bf-search:focus { border-color: var(--border-focus); }
+.board-filter .bf-sel { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 8px; color: var(--text-secondary); font-size: 12.5px; outline: none; cursor: pointer; }
+.board-filter .bf-count { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+
 /* Live "now running" pill in the header — visible on every tab. */
 .run-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-family: var(--font-mono);
   color: #4ade80; background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.3); border-radius: 999px; padding: 3px 10px; }
@@ -321,7 +328,8 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .evt-row .kind { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
 .evt-row .msg { color: var(--text-secondary); font-size: 13px; }
 
-.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px; height: 100%; overflow: auto; }
+.kanban-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px; flex: 1; min-height: 0; overflow: auto; }
 .kcol { display: flex; flex-direction: column; gap: 10px; }
 .kcol-h { display: flex; justify-content: space-between; padding: 0 4px; }
 .kcol-h b { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary); }

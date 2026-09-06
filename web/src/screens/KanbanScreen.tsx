@@ -65,6 +65,9 @@ export function KanbanScreen() {
   const [cards, setCards] = useState<NodeCard[] | null>(null)
   const [sel, setSel] = useState<NodeCard | null>(null)
   const [tagDraft, setTagDraft] = useState('')
+  const [fSev, setFSev] = useState('all')
+  const [fType, setFType] = useState('all')
+  const [q, setQ] = useState('')
 
   // Keep the open drawer in sync with polled board data (tags/status updates).
   useEffect(() => {
@@ -103,11 +106,46 @@ export function KanbanScreen() {
   if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
   if (cards == null) return <div className="empty-mid"><div className="spin" /></div>
 
+  // Client-side triage filter over the polled cards (data already carries
+  // severity/type/tags), so ~80 cards become a worklist you can narrow.
+  const ql = q.trim().toLowerCase()
+  const visible = cards.filter((n) => {
+    if (fSev !== 'all' && n.severity !== fSev) return false
+    if (fType === 'bug' && n.type !== 'bug') return false
+    if (fType === 'qa' && n.type !== 'qa') return false
+    if (fType === 'flow' && (n.type === 'bug' || n.type === 'qa')) return false
+    if (ql) {
+      const hay = (label(n) + ' ' + (n.summary || '') + ' ' + (n.tags || []).join(' ')).toLowerCase()
+      if (!hay.includes(ql)) return false
+    }
+    return true
+  })
+  const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
+
   return (
-    <>
+    <div className="kanban-wrap">
+      <div className="board-filter">
+        <input className="bf-search" placeholder="Filter cards…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="bf-sel" value={fType} onChange={(e) => setFType(e.target.value)}>
+          <option value="all">All types</option>
+          <option value="bug">Tickets</option>
+          <option value="qa">QA</option>
+          <option value="flow">Pipeline</option>
+        </select>
+        <select className="bf-sel" value={fSev} onChange={(e) => setFSev(e.target.value)}>
+          <option value="all">Any severity</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        {activeFilter && <>
+          <span className="bf-count">{visible.length} / {cards.length}</span>
+          <button className="btn-sm" onClick={() => { setQ(''); setFSev('all'); setFType('all') }}>Clear</button>
+        </>}
+      </div>
       <div className="board">
         {COLS.map((c) => {
-          const items = cards.filter((n) => bucket(n.status) === c.key)
+          const items = visible.filter((n) => bucket(n.status) === c.key)
           return (
             <div className="kcol" key={c.key}>
               <div className="kcol-h"><b>{c.label}</b><span className="c">{items.length}</span></div>
@@ -219,6 +257,6 @@ export function KanbanScreen() {
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }

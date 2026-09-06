@@ -37,6 +37,19 @@ func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug, deps ...uui
 	if b.Tags == nil {
 		b.Tags = []string{}
 	}
+	// Dedup: if an equivalent ticket (same title + file, case-insensitive) already
+	// exists in this run, return it instead of filing a duplicate card. Re-running
+	// a module, or two modules reporting the same issue at the same location, then
+	// collapses to one ticket rather than N.
+	var existingID uuid.UUID
+	dup := s.db.QueryRowContext(ctx, `
+		SELECT id FROM nodes WHERE run_id=? AND type='bug'
+		  AND lower(trim(COALESCE(json_extract(input_snapshot,'$.title'),'')))=lower(trim(?))
+		  AND lower(trim(COALESCE(json_extract(input_snapshot,'$.file'),'')))=lower(trim(?))
+		LIMIT 1`, run, b.Title, b.File)
+	if err := dup.Scan(&existingID); err == nil {
+		return existingID, nil
+	}
 	snap, _ := json.Marshal(b)
 	id := uuid.New()
 	status := "open"
