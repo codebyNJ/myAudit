@@ -114,3 +114,13 @@ New (from this pass):
 ## Build order (V2)
 V2-A layout system → V2-B2 Report → V2-B4 Overview (Summary+Activity) →
 V2-B1 Board (full JIRA) → V2-B3 Code (list-first + Monaco) → V2-C flows.
+
+## Status
+- ✅ V2-A layout system (dash/grid/rail/card/tile primitives; .pane ribbon gone)
+- ✅ V2-B2 Report (read-first, full-width, AI-robust rendering)
+- ✅ V2-B4 Overview (Summary+Activity merged; tabs Board·Overview·Report·Code)
+- ✅ V2-B1 Board (full JIRA card faces, stripes, avatars, column accents)
+- ✅ V2-B3 Code (Monaco editor + PR-style list-before-code)
+- ⏳ Visual confirmation pending (no browser tool connected this session)
+- ⬜ V2-C flows (F1 get-fixes-out, F3 audit-only, F6 undo, F2 cap, F5 scope,
+  F7 scorecard) — not started; each is its own design, needs a go-ahead.
