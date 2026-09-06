@@ -9,7 +9,10 @@ Tags in brackets = which lenses flagged it (cross-confirmed items rank higher).
 - **Batch 1 — trust & correctness (done):** #3, #4, #7, #10, #19, #20, #21, #22, #27.
 - **Batch 2 — autonomous-fix trust loop (done):** #8, #9 (reopen; auto-revert
   deferred), #11, #12, #13.
-- **Next — Batch 3 (control & real-repo safety):** #2, #6, #14, #17, #18.
+- **Batch 3 — control & real-repo safety (done):** #2, #6, #14 (PR deferred),
+  #17, #18 (edit-race serialization deferred).
+- **Next — Batch 4 (live feedback & onboarding):** #1 (streaming, the last P0),
+  #15 (claude preflight), #16 (import UX), #24, #25, #26.
 
 Legend: **P0** breaks/blocks core value · **P1** major friction, missing
 table-stakes, trust, or real-repo failure · **P2** polish / cleanup / robustness.
