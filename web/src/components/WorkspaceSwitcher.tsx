@@ -10,7 +10,7 @@ export function WorkspaceSwitcher() {
   return (
     <div style={{ position: 'relative' }}>
       <div className="workspace-switcher" onClick={() => setOpen((v) => !v)}>
-        {cur ? cur.project : (s.runs && s.runs.length === 0 ? 'No projects' : 'Loading…')} <IcChevron />
+        <span className="ws-name">{cur ? cur.project : (s.runs && s.runs.length === 0 ? 'No projects' : 'Loading…')}</span> <IcChevron />
       </div>
       {open && (
         <div className="dropdown" style={{ top: 34, left: 0 }} onMouseLeave={() => setOpen(false)}>

@@ -1,4 +1,4 @@
-// Typed fetch client. Errors bubble up so callers can toast them.
+
 export type Run = { id: string; project: string; status: string; created_at: string }
 export type Node = { id: string; run_id: string; type: string; status: string; deps: string[] }
 export type EventRow = { ts: string; kind: string; level: string; msg: string; node_id?: string }

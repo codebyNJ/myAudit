@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import './splash.css'
 
-// Cinematic sea-wave loading screen (from the provided design), shown on boot,
-// then fades to reveal the app.
 export function Splash({ onDone }: { onDone: () => void }) {
   const [exiting, setExiting] = useState(false)
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (reduce) { onDone(); return } // skip the animation entirely for reduced-motion
+    if (reduce) { onDone(); return } 
     const t1 = setTimeout(() => setExiting(true), 2600)
     const t2 = setTimeout(onDone, 3400)
-    // Click or any key skips the splash.
+
     const skip = () => onDone()
     window.addEventListener('keydown', skip)
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('keydown', skip) }

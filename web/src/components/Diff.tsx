@@ -1,5 +1,3 @@
-// Renders a unified git diff with per-line coloring. Hunk headers, additions,
-// and deletions are tinted; file headers are dimmed. Read-only review view.
 export function Diff({ text }: { text: string }) {
   if (!text.trim()) return <div className="diff-empty">No changes against the imported baseline.</div>
   const lines = text.split('\n')

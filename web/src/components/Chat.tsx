@@ -5,9 +5,6 @@ import { api } from '../api'
 import { AgentAvatar } from './icons'
 import { Markdown } from './Markdown'
 
-// Persistent right-dock chat, shown on every page. Messages run claude -p
-// read-only over the imported code and reply in the thread. The conversation is
-// stored as chat.user / chat.assistant events, so it survives reloads.
 export function Chat() {
   const s = useStore()
   const events = s.detail?.events || []
@@ -26,16 +23,13 @@ export function Chat() {
     setDraft(''); setBusy(true)
     try {
       await api.chat(s.runId, msg)
-      s.reloadDetail() // pulls in the persisted chat.user + chat.assistant events
+      s.reloadDetail() 
     } catch (e) {
-      setDraft(msg) // restore the typed message so a transient error doesn't lose it
+      setDraft(msg) 
       s.toast('error', 'Chat failed', (e as Error).message)
     } finally { setBusy(false) }
   }
 
-  // Floating, toggleable dock (myIntern-style): a bubble opens it, × closes it.
-  // A pulsing badge signals a pending checkpoint so a blocked run isn't mistaken
-  // for an idle one while the dock is closed.
   const hasCheckpoint = (s.detail?.checkpoints?.length ?? 0) > 0
   if (!s.chatOpen) {
     return (

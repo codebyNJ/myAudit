@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../api'
 
-// Preflight banner: warns when the Claude CLI or git is missing, so a first-run
-// user isn't left with a silently-dead audit. Renders nothing when all is well.
 export function HealthBanner() {
   const [msg, setMsg] = useState('')
   useEffect(() => {

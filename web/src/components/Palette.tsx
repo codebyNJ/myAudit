@@ -4,7 +4,6 @@ import { api, type SearchHit } from '../api'
 
 type Mode = 'files' | 'text'
 
-// Command palette: ⌘P fuzzy file open, ⌘⇧F find-in-files. Esc closes.
 export function Palette() {
   const s = useStore()
   const [mode, setMode] = useState<Mode | null>(null)
@@ -13,11 +12,10 @@ export function Palette() {
   const [hits, setHits] = useState<SearchHit[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const runIdRef = useRef(s.runId)
-  runIdRef.current = s.runId // always current, avoids stale-closure in the key handler
+  runIdRef.current = s.runId 
 
   const open = (m: Mode) => { if (!runIdRef.current) return; setMode(m); setQ(''); setHits([]); setSel(0); setTimeout(() => inputRef.current?.focus(), 0) }
 
-  // global shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
@@ -27,9 +25,8 @@ export function Palette() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) 
 
-  // file mode: fuzzy filter over open workspace paths
   const fileMatches = useMemo(() => {
     if (mode !== 'files') return []
     const paths = s.visibleFiles.map((f) => f.path)
@@ -38,7 +35,6 @@ export function Palette() {
     return paths.filter((p) => fuzzy(p.toLowerCase(), ql)).slice(0, 50)
   }, [mode, q, s.visibleFiles])
 
-  // text mode: debounced backend find-in-files
   useEffect(() => {
     if (mode !== 'text' || q.trim().length < 2 || !s.runId) { setHits([]); return }
     const t = setTimeout(() => { api.search(s.runId!, q).then(setHits).catch(() => setHits([])) }, 200)
@@ -88,7 +84,6 @@ export function Palette() {
 
 const baseName = (p: string) => p.split('/').pop() || p
 
-// subsequence fuzzy match (all query chars appear in order)
 function fuzzy(hay: string, needle: string): boolean {
   let i = 0
   for (const c of hay) { if (c === needle[i]) i++; if (i === needle.length) return true }

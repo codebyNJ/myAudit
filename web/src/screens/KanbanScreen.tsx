@@ -12,7 +12,6 @@ import { AgentAvatar } from '../components/icons'
 
 const label = (n: NodeCard) => n.title || n.name || n.type
 
-// JIRA-style issue key: type prefix + short id (e.g. BUG-1a2b, QA-9f0e).
 const KEY_PREFIX: Record<string, string> = { bug: 'BUG', qa: 'QA', map: 'MAP', import: 'IMP' }
 const keyFor = (n: NodeCard) => `${KEY_PREFIX[n.type] || 'AUD'}-${n.id.slice(0, 4)}`
 
@@ -24,39 +23,35 @@ const COLS = [
   { key: 'review', label: 'Review' },
   { key: 'done', label: 'Done' },
 ]
-// Maps both audit-node statuses and bug-ticket lifecycle statuses onto columns.
-// Review is the "needs a human" lane: failed regressions, unverifiable fixes,
-// and no-diff tickets all land here (failed ones flagged red on the card).
+
 const bucket = (st: string) => {
   switch (st) {
     case 'done': case 'verified': case 'closed': return 'done'
     case 'running': case 'ready': case 'in_progress': return 'active'
     case 'failed': case 'reopened': case 'blocked': case 'in_review': return 'review'
-    default: return 'todo' // pending, open, …
+    default: return 'todo' 
   }
 }
 const isFailed = (st: string) => st === 'failed' || st === 'reopened'
-// Which manual status a drop onto each column sets (In progress is engine-only).
+
 const COL_DROP: Record<string, string> = { todo: 'open', review: 'in_review', done: 'done' }
 
 const SEV_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
 const PRI_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2 }
-// Sort comparators for cards within a column.
+
 const SORTERS: Record<string, (a: NodeCard, b: NodeCard) => number> = {
   default: () => 0,
   severity: (a, b) => (SEV_RANK[a.severity ?? ''] ?? 9) - (SEV_RANK[b.severity ?? ''] ?? 9),
   priority: (a, b) => (PRI_RANK[a.priority ?? ''] ?? 9) - (PRI_RANK[b.priority ?? ''] ?? 9),
   newest: (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
 }
-// Per-column severity tally (high/med/low) for the column header.
+
 function sevCounts(items: NodeCard[]) {
   const c = { high: 0, medium: 0, low: 0 }
   for (const n of items) if (n.severity && n.severity in c) c[n.severity as keyof typeof c]++
   return c
 }
 
-// Live phase banner: import → map → QA (n/m) → fixes. Returns null once the run
-// has drained (no active nodes), so a finished board isn't cluttered.
 function progressLine(cards: NodeCard[]): { text: string; done: number; total: number } | null {
   const active = cards.filter((n) => n.status === 'ready' || n.status === 'running' || n.status === 'pending')
   if (!active.length) return null
@@ -75,8 +70,6 @@ function progressLine(cards: NodeCard[]): { text: string; done: number; total: n
   return { text, done: qaDone + bugDone, total: qas.length + bugs.length }
 }
 
-// icon per task type/key
-// Icons for the four live node types (import → map → qa → bug).
 function TaskIcon({ type }: { type: string }) {
   const p = { size: 14 }
   if (type === 'import') return <Download {...p} />
@@ -94,9 +87,6 @@ function since(ts: string) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
-// Work that's finished shows no live timer (a Done card ticking "1197m" reads as
-// stuck). Running cards count from when they were claimed ("running for X");
-// queued/triage cards count from creation.
 const TERMINAL = new Set(['done', 'closed', 'verified', 'failed', 'cancelled'])
 function ageOf(n: NodeCard): string | null {
   if (TERMINAL.has(n.status)) return null
@@ -117,15 +107,13 @@ export function KanbanScreen() {
   const [groupBy, setGroupBy] = useState('none')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
-  // Keep the open drawer in sync with polled board data (tags/status updates).
   useEffect(() => {
     if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
-  }, [cards]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cards]) 
 
   const [fixDiff, setFixDiff] = useState('')
-  const orderedRef = useRef<NodeCard[]>([]) // flat visible order, for prev/next
+  const orderedRef = useRef<NodeCard[]>([]) 
 
-  // Step to the prev/next card in the visible order (drawer arrows + ↑/↓).
   const step = (dir: 1 | -1) => {
     const list = orderedRef.current
     if (!sel || !list.length) return
@@ -135,7 +123,6 @@ export function KanbanScreen() {
     if (n) setSel(n)
   }
 
-  // Esc closes; ↑/↓ step through cards while the drawer is open.
   useEffect(() => {
     if (!sel) return
     const onKey = (e: KeyboardEvent) => {
@@ -145,9 +132,8 @@ export function KanbanScreen() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sel]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sel]) 
 
-  // Load the fix diff for a ticket that touched a file (shown inline in drawer).
   useEffect(() => {
     setFixDiff('')
     if (!sel || !s.runId || sel.type !== 'bug' || !sel.file) return
@@ -155,9 +141,8 @@ export function KanbanScreen() {
     let alive = true
     api.diff(s.runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [sel?.id, sel?.file, s.runId, s.detail]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sel?.id, sel?.file, s.runId, s.detail]) 
 
-  // Deep-link on first load: open the card named in ?card= (copy-link / shared URL).
   const openedFromUrl = useRef(false)
   useEffect(() => {
     if (openedFromUrl.current || !cards) return
@@ -165,15 +150,13 @@ export function KanbanScreen() {
     if (cid) { const c = cards.find((x) => x.id === cid); if (c) { setSel(c); openedFromUrl.current = true } }
   }, [cards])
 
-  // In-app focus: another screen (e.g. Summary) asked to open a card on the board.
   useEffect(() => {
     if (!s.focusCard || !cards) return
     const c = cards.find((x) => x.id === s.focusCard)
     if (c) setSel(c)
     s.clearFocusCard()
-  }, [s.focusCard, cards]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.focusCard, cards]) 
 
-  // Jump from a finding to its file in the editor.
   const openFile = (card: NodeCard) => {
     if (!card.file) return
     s.setFile(card.file.split(':')[0])
@@ -185,8 +168,6 @@ export function KanbanScreen() {
     navigator.clipboard?.writeText(url).then(() => s.toast('success', 'Link copied')).catch(() => {})
   }
 
-  // Drag-and-drop triage: bug tickets can be dragged between To do / Review / Done
-  // (each maps to a manual status). Engine nodes (import/map/qa) aren't draggable.
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const onDrop = (colKey: string) => {
@@ -205,7 +186,6 @@ export function KanbanScreen() {
     catch (e) { s.toast('error', 'Tagging failed', (e as Error).message) }
   }
 
-  // Re-run the autonomous fix for a ticket that failed or is parked in review.
   const runFix = async (card: NodeCard) => {
     if (!s.runId) return
     try {
@@ -216,16 +196,15 @@ export function KanbanScreen() {
   }
   const patch = async (card: NodeCard, p: { severity?: string; priority?: string; status?: string }) => {
     if (!s.runId) return
-    setSel({ ...card, ...p }) // optimistic
+    setSel({ ...card, ...p }) 
     try { await api.patchNode(s.runId, card.id, p); api.board(s.runId).then(setCards) }
     catch (e) { s.toast('error', 'Update failed', (e as Error).message) }
   }
   const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); s.toast('info', 'Ticket dismissed'); setSel(null) }
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
-  // Re-queue the autonomous dev for a ticket — including reopening a closed one.
+
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
-  // Only THIS module's preview screenshot — the QA agent saves it as
-  // .myaudit/preview/<module>.png and the card is tagged module:<module>.
+
   const previewsFor = (c: NodeCard) => {
     if (c.type !== 'qa') return []
     const mod = (c.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
@@ -246,12 +225,10 @@ export function KanbanScreen() {
   if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
   if (cards == null) return <div className="empty-mid"><div className="spin" /><p style={{ marginTop: 12 }}>Setting up your audit…</p></div>
 
-  // Client-side triage filter over the polled cards (data already carries
-  // severity/type/tags), so ~80 cards become a worklist you can narrow.
   const ql = q.trim().toLowerCase()
   const dismissedCount = cards.filter((n) => n.status === 'dismissed').length
   const visible = cards.filter((n) => {
-    if (n.status === 'cancelled') return false // a stopped run's abandoned nodes
+    if (n.status === 'cancelled') return false 
     if (n.status === 'dismissed' && !showDismissed) return false
     if (fSev !== 'all' && n.severity !== fSev) return false
     if (fType === 'bug' && n.type !== 'bug') return false
@@ -266,9 +243,6 @@ export function KanbanScreen() {
   const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
   if (sortBy !== 'default') visible.sort(SORTERS[sortBy])
 
-  // JIRA-style card: priority stripe · title · label chips · footer (issue key +
-  // type icon + assignee avatar). Behaviour (drag, quick-actions, running step)
-  // is unchanged — only the face is rebuilt.
   const renderCard = (n: NodeCard) => {
     const stripe = SEV_COLOR[n.severity || ''] || STATUS_COLOR[n.status] || 'var(--border-subtle)'
     const moduleTag = (n.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
@@ -314,18 +288,15 @@ export function KanbanScreen() {
     )
   }
 
-  // Swimlanes: group cards by module or severity (or one "All" lane).
   const laneOf = (n: NodeCard) =>
     groupBy === 'module' ? ((n.tags || []).find((t) => t.startsWith('module:'))?.slice(7) || '—')
       : groupBy === 'severity' ? (n.severity || '—')
       : 'All'
   const lanes = groupBy === 'none' ? ['All'] : [...new Set(visible.map(laneOf))].sort()
 
-  // Flat visible order (lane by lane, column by column) drives prev/next.
   orderedRef.current = lanes.flatMap((ln) =>
     COLS.flatMap((c) => visible.filter((n) => laneOf(n) === ln && bucket(n.status) === c.key)))
 
-  // Latest streamed tool-use step for a running node → live "what it's doing now".
   const events = s.detail?.events || []
   const latestStep = (nodeId: string): string => {
     for (let i = events.length - 1; i >= 0; i--) {
@@ -382,7 +353,7 @@ export function KanbanScreen() {
         )}
       </div>
       {lanes.map((lane) => (
-        <div key={lane}>
+        <div key={lane} className="lane">
           {groupBy !== 'none' && <div className="swimlane-h">{groupBy === 'module' ? 'module:' : ''}{lane}</div>}
           <div className="board">
             {COLS.map((c) => {
@@ -406,8 +377,13 @@ export function KanbanScreen() {
                       </span>
                     )}
                   </div>
-                  {!isCollapsed && items.map((n) => renderCard(n))}
-                  {!isCollapsed && !items.length && <div className="kempty">Empty</div>}
+                  <div className={`kcol-acc`} />
+                  {!isCollapsed && (
+                    <div className="kcards">
+                      {items.map((n) => renderCard(n))}
+                      {!items.length && <div className="kempty">No issues</div>}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -439,7 +415,7 @@ export function KanbanScreen() {
                 {sel.type === 'bug' && sel.status !== 'dismissed' && <button className="btn-sm" onClick={() => dismiss(sel)}>Dismiss</button>}
               </div>
 
-              {/* Triage: edit severity / priority (bug tickets) */}
+              {}
               {sel.type === 'bug' && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <select className="bf-sel" value={sel.severity || 'medium'} onChange={(e) => patch(sel, { severity: e.target.value })}>
@@ -450,7 +426,7 @@ export function KanbanScreen() {
                   </select>
                 </div>
               )}
-              {/* Location → jump to the code (the key click on an audit board) */}
+              {}
               {sel.file && (
                 <button className="file-jump" onClick={() => openFile(sel)} title="Open in editor">
                   <FileSymlink size={13} /> <code>{sel.file}</code>
@@ -459,7 +435,7 @@ export function KanbanScreen() {
               {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
               {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
 
-              {/* The fix's diff, inline — see what changed without leaving the drawer */}
+              {}
               {sel.type === 'bug' && fixDiff.trim() && (
                 <div>
                   <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Fix diff</div>
@@ -479,7 +455,7 @@ export function KanbanScreen() {
                 </div>
               )}
 
-              {/* Tags — add/remove (manual triage) */}
+              {}
               <div>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Tags</div>
                 <div className="ktags">

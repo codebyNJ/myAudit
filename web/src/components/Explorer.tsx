@@ -6,7 +6,6 @@ import { IcFile, IcSearch, IcPanelLeft } from './icons'
 
 type TNode = { name: string; path: string; dir: boolean; children: TNode[] }
 
-// Build a nested folder tree from flat paths (VSCode-style).
 function buildTree(paths: string[]): TNode[] {
   const root: TNode = { name: '', path: '', dir: true, children: [] }
   for (const full of paths) {
@@ -53,8 +52,6 @@ function TreeRows({ nodes, depth, collapsed, toggle, onMenu, changed }: {
   )
 }
 
-// One file row, colored by git status: changed files are green with an "M"
-// marker (VSCode-style), untouched files use the normal text color.
 function FileRow({ name, path, depth, chg, onMenu }: {
   name: string; path: string; depth: number; chg: boolean; onMenu: (e: React.MouseEvent, n: TNode) => void
 }) {
@@ -70,7 +67,6 @@ function FileRow({ name, path, depth, chg, onMenu }: {
   )
 }
 
-// VSCode-style collapsible file explorer: filename filter, right-click file ops.
 export function Explorer() {
   const s = useStore()
   const [q, setQ] = useState('')
@@ -81,10 +77,9 @@ export function Explorer() {
   const files = s.visibleFiles
   const toggle = (p: string) => setCollapsed((c) => { const n = new Set(c); n.has(p) ? n.delete(p) : n.add(p); return n })
   const key = files.map((f) => (f.changed ? '*' : '') + f.path).join(',')
-  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
-  const changed = useMemo(() => new Set(files.filter((f) => f.changed && !f.path.startsWith('.myaudit/')).map((f) => f.path)), [key]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Audit tool: lead with what the audit touched. The first time changed files
-  // appear, default to the changed-only view (the user can flip to All files).
+  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key]) 
+  const changed = useMemo(() => new Set(files.filter((f) => f.changed && !f.path.startsWith('.myaudit/')).map((f) => f.path)), [key]) 
+
   const primedChanged = useRef(false)
   useEffect(() => {
     if (!primedChanged.current && changed.size > 0) { primedChanged.current = true; setChangedOnly(true) }

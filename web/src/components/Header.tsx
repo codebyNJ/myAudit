@@ -5,13 +5,10 @@ import { AccountMenu } from './AccountMenu'
 import { useStore } from '../store'
 import { api } from '../api'
 
-// Human labels for the live run-pill (was printing raw node types like "qa running").
 const RUN_VERB: Record<string, string> = {
   import: 'Importing', map: 'Mapping modules', qa: 'Reviewing', bug: 'Fixing',
 }
 
-// Header: product logo + workspace switcher + branch | centered tabs | account avatar.
-// (Search moved into the Explorer.)
 export function Header() {
   const s = useStore()
   const cost = s.detail?.cost_usd || 0

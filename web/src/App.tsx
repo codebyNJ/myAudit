@@ -15,9 +15,6 @@ import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 
-// All screens mount once and toggle visibility via .screen/.screen.on, so
-// switching tabs never unmounts a screen — in-progress Notes/Code edits and the
-// board's filter/sort/collapse state survive tab changes (they used to reset).
 const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
   { tab: 'kanban', el: <KanbanScreen /> },
   { tab: 'playwright', el: <PlaywrightScreen /> },
@@ -52,9 +49,6 @@ function Shell() {
     window.addEventListener('mouseup', onUp)
   }
 
-  // The file explorer is only relevant to the Code tab (reviewing diffs). On every
-  // other tab the body is single-column — a source tree next to the board/report
-  // is just noise (and heavy). `.body.locked` collapses the explorer column.
   const showExplorer = s.tab === 'dev'
   const collapsed = !s.explorerOpen
   return (
@@ -74,7 +68,6 @@ function Shell() {
   )
 }
 
-// Import flow: the import form full-screen with a way back to Home.
 function NewProject() {
   const s = useStore()
   return (

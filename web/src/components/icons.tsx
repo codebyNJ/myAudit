@@ -1,4 +1,4 @@
-// Inline SVG icons (sample.html stroke style) + the coding-agent avatar.
+
 const base = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
 
 export const IcFile = ({ stroke, size = 14 }: { stroke?: string; size?: number }) => (
@@ -16,7 +16,6 @@ export const IcCircleCheck = () => <svg width="18" height="18" viewBox="0 0 24 2
 export const IcCircleX = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--method-del)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
 export const IcCircleDot = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /></svg>
 
-// Coding-agent avatar — DiceBear "Waves" (CC0). Rounded square, sized via prop.
 export function AgentAvatar({ size = 20, radius = 4 }: { size?: number; radius?: number }) {
   const id = 'wv'
   return (

@@ -2,12 +2,9 @@ import { useState } from 'react'
 import { FolderGit2, Sparkles, FolderSearch } from 'lucide-react'
 import { useStore } from '../store'
 
-// Native folder picker, only available inside the Tauri desktop shell (a browser
-// can't hand back a real filesystem path). undefined ⇒ not in desktop.
 const tauriDialog = (): { open: (o: unknown) => Promise<string | null> } | undefined =>
   (window as unknown as { __TAURI__?: { dialog?: { open: (o: unknown) => Promise<string | null> } } }).__TAURI__?.dialog
 
-// Import screen: point myAudit at a local repo and start an audit run.
 export function ConfigScreen() {
   const s = useStore()
   const [repo, setRepo] = useState('')
@@ -24,8 +21,7 @@ export function ConfigScreen() {
   }
 
   const path = repo.trim()
-  // Absolute on POSIX (/…) or Windows (C:\…); a relative path resolves against
-  // the server, not the user, so we block it up front with a clear hint.
+
   const isAbs = /^(\/|[A-Za-z]:[\\/])/.test(path)
   const pathError = path !== '' && !isAbs ? 'Enter an absolute path (e.g. /Users/you/project)' : ''
 

@@ -3,7 +3,6 @@ import { useStore } from '../store'
 import { AgentAvatar } from '../components/icons'
 import { HealthBanner } from '../components/HealthBanner'
 
-// The opening page: pick a project/workspace to open, or start a new one.
 export function HomeScreen() {
   const s = useStore()
   const runs = s.runs || []
