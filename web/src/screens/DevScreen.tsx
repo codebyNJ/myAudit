@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { 
-  X, Check, Copy,
-  FileCode, ArrowLeft, ArrowRight, CheckCheck
+import {
+  X, Check, Copy, FileCode, ArrowLeft, ArrowRight, CheckCheck,
+  WrapText, Map as MapIcon, Search,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
@@ -9,16 +9,15 @@ import { Diff } from '../components/Diff'
 import { Mono, detectLanguage } from '../components/Monaco'
 
 const baseName = (p: string) => p.split('/').pop() || p
-const dirName = (p: string) => { 
+const dirName = (p: string) => {
   const i = p.lastIndexOf('/')
-  return i < 0 ? '' : p.slice(0, i + 1) 
+  return i < 0 ? '' : p.slice(0, i + 1)
 }
 
 function FileTypeBadge({ path }: { path: string }) {
   const ext = path.toLowerCase().split('.').pop() || ''
   let color = '#a1a1aa'
   let label = ext.toUpperCase().slice(0, 3) || 'TXT'
-
   if (ext === 'ts' || ext === 'tsx') { color = '#38bdf8'; label = ext.toUpperCase() }
   else if (ext === 'js' || ext === 'jsx') { color = '#facc15'; label = ext.toUpperCase() }
   else if (ext === 'py') { color = '#60a5fa'; label = 'PY' }
@@ -31,31 +30,19 @@ function FileTypeBadge({ path }: { path: string }) {
   else if (ext === 'sh' || ext === 'bash') { color = '#4ade80'; label = 'SH' }
   else if (ext === 'sql') { color = '#818cf8'; label = 'SQL' }
   else if (path.toLowerCase().includes('dockerfile')) { color = '#38bdf8'; label = 'DOC' }
-
   return (
-    <span style={{ 
-      fontSize: 9.5, 
-      fontFamily: 'var(--font-mono)', 
-      fontWeight: 700, 
-      color, 
-      border: `1px solid ${color}40`, 
-      background: `${color}14`,
-      padding: '1px 4px', 
-      borderRadius: 3, 
-      lineHeight: 1, 
-      flexShrink: 0 
-    }}>
-      {label}
-    </span>
+    <span style={{
+      fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700, color,
+      border: `1px solid ${color}40`, background: `${color}14`,
+      padding: '1px 4px', borderRadius: 3, lineHeight: 1, flexShrink: 0,
+    }}>{label}</span>
   )
 }
 
-function ChangedList({ files, onOpen }: { files: { path: string; review?: string; action?: string }[]; onOpen: (p: string) => void }) {
+function ChangedList({ files, onOpen }: { files: { path: string; review?: string }[]; onOpen: (p: string) => void }) {
   return (
     <div className="cl-wrap">
-      <div className="cl-head">
-        Changed files <span className="cl-n">{files.length}</span>
-      </div>
+      <div className="cl-head">Changed files <span className="cl-n">{files.length}</span></div>
       <div className="cl-list">
         {files.map((f) => (
           <div className="cl-row" key={f.path} onClick={() => onOpen(f.path)} title={f.path}>
@@ -76,18 +63,26 @@ function ChangedList({ files, onOpen }: { files: { path: string; review?: string
 export function DevScreen() {
   const s = useStore()
   const files = s.visibleFiles
-  const sel = files.find((f) => f.path === s.file) || files[0]
-  const [content, setContent] = useState<string | null>(null)
+  const sel = files.find((f) => f.path === s.file) || null
+
+  const [content, setContent] = useState('')
+  const [saved, setSaved] = useState('')
   const [loading, setLoading] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [diff, setDiff] = useState('')
-  const [showDiff, setShowDiff] = useState(true)
+  const [showDiff, setShowDiff] = useState(false) // code-first, like VS Code
+  const [wrap, setWrap] = useState(true)
+  const [minimap, setMinimap] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [findTrigger, setFindTrigger] = useState(0)
+  const [cursor, setCursor] = useState({ line: 1, col: 1 })
+  const loadGen = useRef(0)
 
+  const dirty = content !== saved
   const changedFiles = files.filter((f) => f.changed && !f.path.startsWith('.myaudit/'))
   const changedIdx = changedFiles.findIndex((f) => f.path === sel?.path)
+  const detectedLang = sel ? detectLanguage(sel.path) : 'plaintext'
+  const lineCount = content ? content.split('\n').length : 0
 
   const stepChanged = (dir: 1 | -1) => {
     if (!changedFiles.length) return
@@ -115,26 +110,39 @@ export function DevScreen() {
     else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
   }, [files.map((f) => f.path).join(',') + '|' + changedKey])
 
+  // Load file when selection changes. Always editable — no Edit-mode gate.
   useEffect(() => {
-    setEditing(false)
-    if (!sel || !s.runId) { setContent(null); return }
-    let alive = true
+    setShowDiff(false)
+    if (!sel || !s.runId) { setContent(''); setSaved(''); return }
+    const gen = ++loadGen.current
     setLoading(true)
     api.fileContent(s.runId, sel.path)
-      .then((r) => { if (alive) setContent(r.content) })
-      .catch(() => { if (alive) setContent('Could not load file') })
-      .finally(() => { if (alive) setLoading(false) })
-    return () => { alive = false }
+      .then((r) => {
+        if (loadGen.current !== gen) return
+        setContent(r.content)
+        setSaved(r.content)
+      })
+      .catch(() => {
+        if (loadGen.current !== gen) return
+        setContent('// Could not load file')
+        setSaved('// Could not load file')
+      })
+      .finally(() => { if (loadGen.current === gen) setLoading(false) })
   }, [sel?.path, s.runId])
 
+  // Soft-refresh from disk when run detail updates, but never clobber dirty edits.
   useEffect(() => {
-    if (!sel || !s.runId || editing) return
+    if (!sel || !s.runId || dirty) return
     let alive = true
     api.fileContent(s.runId, sel.path)
-      .then((r) => { if (alive) setContent((prev) => (prev === r.content ? prev : r.content)) })
+      .then((r) => {
+        if (!alive) return
+        setContent((prev) => (prev === r.content ? prev : r.content))
+        setSaved(r.content)
+      })
       .catch(() => {})
     return () => { alive = false }
-  }, [s.detail, sel?.path, s.runId, editing])
+  }, [s.detail, sel?.path, s.runId, dirty])
 
   useEffect(() => {
     if (!sel || !s.runId || !sel.changed) { setDiff(''); return }
@@ -143,21 +151,24 @@ export function DevScreen() {
     return () => { alive = false }
   }, [s.detail, sel?.path, s.runId, sel?.changed])
 
-  const startEdit = () => { setDraft(content ?? ''); setEditing(true) }
   const saveEdit = async () => {
-    if (!sel || !s.runId) return
+    if (!sel || !s.runId || !dirty) return
     setSaving(true)
     try {
-      await api.saveFile(s.runId, sel.path, draft)
-      setContent(draft)
-      setEditing(false)
+      await api.saveFile(s.runId, sel.path, content)
+      setSaved(content)
       s.toast('success', 'Saved', sel.path)
+      s.reloadDetail()
     } catch (e) { s.toast('error', 'Save failed', (e as Error).message) }
     finally { setSaving(false) }
   }
 
   const review = async (status: 'accepted' | 'rejected') => {
     if (!sel || !s.runId) return
+    if (dirty) {
+      s.toast('info', 'Save first', 'File has unsaved changes')
+      return
+    }
     try {
       await api.review(s.runId, sel.path, status)
       s.toast(status === 'accepted' ? 'success' : 'info', status === 'accepted' ? 'File accepted' : 'File rejected', sel.path)
@@ -174,14 +185,23 @@ export function DevScreen() {
   }
 
   const copyCode = () => {
-    if (content == null) return
     navigator.clipboard?.writeText(content)
-    s.toast('info', 'Copied to clipboard', sel?.path)
+    s.toast('info', 'Copied', sel?.path)
   }
 
   const breadcrumbParts = sel?.path ? sel.path.split('/') : []
-  const detectedLang = sel ? detectLanguage(sel.path) : 'plaintext'
-  const lineCount = content ? content.split('\n').length : 0
+
+  // Global ⌘S when Code tab is focused (Monaco also binds it when focused).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        void saveEdit()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   return (
     <div className="cursor-ide">
@@ -191,20 +211,28 @@ export function DevScreen() {
             const entry = files.find((f) => f.path === p)
             const isChanged = entry?.changed
             const isCurrent = p === s.file
+            const isDirty = isCurrent && dirty
             return (
-              <div 
-                key={p} 
+              <div
+                key={p}
                 className={`cursor-tab ${isCurrent ? 'on' : ''}`}
-                onClick={() => s.setFile(p)} 
+                onClick={() => s.setFile(p)}
                 title={p}
               >
                 <FileTypeBadge path={p} />
                 <span className="cursor-tab-name">{baseName(p)}</span>
-                {isChanged && <span className="cursor-tab-chg" title="Modified by audit" />}
-                <span 
-                  className="cursor-tab-close" 
-                  title="Close tab" 
-                  onClick={(e) => { e.stopPropagation(); s.closeFile(p) }}
+                {(isDirty || isChanged) && (
+                  <span className="cursor-tab-chg" title={isDirty ? 'Unsaved' : 'Modified by audit'}
+                    style={isDirty ? { background: '#e0a92e' } : undefined} />
+                )}
+                <span
+                  className="cursor-tab-close"
+                  title="Close tab"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (isCurrent && dirty && !confirm('Close without saving?')) return
+                    s.closeFile(p)
+                  }}
                 >
                   <X size={11} />
                 </span>
@@ -227,41 +255,20 @@ export function DevScreen() {
                   </span>
                 )
               })}
-              <button 
-                className="icon-btn" 
-                style={{ padding: 2, marginLeft: 4 }} 
-                title="Copy relative path" 
-                onClick={copyPath}
-              >
+              <button className="icon-btn" style={{ padding: 2, marginLeft: 4 }} title="Copy path" onClick={copyPath}>
                 {copied ? <Check size={12} color="#4ade80" /> : <Copy size={12} />}
               </button>
-              {sel.changed && (
-                <span style={{ 
-                  fontSize: 10.5, 
-                  fontFamily: 'var(--font-mono)', 
-                  padding: '1px 6px', 
-                  borderRadius: 4, 
-                  background: 'rgba(74,222,128,0.12)', 
-                  color: '#4ade80', 
-                  border: '1px solid rgba(74,222,128,0.3)',
-                  marginLeft: 4
-                }}>
-                  MODIFIED
-                </span>
+              {dirty && (
+                <span style={{
+                  fontSize: 10.5, fontFamily: 'var(--font-mono)', padding: '1px 6px', borderRadius: 4,
+                  background: 'rgba(224,169,46,0.15)', color: '#e0a92e', border: '1px solid rgba(224,169,46,0.35)', marginLeft: 4,
+                }}>UNSAVED</span>
               )}
-              {sel.review === 'accepted' && (
-                <span style={{ 
-                  fontSize: 10.5, 
-                  fontFamily: 'var(--font-mono)', 
-                  padding: '1px 6px', 
-                  borderRadius: 4, 
-                  background: 'rgba(63,185,80,0.12)', 
-                  color: '#3fb950', 
-                  border: '1px solid rgba(63,185,80,0.3)',
-                  marginLeft: 4
-                }}>
-                  ✓ ACCEPTED
-                </span>
+              {sel.changed && !dirty && (
+                <span style={{
+                  fontSize: 10.5, fontFamily: 'var(--font-mono)', padding: '1px 6px', borderRadius: 4,
+                  background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', marginLeft: 4,
+                }}>MODIFIED</span>
               )}
             </>
           ) : (
@@ -272,48 +279,37 @@ export function DevScreen() {
         </div>
 
         <div className="cursor-actions">
-          {changedFiles.length > 1 && !editing && changedIdx >= 0 && (
+          {changedFiles.length > 1 && changedIdx >= 0 && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 6 }}>
-              <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(-1)}>
-                <ArrowLeft size={12} />
-              </button>
+              <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(-1)}><ArrowLeft size={12} /></button>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
                 {changedIdx + 1}/{changedFiles.length}
               </span>
-              <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(1)}>
-                <ArrowRight size={12} />
-              </button>
+              <button className="btn-sm" style={{ padding: '3px 7px' }} onClick={() => stepChanged(1)}><ArrowRight size={12} /></button>
             </div>
           )}
 
-          {sel && !editing && (
-            <button className="btn-sm" onClick={copyCode} title="Copy code content">
-              <Copy size={12} /> Copy
-            </button>
-          )}
-
-          {sel && editing && (
+          {sel && (
             <>
-              <button className="btn-sm" onClick={() => setEditing(false)}>Cancel</button>
-              <button className="btn-sm primary" disabled={saving} onClick={saveEdit}>
-                {saving ? 'Saving…' : 'Save'}
+              <button className="btn-sm" title="Copy file contents" onClick={copyCode}><Copy size={12} /></button>
+              <button className={`btn-sm ${wrap ? 'primary' : ''}`} title="Toggle word wrap" onClick={() => setWrap((v) => !v)}>
+                <WrapText size={12} />
               </button>
-            </>
-          )}
-
-          {sel && !editing && (
-            <>
+              <button className={`btn-sm ${minimap ? 'primary' : ''}`} title="Toggle minimap" onClick={() => setMinimap((v) => !v)}>
+                <MapIcon size={12} />
+              </button>
+              <button className="btn-sm" title="Find in file (⌘F)" onClick={() => setFindTrigger((n) => n + 1)}>
+                <Search size={12} />
+              </button>
               {sel.changed && (
                 <div className="viewseg">
-                  <button className={`viewseg-b ${showDiff ? 'on' : ''}`} onClick={() => setShowDiff(true)}>
-                    Diff
-                  </button>
-                  <button className={`viewseg-b ${!showDiff ? 'on' : ''}`} onClick={() => setShowDiff(false)}>
-                    Code
-                  </button>
+                  <button className={`viewseg-b ${!showDiff ? 'on' : ''}`} onClick={() => setShowDiff(false)}>Code</button>
+                  <button className={`viewseg-b ${showDiff ? 'on' : ''}`} onClick={() => setShowDiff(true)}>Diff</button>
                 </div>
               )}
-              <button className="btn-sm" onClick={startEdit}>Edit</button>
+              <button className="btn-sm primary" disabled={!dirty || saving} onClick={saveEdit} title="Save (⌘S)">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
               {sel.changed && sel.review !== 'accepted' && (
                 <>
                   <button className="btn-sm" onClick={() => review('rejected')}>Reject</button>
@@ -329,22 +325,31 @@ export function DevScreen() {
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
         {sel ? (
-          editing ? (
-            <Mono path={sel.path} value={draft} readOnly={false} onChange={setDraft} />
-          ) : sel.changed && showDiff ? (
-            <Diff text={diff} />
+          showDiff && sel.changed ? (
+            <div className="diff-pane"><Diff text={diff} /></div>
+          ) : loading ? (
+            <div className="empty-mid" style={{ position: 'static', paddingTop: 80 }}><div className="spin" /></div>
           ) : (
-            <Mono path={sel.path} value={loading ? '' : (content ?? '')} readOnly />
+            <Mono
+              path={sel.path}
+              value={content}
+              wordWrap={wrap}
+              minimap={minimap}
+              onChange={setContent}
+              onCursor={(line, col) => setCursor({ line, col })}
+              onSave={saveEdit}
+              findTrigger={findTrigger}
+            />
           )
         ) : changedFiles.length > 0 ? (
           <ChangedList files={changedFiles} onOpen={(p) => s.setFile(p)} />
         ) : (
           <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
             <FileCode size={40} strokeWidth={1.5} color="var(--text-muted)" />
-            <h3>{s.runId ? 'No code changes recorded' : 'No audit workspace loaded'}</h3>
+            <h3>{s.runId ? 'Open a file to edit' : 'No audit workspace loaded'}</h3>
             <p>
-              {s.runId 
-                ? 'Select a source file in the left Explorer tree to inspect and edit with Cursor IDE tools.' 
+              {s.runId
+                ? 'Pick a file in the Explorer. Edit freely — ⌘S / Ctrl+S saves. ⌘F finds in the file.'
                 : 'Import a codebase to examine.'}
             </p>
           </div>
@@ -354,8 +359,11 @@ export function DevScreen() {
       <div className="cursor-statusbar">
         <div className="cursor-status-item">{sel ? sel.path : ''}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {sel && <div className="cursor-status-item">Ln {cursor.line}, Col {cursor.col}</div>}
           {sel && <div className="cursor-status-item">{lineCount} lines</div>}
           {sel && <div className="cursor-status-item" style={{ textTransform: 'capitalize' }}>{detectedLang}</div>}
+          {sel && <div className="cursor-status-item">{wrap ? 'Wrap' : 'No Wrap'}</div>}
+          {dirty && <div className="cursor-status-item" style={{ color: '#e0a92e' }}>● Unsaved</div>}
         </div>
       </div>
     </div>

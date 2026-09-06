@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, Search, FolderGit2, CheckCircle2, Loader2, ArrowUpRight } from 'lucide-react'
+import { Plus, Search, FolderGit2, CheckCircle2, Loader2, ArrowUpRight, Sparkles } from 'lucide-react'
 import { useStore } from '../store'
+import { api } from '../api'
 import { AgentAvatar } from '../components/icons'
 import { HealthBanner } from '../components/HealthBanner'
 import { STATUS_COLOR } from '../components/util'
@@ -21,6 +22,7 @@ export function HomeScreen() {
   const s = useStore()
   const runs = s.runs || []
   const [q, setQ] = useState('')
+  const [demoBusy, setDemoBusy] = useState(false)
 
   const visible = q.trim()
     ? runs.filter((r) => (r.project || '').toLowerCase().includes(q.trim().toLowerCase()))
@@ -28,6 +30,18 @@ export function HomeScreen() {
 
   const done = runs.filter((r) => r.status === 'done').length
   const active = runs.filter((r) => r.status === 'running' || r.status === 'ready' || r.status === 'pending').length
+
+  const tryDemo = async () => {
+    setDemoBusy(true)
+    try {
+      const { path } = await api.demoPath()
+      await s.createRun({ repo_path: path, project: 'demo', audit_only: true, budget_usd: 3 })
+    } catch (e) {
+      s.toast('error', 'Demo failed', (e as Error).message)
+    } finally {
+      setDemoBusy(false)
+    }
+  }
 
   return (
     <div className="home">
@@ -40,9 +54,14 @@ export function HomeScreen() {
               <p>Autonomous QA and repair for your codebase.</p>
             </div>
           </div>
-          <button className="btn-sm primary home-cta" onClick={() => s.setNewOpen(true)}>
-            <Plus size={14} /> Import codebase
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-sm" disabled={demoBusy} onClick={tryDemo}>
+              <Sparkles size={14} /> {demoBusy ? 'Starting…' : 'Try demo'}
+            </button>
+            <button className="btn-sm primary home-cta" onClick={() => s.setNewOpen(true)}>
+              <Plus size={14} /> Import codebase
+            </button>
+          </div>
         </div>
 
         <HealthBanner />
@@ -100,7 +119,10 @@ export function HomeScreen() {
           <div className="home-empty">
             <FolderGit2 size={30} strokeWidth={1.5} />
             <h3>No audits yet</h3>
-            <p>Import a codebase and myAudit will map it, run QA per module, and fix what it finds.</p>
+            <p>Try the demo repo, or import your own codebase to map, QA, and fix.</p>
+            <button className="btn-sm primary" style={{ marginTop: 12 }} disabled={demoBusy} onClick={tryDemo}>
+              <Sparkles size={14} /> {demoBusy ? 'Starting…' : 'Try the demo'}
+            </button>
           </div>
         )}
         {s.runs && runs.length > 0 && !visible.length && (

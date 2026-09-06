@@ -8,6 +8,7 @@ import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { STATUS_COLOR } from '../components/util'
 import { Diff } from '../components/Diff'
+import { Markdown } from '../components/Markdown'
 import { AgentAvatar } from '../components/icons'
 
 const label = (n: NodeCard) => n.title || n.name || n.type
@@ -352,6 +353,12 @@ export function KanbanScreen() {
           <button className={`btn-sm ${showDismissed ? 'primary' : ''}`} style={{ marginLeft: 'auto' }}
             onClick={() => setShowDismissed((v) => !v)}>{showDismissed ? 'Hide' : 'Show'} dismissed ({dismissedCount})</button>
         )}
+        {s.runId && (
+          <a className="btn-sm" href={api.patchUrl(s.runId)} download="fixes.patch" title="Download all code changes as a unified diff"
+            style={{ marginLeft: dismissedCount > 0 ? 0 : 'auto' }}>
+            <Download size={12} /> Patch
+          </a>
+        )}
       </div>
       {lanes.map((lane) => (
         <div key={lane} className="lane">
@@ -411,12 +418,15 @@ export function KanbanScreen() {
                 <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
                   <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
                 </span>
-                {canRefix(sel) && <button className="btn-sm primary" onClick={() => runFix(sel)}>{sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}</button>}
+                {canRefix(sel) && (
+                  <button className="btn-sm primary" onClick={() => runFix(sel)}>
+                    {sel.status === 'open' ? '▶ Fix this' : sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}
+                  </button>
+                )}
                 {sel.type === 'bug' && sel.status === 'dismissed' && <button className="btn-sm" onClick={() => restore(sel)}>Restore</button>}
                 {sel.type === 'bug' && sel.status !== 'dismissed' && <button className="btn-sm" onClick={() => dismiss(sel)}>Dismiss</button>}
               </div>
 
-              {}
               {sel.type === 'bug' && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <select className="bf-sel" value={sel.severity || 'medium'} onChange={(e) => patch(sel, { severity: e.target.value })}>
@@ -427,26 +437,34 @@ export function KanbanScreen() {
                   </select>
                 </div>
               )}
-              {}
               {sel.file && (
                 <button className="file-jump" onClick={() => openFile(sel)} title="Open in editor">
                   <FileSymlink size={13} /> <code>{sel.file}</code>
                 </button>
               )}
-              {sel.summary && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>{sel.summary}</div>}
-              {sel.detail && <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', background: 'var(--bg-panel)', border: '1px solid var(--border-dim)', borderRadius: 8, padding: 10 }}>{sel.detail}</div>}
+              {sel.summary && (
+                <div>
+                  <div className="drawer-sec-h">Summary</div>
+                  <Markdown text={sel.summary} block />
+                </div>
+              )}
+              {sel.detail && (
+                <div className="drawer-detail">
+                  <div className="drawer-sec-h">Finding</div>
+                  <Markdown text={sel.detail} block />
+                </div>
+              )}
 
-              {}
               {sel.type === 'bug' && fixDiff.trim() && (
                 <div>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Fix diff</div>
+                  <div className="drawer-sec-h">Fix diff</div>
                   <div style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border-dim)', borderRadius: 8 }}><Diff text={fixDiff} /></div>
                 </div>
               )}
 
               {previewsFor(sel).length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>QA preview</div>
+                  <div className="drawer-sec-h">QA preview</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {previewsFor(sel).map((f) => (
                       <img key={f.path} src={api.rawUrl(s.runId!, f.path)} alt={f.path}
@@ -456,45 +474,44 @@ export function KanbanScreen() {
                 </div>
               )}
 
-              {}
-              <div>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 6 }}>Tags</div>
-                <div className="ktags">
-                  {(sel.tags || []).map((t) => (
-                    <span key={t} className="ktag" style={{ cursor: 'pointer' }} onClick={() => saveTags(sel, (sel.tags || []).filter((x) => x !== t))} title="Remove">{t} ×</span>
-                  ))}
-                  <input className="tag-input" value={tagDraft} onChange={(e) => setTagDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && tagDraft.trim()) {
-                        const nt = Array.from(new Set([...(sel.tags || []), tagDraft.trim()]))
-                        saveTags(sel, nt); setTagDraft('')
-                      }
-                    }}
-                    placeholder="+ tag" />
-                </div>
-              </div>
-
-              <dl className="drawer-kv">
-                <dt>id</dt><dd>{sel.id}</dd>
-                <dt>type</dt><dd>{sel.type}</dd>
-                {sel.severity && <><dt>severity</dt><dd style={{ color: SEV_COLOR[sel.severity] }}>{sel.severity}</dd></>}
-                {sel.priority && <><dt>priority</dt><dd>{sel.priority}</dd></>}
-                <dt>attempts</dt><dd>{sel.attempts}</dd>
-                <dt>dependencies</dt><dd>{sel.deps}</dd>
-                <dt>files changed</dt><dd>{sel.files}</dd>
-                {sel.cost_usd > 0 && <><dt>cost</dt><dd>${sel.cost_usd.toFixed(4)}</dd></>}
-                <dt>events</dt><dd>{sel.events}</dd>
-                <dt>created</dt><dd>{new Date(sel.created_at).toLocaleString()}</dd>
-                {sel.claimed_at && <><dt>claimed</dt><dd>{new Date(sel.claimed_at).toLocaleString()}</dd></>}
-              </dl>
-              <div style={{ borderTop: '1px solid var(--border-dim)', paddingTop: 14 }}>
-                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', marginBottom: 8 }}>Activity for this task</div>
-                {(s.detail?.events || []).filter((e) => e.node_id === sel.id).slice(-12).map((e, i) => (
-                  <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{new Date(e.ts).toLocaleTimeString()}</span> {e.kind} {e.msg}
+              {(sel.tags?.length || sel.type === 'bug') && (
+                <div>
+                  <div className="drawer-sec-h">Tags</div>
+                  <div className="ktags">
+                    {(sel.tags || []).map((t) => (
+                      <span key={t} className="ktag" style={{ cursor: 'pointer' }} onClick={() => saveTags(sel, (sel.tags || []).filter((x) => x !== t))} title="Remove">{t} ×</span>
+                    ))}
+                    <input className="tag-input" value={tagDraft} onChange={(e) => setTagDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && tagDraft.trim()) {
+                          const nt = Array.from(new Set([...(sel.tags || []), tagDraft.trim()]))
+                          saveTags(sel, nt); setTagDraft('')
+                        }
+                      }}
+                      placeholder="+ tag" />
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              <details className="drawer-more">
+                <summary>More</summary>
+                <dl className="drawer-kv">
+                  <dt>id</dt><dd>{sel.id}</dd>
+                  <dt>type</dt><dd>{sel.type}</dd>
+                  {sel.cost_usd > 0 && <><dt>cost</dt><dd>${sel.cost_usd.toFixed(4)}</dd></>}
+                  <dt>attempts</dt><dd>{sel.attempts}</dd>
+                  <dt>files</dt><dd>{sel.files}</dd>
+                  <dt>created</dt><dd>{new Date(sel.created_at).toLocaleString()}</dd>
+                </dl>
+                <div style={{ marginTop: 12 }}>
+                  <div className="drawer-sec-h">Activity</div>
+                  {(s.detail?.events || []).filter((e) => e.node_id === sel.id).slice(-12).map((e, i) => (
+                    <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{new Date(e.ts).toLocaleTimeString()}</span> {e.kind} {e.msg}
+                    </div>
+                  ))}
+                </div>
+              </details>
             </div>
           </div>
         </>

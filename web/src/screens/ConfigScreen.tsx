@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FolderGit2, Sparkles, FolderSearch } from 'lucide-react'
+import { FolderGit2, Sparkles, FolderSearch, Shield, Wallet } from 'lucide-react'
 import { useStore } from '../store'
 
 const tauriDialog = (): { open: (o: unknown) => Promise<string | null> } | undefined =>
@@ -9,6 +9,8 @@ export function ConfigScreen() {
   const s = useStore()
   const [repo, setRepo] = useState('')
   const [name, setName] = useState('')
+  const [auditOnly, setAuditOnly] = useState(false)
+  const [budget, setBudget] = useState('')
   const [busy, setBusy] = useState(false)
   const dlg = tauriDialog()
 
@@ -21,15 +23,21 @@ export function ConfigScreen() {
   }
 
   const path = repo.trim()
-
   const isAbs = /^(\/|[A-Za-z]:[\\/])/.test(path)
   const pathError = path !== '' && !isAbs ? 'Enter an absolute path (e.g. /Users/you/project)' : ''
+  const budgetNum = parseFloat(budget)
+  const budgetUSD = budget !== '' && !Number.isNaN(budgetNum) && budgetNum > 0 ? budgetNum : undefined
 
   const start = async () => {
     if (!path) { s.toast('error', 'Repo path required'); return }
     if (!isAbs) { s.toast('error', 'Path must be absolute', 'e.g. /Users/you/project'); return }
     setBusy(true)
-    await s.createRun({ repo_path: path, project: name.trim() || undefined })
+    await s.createRun({
+      repo_path: path,
+      project: name.trim() || undefined,
+      audit_only: auditOnly || undefined,
+      budget_usd: budgetUSD,
+    })
     setBusy(false)
   }
 
@@ -38,7 +46,7 @@ export function ConfigScreen() {
       <div className="wiz-main wide">
         <div className="wiz-header">
           <h1>Import a codebase</h1>
-          <p>Point myAudit at a local repository. It copies the code into an isolated workspace, maps it into modules, runs a QA pass per module to find bugs (with reproduce steps), then autonomously fixes each one and verifies it — all tracked on the board.</p>
+          <p>Point myAudit at a local repository. It copies the code into an isolated workspace, maps modules, runs QA, and (unless you choose audit-only) fixes what it finds.</p>
         </div>
 
         <div className="cfg-section">
@@ -60,6 +68,34 @@ export function ConfigScreen() {
             <div className="cfg-text"><div className="cfg-title">Name (optional)</div><div className="cfg-desc">Defaults to the folder name</div></div>
             <div className="cfg-ctrl">
               <input className="form-input" style={{ width: 340 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="my-project" />
+            </div>
+          </div>
+        </div>
+
+        <div className="cfg-section">
+          <div className="cfg-section-h">Run options</div>
+          <div className="cfg-item">
+            <div className="cfg-ico"><Shield size={16} /></div>
+            <div className="cfg-text">
+              <div className="cfg-title">Audit only</div>
+              <div className="cfg-desc">Find issues; don’t auto-fix. Use “Fix this” on a ticket when you’re ready.</div>
+            </div>
+            <div className="cfg-ctrl">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={auditOnly} onChange={(e) => setAuditOnly(e.target.checked)} />
+                Findings only
+              </label>
+            </div>
+          </div>
+          <div className="cfg-item">
+            <div className="cfg-ico"><Wallet size={16} /></div>
+            <div className="cfg-text">
+              <div className="cfg-title">Budget cap (USD)</div>
+              <div className="cfg-desc">Stop when spend hits this. Small repo on Haiku is often ~$1–3; Sonnet more.</div>
+            </div>
+            <div className="cfg-ctrl">
+              <input className="form-input" style={{ width: 120 }} type="number" min="0" step="0.5" value={budget}
+                onChange={(e) => setBudget(e.target.value)} placeholder="e.g. 5" />
             </div>
           </div>
         </div>

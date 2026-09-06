@@ -109,6 +109,7 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	}
 	findings := parseFindings(r.Summary)
 	filed := 0
+	opts := d.Store.RunOptsFor(ctx, c.RunID)
 	for _, f := range findings {
 		sev := normSeverity(f.Severity)
 		bug := store.Bug{
@@ -120,7 +121,16 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 			Detail:   f.Detail,
 			Tags:     []string{"from:qa", "module:" + sp.Module, sev},
 		}
-		if bid, err := d.Store.CreateBug(ctx, c.RunID, bug, c.ID); err == nil {
+		var bid uuid.UUID
+		var err error
+		if opts.AuditOnly {
+			// Findings-only: file as open so the queue never auto-claims; user
+			// clicks "Fix this" to enqueue.
+			bid, err = d.Store.CreateBug(ctx, c.RunID, bug)
+		} else {
+			bid, err = d.Store.CreateBug(ctx, c.RunID, bug, c.ID)
+		}
+		if err == nil {
 			nid := bid
 			d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "finding", Msg: "[" + sp.Module + "] " + f.Title})
 			filed++

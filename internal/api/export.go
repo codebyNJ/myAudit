@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
 
+	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
 )
 
@@ -63,6 +65,25 @@ func registerExport(mux *http.ServeMux, s *store.Store) {
 		w.Header().Set("content-type", "text/markdown; charset=utf-8")
 		w.Header().Set("content-disposition", `attachment; filename="report.md"`)
 		_, _ = w.Write([]byte(buildReport(run, cards, cost, notes)))
+	})
+
+	// Unified diff of everything the audit changed vs the import baseline — the
+	// actual code deliverable (fixes + any tests QA wrote).
+	mux.HandleFunc("GET /api/runs/{id}/patch.diff", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
+		diff, err := ws.DiffFromBaseline(r.Context(), "")
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("content-type", "text/x-diff; charset=utf-8")
+		w.Header().Set("content-disposition", `attachment; filename="fixes.patch"`)
+		_, _ = w.Write([]byte(diff))
 	})
 }
 

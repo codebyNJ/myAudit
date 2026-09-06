@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "highlight.js": "^11.12.0",
     "lucide-react": "^1.39.0",
     "marked": "^18.0.11",
     "monaco-editor": "^0.56.0",
@@ -23,10 +22,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
-    "autoprefixer": "^10.5.4",
     "oxlint": "^1.79.0",
-    "postcss": "^8.5.26",
-    "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }

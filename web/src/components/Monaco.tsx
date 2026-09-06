@@ -1,126 +1,19 @@
-import Editor, { loader, type OnMount } from '@monaco-editor/react'
-import * as monaco from 'monaco-editor'
-
-;(self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
-  getWorker() {
-    return new Worker(URL.createObjectURL(new Blob(['self.onmessage=()=>{}'], { type: 'application/javascript' })))
-  },
-}
-loader.config({ monaco })
-
-monaco.editor.defineTheme('cursor-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: '', foreground: 'e4e4e7' },
-      { token: 'comment', foreground: '52525b', fontStyle: 'italic' },
-      { token: 'keyword', foreground: 'f43f5e' },
-      { token: 'string', foreground: '7dd3fc' },
-      { token: 'number', foreground: 'f59e0b' },
-      { token: 'type', foreground: '38bdf8' },
-      { token: 'function', foreground: 'c084fc' },
-      { token: 'variable', foreground: 'e4e4e7' },
-      { token: 'operator', foreground: 'a1a1aa' },
-      { token: 'delimiter', foreground: 'a1a1aa' },
-      { token: 'tag', foreground: 'd7ba7d' },
-      { token: 'attribute.name', foreground: '9cdcfe' },
-      { token: 'attribute.value', foreground: 'ce9178' },
-      { token: 'attribute.value.number', foreground: 'b5cea8' },
-      { token: 'attribute.value.unit', foreground: 'b5cea8' },
-      { token: 'attribute.value.hex', foreground: 'ce9178' },
-      { token: 'keyword.css', foreground: 'c586c0' },
-      { token: 'tag.css', foreground: 'd7ba7d' },
-      { token: 'attribute.name.css', foreground: '9cdcfe' },
-      { token: 'attribute.value.css', foreground: 'ce9178' },
-      { token: 'delimiter.css', foreground: 'a1a1aa' },
-      { token: 'delimiter.bracket.css', foreground: 'a1a1aa' },
-      { token: 'delimiter.parenthesis.css', foreground: 'a1a1aa' },
-      { token: 'function.css', foreground: 'c084fc' },
-      { token: 'string.css', foreground: '7dd3fc' },
-      { token: 'number.css', foreground: 'b5cea8' },
-      { token: 'comment.css', foreground: '52525b', fontStyle: 'italic' },
-      { token: 'key', foreground: '9cdcfe' },
-      { token: 'string.key', foreground: '9cdcfe' },
-      { token: 'string.value', foreground: '7dd3fc' },
-      { token: 'metatag', foreground: 'c586c0' },
-      { token: 'attribute.name.html', foreground: '9cdcfe' },
-      { token: 'attribute.value.html', foreground: 'ce9178' },
-      { token: 'tag.html', foreground: '38bdf8' },
-    ],
-    colors: {
-      'editor.background': '#0c0c0e',
-      'editor.foreground': '#f4f4f5',
-      'editorLineNumber.foreground': '#3f3f46',
-      'editorLineNumber.activeForeground': '#a1a1aa',
-      'editor.lineHighlightBackground': '#141418',
-      'editorGutter.background': '#0c0c0e',
-      'editor.selectionBackground': '#1e3a8a',
-      'editorWidget.background': '#121216',
-      'editorWidget.border': '#27272a',
-      'input.background': '#141418',
-      'scrollbarSlider.background': '#ffffff14',
-      'scrollbarSlider.hoverBackground': '#ffffff24',
-      'scrollbarSlider.activeBackground': '#ffffff34',
-  },
-})
-monaco.editor.setTheme('cursor-dark')
+import { useEffect, useRef } from 'react'
+import Editor, { type OnMount } from '@monaco-editor/react'
+import type * as MonacoNS from 'monaco-editor'
 
 const EXT_LANG_MAP: Record<string, string> = {
-  ts: 'typescript',
-  tsx: 'typescript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  py: 'python',
-  pyw: 'python',
-  go: 'go',
-  rs: 'rust',
-  rb: 'ruby',
-  php: 'php',
-  java: 'java',
-  c: 'c',
-  h: 'c',
-  cpp: 'cpp',
-  cc: 'cpp',
-  cxx: 'cpp',
-  hpp: 'cpp',
-  cs: 'csharp',
-  swift: 'swift',
-  kt: 'kotlin',
-  kts: 'kotlin',
-  scala: 'scala',
-  dart: 'dart',
-  css: 'css',
-  scss: 'scss',
-  sass: 'scss',
-  less: 'less',
-  html: 'html',
-  htm: 'html',
-  xml: 'xml',
-  svg: 'xml',
-  vue: 'html',
-  svelte: 'html',
-  json: 'json',
-  jsonc: 'json',
-  yaml: 'yaml',
-  yml: 'yaml',
-  toml: 'ini',
-  ini: 'ini',
-  env: 'shell',
-  md: 'markdown',
-  markdown: 'markdown',
-  mdx: 'markdown',
-  sh: 'shell',
-  bash: 'shell',
-  zsh: 'shell',
-  fish: 'shell',
-  sql: 'sql',
-  graphql: 'graphql',
-  gql: 'graphql',
-  lua: 'lua',
-  r: 'r',
-  proto: 'proto',
+  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+  mjs: 'javascript', cjs: 'javascript', py: 'python', pyw: 'python',
+  go: 'go', rs: 'rust', rb: 'ruby', php: 'php', java: 'java',
+  c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp',
+  cs: 'csharp', swift: 'swift', kt: 'kotlin', kts: 'kotlin', scala: 'scala',
+  dart: 'dart', css: 'css', scss: 'scss', sass: 'scss', less: 'less',
+  html: 'html', htm: 'html', xml: 'xml', svg: 'xml', vue: 'html', svelte: 'html',
+  json: 'json', jsonc: 'json', yaml: 'yaml', yml: 'yaml', toml: 'ini', ini: 'ini',
+  env: 'shell', md: 'markdown', markdown: 'markdown', mdx: 'markdown',
+  sh: 'shell', bash: 'shell', zsh: 'shell', fish: 'shell', sql: 'sql',
+  graphql: 'graphql', gql: 'graphql', lua: 'lua', r: 'r', proto: 'proto',
 }
 
 export function detectLanguage(path: string): string {
@@ -132,13 +25,110 @@ export function detectLanguage(path: string): string {
   return EXT_LANG_MAP[ext] || 'plaintext'
 }
 
-export function Mono({ path, value, readOnly, onChange }: {
+const THEME: MonacoNS.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: '', foreground: 'e4e4e7' },
+    { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'c586c0' },
+    { token: 'string', foreground: 'ce9178' },
+    { token: 'number', foreground: 'b5cea8' },
+    { token: 'type', foreground: '4ec9b0' },
+    { token: 'function', foreground: 'dcdcaa' },
+    { token: 'variable', foreground: '9cdcfe' },
+    { token: 'operator', foreground: 'd4d4d4' },
+    { token: 'delimiter', foreground: 'd4d4d4' },
+    { token: 'tag', foreground: '569cd6' },
+    { token: 'attribute.name', foreground: '9cdcfe' },
+    { token: 'attribute.value', foreground: 'ce9178' },
+  ],
+  colors: {
+    'editor.background': '#0c0c0e',
+    'editor.foreground': '#d4d4d4',
+    'editorLineNumber.foreground': '#5a5a5a',
+    'editorLineNumber.activeForeground': '#c6c6c6',
+    'editor.lineHighlightBackground': '#18181b',
+    'editorCursor.foreground': '#aeafad',
+    'editor.selectionBackground': '#264f78',
+    'editor.inactiveSelectionBackground': '#3a3d41',
+    'editorIndentGuide.background1': '#2a2a2e',
+    'editorIndentGuide.activeBackground1': '#4a4a50',
+    'editorWidget.background': '#1e1e1e',
+    'editorWidget.border': '#454545',
+    'input.background': '#1e1e1e',
+    'scrollbarSlider.background': '#ffffff14',
+    'scrollbarSlider.hoverBackground': '#ffffff24',
+    'scrollbarSlider.activeBackground': '#ffffff34',
+  },
+}
+
+let themeReady = false
+function ensureTheme(m: typeof MonacoNS) {
+  if (themeReady) return
+  m.editor.defineTheme('cursor-dark', THEME)
+  // Don't typecheck a foreign repo — highlight only, no red squiggle spam.
+  const ts = m.languages.typescript as unknown as {
+    typescriptDefaults: { setDiagnosticsOptions: (o: object) => void }
+    javascriptDefaults: { setDiagnosticsOptions: (o: object) => void }
+  }
+  ts.typescriptDefaults.setDiagnosticsOptions({
+    noSemanticValidation: true,
+    noSyntaxValidation: true,
+  })
+  ts.javascriptDefaults.setDiagnosticsOptions({
+    noSemanticValidation: true,
+    noSyntaxValidation: true,
+  })
+  themeReady = true
+}
+
+export type MonoProps = {
   path: string
   value: string
-  readOnly: boolean
+  readOnly?: boolean
+  wordWrap?: boolean
+  minimap?: boolean
   onChange?: (v: string) => void
-}) {
-  const onMount: OnMount = (_editor, m) => m.editor.setTheme('cursor-dark')
+  onCursor?: (line: number, col: number) => void
+  onSave?: () => void
+  findTrigger?: number
+}
+
+export function Mono({
+  path, value, readOnly = false, wordWrap = true, minimap = false,
+  onChange, onCursor, onSave, findTrigger = 0,
+}: MonoProps) {
+  const edRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null)
+  const saveRef = useRef(onSave)
+  saveRef.current = onSave
+
+  useEffect(() => {
+    const ed = edRef.current
+    if (!ed) return
+    ed.updateOptions({
+      readOnly,
+      wordWrap: wordWrap ? 'on' : 'off',
+      minimap: { enabled: minimap },
+    })
+  }, [readOnly, wordWrap, minimap])
+
+  useEffect(() => {
+    if (!findTrigger) return
+    void edRef.current?.getAction('actions.find')?.run()
+  }, [findTrigger])
+
+  const onMount: OnMount = (editor, m) => {
+    edRef.current = editor
+    ensureTheme(m)
+    m.editor.setTheme('cursor-dark')
+    editor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.KeyS, () => saveRef.current?.())
+    editor.onDidChangeCursorPosition((e) => {
+      onCursor?.(e.position.lineNumber, e.position.column)
+    })
+    editor.focus()
+  }
+
   return (
     <Editor
       key={path}
@@ -149,33 +139,42 @@ export function Mono({ path, value, readOnly, onChange }: {
       onChange={(v) => onChange?.(v ?? '')}
       onMount={onMount}
       loading={<div className="empty-mid" style={{ position: 'static', paddingTop: 60 }}><div className="spin" /></div>}
+      height="100%"
       options={{
         readOnly,
-        fontFamily: "'Geist Mono', 'JetBrains Mono', 'SF Mono', Menlo, monospace",
-        fontSize: 12.5,
+        fontFamily: "'Geist Mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
+        fontSize: 13,
         lineHeight: 20,
-        minimap: { enabled: false },
+        minimap: { enabled: minimap, scale: 1, showSlider: 'mouseover' },
         scrollBeyondLastLine: false,
-        wordWrap: 'on',
+        wordWrap: wordWrap ? 'on' : 'off',
         tabSize: 2,
         automaticLayout: true,
-        padding: { top: 12, bottom: 12 },
-        renderLineHighlight: readOnly ? 'none' : 'line',
-        occurrencesHighlight: 'off',
-        selectionHighlight: false,
-        matchBrackets: 'never',
-        overviewRulerLanes: 0,
-        hideCursorInOverviewRuler: true,
-        overviewRulerBorder: false,
-        scrollbar: { verticalScrollbarSize: 9, horizontalScrollbarSize: 9, useShadows: false },
-        guides: { indentation: false, bracketPairs: false },
-        contextmenu: false,
-        folding: false,
-        glyphMargin: false,
-        lineDecorationsWidth: 8,
+        padding: { top: 8, bottom: 8 },
+        renderLineHighlight: 'all',
+        matchBrackets: 'always',
+        occurrencesHighlight: 'singleFile',
+        selectionHighlight: true,
+        bracketPairColorization: { enabled: true },
+        guides: { indentation: true, bracketPairs: true },
+        contextmenu: true,
+        folding: true,
+        foldingHighlight: true,
+        glyphMargin: true,
+        lineNumbers: 'on',
         lineNumbersMinChars: 3,
-        renderWhitespace: 'none',
-        bracketPairColorization: { enabled: false },
+        lineDecorationsWidth: 10,
+        renderWhitespace: 'selection',
+        smoothScrolling: true,
+        cursorBlinking: 'smooth',
+        cursorSmoothCaretAnimation: 'on',
+        find: { addExtraSpaceOnTop: false, autoFindInSelection: 'never' },
+        scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
+        quickSuggestions: !readOnly,
+        suggestOnTriggerCharacters: !readOnly,
+        formatOnPaste: true,
+        links: true,
+        mouseWheelZoom: true,
       }}
     />
   )

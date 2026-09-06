@@ -745,6 +745,7 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .diff .dl-file { color: var(--text-secondary); font-weight: 600; }
 .diff .dl-meta { color: var(--text-muted); }
 .diff-empty { padding: 24px; color: var(--text-muted); font-size: 13px; text-align: center; }
+.diff-pane { height: 100%; overflow: auto; background: #0a0a0c; }
 
 .viewseg { display: inline-flex; border: 1px solid var(--border-subtle); border-radius: 6px; overflow: hidden; }
 .viewseg-b { background: var(--bg-panel); border: none; color: var(--text-secondary); font-size: 11.5px; padding: 4px 10px; cursor: pointer; }
@@ -924,6 +925,12 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .kempty { border: 1px dashed rgba(255,255,255,0.07); border-radius: 8px; padding: 18px; text-align: center; color: var(--text-dim); font-size: 11px; }
 .swimlane-h { padding: 16px 24px 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-secondary); font-family: var(--font-mono); }
 .tag-input { background: var(--bg-panel); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 5px 9px; color: var(--text-primary); font-size: 12px; outline: none; font-family: var(--font-mono); }
+.drawer-sec-h { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 6px; }
+.drawer-detail { background: var(--bg-panel); border: 1px solid var(--border-dim); border-radius: 8px; padding: 12px 14px; }
+.drawer-detail .drawer-sec-h { margin-bottom: 8px; }
+.drawer-more { border-top: 1px solid var(--border-dim); padding-top: 12px; color: var(--text-muted); font-size: 12px; }
+.drawer-more > summary { cursor: pointer; user-select: none; margin-bottom: 10px; color: var(--text-secondary); }
+.drawer-more[open] > summary { margin-bottom: 12px; }
 .drawer-kv { display: grid; grid-template-columns: 116px 1fr; gap: 8px 14px; font-size: 12.5px; align-items: baseline; }
 
 .row.file.chg span { color: #4ade80; }

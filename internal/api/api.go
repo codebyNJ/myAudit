@@ -97,8 +97,10 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			RepoPath string `json:"repo_path"`
-			Project  string `json:"project"`
+			RepoPath  string  `json:"repo_path"`
+			Project   string  `json:"project"`
+			AuditOnly bool    `json:"audit_only"`
+			BudgetUSD float64 `json:"budget_usd"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.RepoPath == "" {
 			http.Error(w, "repo_path required", 400)
@@ -122,6 +124,13 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		if project == "" {
 			project = filepath.Base(strings.TrimRight(body.RepoPath, "/"))
 		}
+		importSpec := map[string]any{"repo_path": body.RepoPath}
+		if body.AuditOnly {
+			importSpec["audit_only"] = true
+		}
+		if body.BudgetUSD > 0 {
+			importSpec["budget_usd"] = body.BudgetUSD
+		}
 		// The audit graph starts tiny and grows itself (a living board): import the
 		// repo, then map it into modules. The map step spawns one qa card per module
 		// at runtime; each qa card files bug tickets, and each bug is an autonomous
@@ -129,7 +138,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		//   import → map ─┬→ qa(module A) ─→ bug… (dev fixes, blocked until QA)
 		//                 └→ qa(module B) ─→ bug…
 		specs := []store.TaskSpec{
-			{Key: "import", Type: "import", Spec: map[string]any{"repo_path": body.RepoPath}},
+			{Key: "import", Type: "import", Spec: importSpec},
 			{Key: "map", Type: "map", DepKeys: []string{"import"}},
 		}
 		run, _, err := s.CreateGraph(r.Context(), project, specs)
@@ -140,6 +149,20 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(201)
 		json.NewEncoder(w).Encode(map[string]string{"id": run.String()})
+	})
+
+	// Absolute path to the bundled demo repo (F4 sample run).
+	mux.HandleFunc("GET /api/demo", func(w http.ResponseWriter, r *http.Request) {
+		p, err := filepath.Abs("demo")
+		if err != nil {
+			http.Error(w, "demo repo not found — run from the myAudit project root", 404)
+			return
+		}
+		if info, err := os.Stat(p); err != nil || !info.IsDir() {
+			http.Error(w, "demo repo not found — run from the myAudit project root", 404)
+			return
+		}
+		writeJSON(w, map[string]string{"path": p})
 	})
 
 	// Stop a running audit: mark queued nodes + the run cancelled (no new work),

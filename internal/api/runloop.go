@@ -99,6 +99,11 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if _, err := deps.Queue.PromoteReady(ctx); err != nil {
 		return 0, err
 	}
+	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
+		for _, id := range paused {
+			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
+		}
+	}
 	did, err := worker.RunOnce(ctx, deps)
 	if err != nil {
 		return 0, err
