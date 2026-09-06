@@ -3,6 +3,7 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { Tabs } from './Tabs'
 import { AccountMenu } from './AccountMenu'
 import { useStore } from '../store'
+import { api } from '../api'
 
 // Header: product logo + workspace switcher + branch | centered tabs | account avatar.
 // (Search moved into the Explorer.)
@@ -12,6 +13,12 @@ export function Header() {
   const nodes = s.detail?.nodes || []
   const running = nodes.find((n) => n.status === 'running')
   const queued = nodes.filter((n) => n.status === 'ready' || n.status === 'pending').length
+  const active = !!running || queued > 0
+  const stop = async () => {
+    if (!s.runId) return
+    try { await api.cancelRun(s.runId); s.toast('info', 'Audit stopped'); s.reloadDetail() }
+    catch (e) { s.toast('error', 'Stop failed', (e as Error).message) }
+  }
   return (
     <header>
       <div className="h-left">
@@ -22,6 +29,7 @@ export function Header() {
         {running
           ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{running.type} running{queued > 0 ? ` · ${queued} queued` : ''}</div>
           : queued > 0 && <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>}
+        {active && <button className="btn-sm stop-btn" onClick={stop} title="Stop this audit">■ Stop</button>}
       </div>
       <div className="h-center"><Tabs /></div>
       <div className="h-right"><AccountMenu /></div>

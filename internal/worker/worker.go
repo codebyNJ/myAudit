@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"myaudit/internal/agent"
 	"myaudit/internal/events"
@@ -48,6 +49,21 @@ type nodeOutput struct {
 	Changed []string `json:"changed,omitempty"`
 }
 
+// running maps a run id to the cancel func of its in-flight node, so a cancel
+// request can interrupt the agent mid-node (single-node-at-a-time loop ⇒ at most
+// one entry per run).
+var running sync.Map
+
+// CancelRun interrupts the in-flight node of a run, if any. New nodes are stopped
+// separately by marking the run's queued nodes cancelled in the store.
+func CancelRun(runID string) {
+	if v, ok := running.LoadAndDelete(runID); ok {
+		if cancel, ok := v.(context.CancelFunc); ok {
+			cancel()
+		}
+	}
+}
+
 // RunOnce claims one ready node and processes it. Infra failures return an
 // error; a failed node marks the node failed and returns (true, nil).
 func RunOnce(ctx context.Context, d Deps) (bool, error) {
@@ -61,6 +77,12 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	nid := c.ID
 	d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "node.start", Msg: c.Type})
 	ws := sandbox.Workspace{Dir: filepath.Join(d.WorkspaceRoot, c.RunID.String())}
+
+	// Make this node's work cancelable so CancelRun can kill the in-flight agent
+	// (and, via the agent's process-group Cancel, any dev server it spawned).
+	ctx, cancel := context.WithCancel(ctx)
+	running.Store(c.RunID.String(), cancel)
+	defer func() { running.Delete(c.RunID.String()); cancel() }()
 
 	switch c.Type {
 	case "import":

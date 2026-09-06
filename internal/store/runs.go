@@ -23,6 +23,18 @@ func (s *Store) CreateRun(ctx context.Context, project string) (uuid.UUID, error
 	return id, err
 }
 
+// CancelRun stops a run: its queued nodes (pending/ready) become 'cancelled' so
+// no new work starts, and the run itself is marked 'cancelled'. The in-flight
+// node is interrupted separately via worker.CancelRun.
+func (s *Store) CancelRun(ctx context.Context, run uuid.UUID) error {
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE nodes SET status='cancelled' WHERE run_id=? AND status IN ('pending','ready')`, run); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE runs SET status='cancelled' WHERE id=?`, run)
+	return err
+}
+
 // FinalizeDrainedRuns flips any still-'running' run whose nodes are all terminal
 // (none pending/ready/running) to a real end state: 'failed' if a root node
 // (import/map) failed — the audit never really started, e.g. claude isn't logged

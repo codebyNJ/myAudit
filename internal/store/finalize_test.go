@@ -59,6 +59,35 @@ func TestFinalizeDrainedRuns(t *testing.T) {
 	}
 }
 
+// CancelRun stops queued work (pending/ready → cancelled) and marks the run
+// cancelled, without touching a currently-running or already-done node.
+func TestCancelRun(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(ctx, testURL(t))
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "x")
+	pend, _ := s.AddNode(ctx, run, "qa", nil)
+	rdy, _ := s.AddNode(ctx, run, "bug", nil)
+	runNode, _ := s.AddNode(ctx, run, "bug", nil)
+	doneNode, _ := s.AddNode(ctx, run, "import", nil)
+	setStatus(t, s, rdy, "ready")
+	setStatus(t, s, runNode, "running")
+	setStatus(t, s, doneNode, "done")
+
+	if err := s.CancelRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	want := map[uuid.UUID]string{pend: "cancelled", rdy: "cancelled", runNode: "running", doneNode: "done"}
+	for id, exp := range want {
+		if got, _ := s.GetNode(ctx, id); got.Status != exp {
+			t.Fatalf("node %s: want %s, got %s", id, exp, got.Status)
+		}
+	}
+	if r, _ := s.GetRun(ctx, run); r.Status != "cancelled" {
+		t.Fatalf("run should be cancelled, got %s", r.Status)
+	}
+}
+
 // EventsForRun keeps the NEWEST `limit` events (not the oldest) and returns them
 // oldest-first — the fix for the live log freezing past the cap.
 func TestEventsForRunKeepsNewest(t *testing.T) {

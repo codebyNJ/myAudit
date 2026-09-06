@@ -53,7 +53,7 @@ function since(ts: string) {
 // Work that's finished shows no live timer (a Done card ticking "1197m" reads as
 // stuck). Running cards count from when they were claimed ("running for X");
 // queued/triage cards count from creation.
-const TERMINAL = new Set(['done', 'closed', 'verified', 'failed'])
+const TERMINAL = new Set(['done', 'closed', 'verified', 'failed', 'cancelled'])
 function ageOf(n: NodeCard): string | null {
   if (TERMINAL.has(n.status)) return null
   if (n.status === 'running' && n.claimed_at) return since(n.claimed_at)
@@ -121,6 +121,7 @@ export function KanbanScreen() {
   const ql = q.trim().toLowerCase()
   const dismissedCount = cards.filter((n) => n.status === 'dismissed').length
   const visible = cards.filter((n) => {
+    if (n.status === 'cancelled') return false // a stopped run's abandoned nodes
     if (n.status === 'dismissed' && !showDismissed) return false
     if (fSev !== 'all' && n.severity !== fSev) return false
     if (fType === 'bug' && n.type !== 'bug') return false

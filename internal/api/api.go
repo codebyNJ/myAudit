@@ -15,6 +15,7 @@ import (
 	"myaudit/internal/events"
 	"myaudit/internal/sandbox"
 	"myaudit/internal/store"
+	"myaudit/internal/worker"
 )
 
 // RunDetail is a run plus its nodes and event log.
@@ -121,6 +122,23 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(201)
 		json.NewEncoder(w).Encode(map[string]string{"id": run.String()})
+	})
+
+	// Stop a running audit: mark queued nodes + the run cancelled (no new work),
+	// and interrupt the in-flight node's agent.
+	mux.HandleFunc("POST /api/runs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, "bad id", 400)
+			return
+		}
+		if err := s.CancelRun(r.Context(), id); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		worker.CancelRun(id.String())
+		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "run.cancelled", Msg: "audit cancelled by user"})
+		w.WriteHeader(200)
 	})
 
 	mux.HandleFunc("POST /api/checkpoints/{id}/resolve", func(w http.ResponseWriter, r *http.Request) {
