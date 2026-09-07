@@ -1,14 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { marked } from 'marked'
-import { 
-  Bold, Italic, Heading, List, ListChecks, Code, Link2, Quote, 
-  Eye, Plus, Trash2, Download, Search, FileText, 
-  BookOpen, Columns, Save
-} from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Download, Search, Plus, X, FileText } from 'lucide-react'
 import { useStore } from '../store'
 import { api } from '../api'
-
-marked.setOptions({ breaks: true, gfm: true })
+import { Markdown } from '../components/Markdown'
 
 export type NoteItem = {
   id: string
@@ -20,68 +14,44 @@ export type NoteItem = {
 
 function parseMarkdownToNotes(raw: string): NoteItem[] {
   if (!raw || !raw.trim()) {
-    return [
-      {
-        id: 'note-default',
-        title: 'Audit Overview & Map',
-        category: 'architecture',
-        content: '# Audit Overview & Map\n\nWelcome to your audit report. The AI agents append module QA passes, findings, and verified fixes here as separate notes.',
-        updatedAt: new Date().toLocaleTimeString()
-      }
-    ]
+    return [{
+      id: 'note-default',
+      title: 'Audit Overview & Map',
+      category: 'architecture',
+      content: '# Audit Overview & Map\n\nWelcome to your audit report. The AI agents append module QA passes, findings, and verified fixes here as separate notes.',
+      updatedAt: new Date().toLocaleTimeString(),
+    }]
   }
 
   const lines = raw.split('\n')
   const sections: { title: string; lines: string[]; category: NoteItem['category'] }[] = []
-  let currentSection: { title: string; lines: string[]; category: NoteItem['category'] } | null = null
+  let current: { title: string; lines: string[]; category: NoteItem['category'] } | null = null
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+  for (const line of lines) {
     const trimmed = line.trim()
-
     if (trimmed.startsWith('# ') || trimmed.startsWith('## ') || trimmed.startsWith('### Fix —') || trimmed.startsWith('### QA —')) {
-      if (currentSection) {
-        sections.push(currentSection)
-      }
-      let rawTitle = trimmed.replace(/^#+\s*/, '').trim()
+      if (current) sections.push(current)
+      const rawTitle = trimmed.replace(/^#+\s*/, '').trim()
       let cat: NoteItem['category'] = 'custom'
-
-      if (rawTitle.toLowerCase().includes('map') || rawTitle.toLowerCase().includes('architecture') || rawTitle.toLowerCase().includes('audit map')) {
-        cat = 'architecture'
-      } else if (rawTitle.toLowerCase().includes('qa') || rawTitle.toLowerCase().includes('module')) {
-        cat = 'qa'
-      } else if (rawTitle.toLowerCase().includes('fix') || rawTitle.toLowerCase().includes('repair')) {
-        cat = 'fix'
-      }
-
-      currentSection = {
-        title: rawTitle,
-        lines: [line],
-        category: cat
-      }
+      const low = rawTitle.toLowerCase()
+      if (low.includes('map') || low.includes('architecture') || low.includes('audit map')) cat = 'architecture'
+      else if (low.includes('qa') || low.includes('module')) cat = 'qa'
+      else if (low.includes('fix') || low.includes('repair')) cat = 'fix'
+      current = { title: rawTitle, lines: [line], category: cat }
+    } else if (!current) {
+      current = { title: 'General Audit Notes', lines: [line], category: 'architecture' }
     } else {
-      if (!currentSection) {
-        currentSection = {
-          title: 'General Audit Notes',
-          lines: [line],
-          category: 'architecture'
-        }
-      } else {
-        currentSection.lines.push(line)
-      }
+      current.lines.push(line)
     }
   }
-
-  if (currentSection) {
-    sections.push(currentSection)
-  }
+  if (current) sections.push(current)
 
   return sections.map((s, idx) => ({
     id: `note-${idx}-${s.title.slice(0, 16).replace(/\W+/g, '-').toLowerCase()}`,
     title: s.title || `Note ${idx + 1}`,
     category: s.category,
     content: s.lines.join('\n').trim(),
-    updatedAt: new Date().toLocaleTimeString()
+    updatedAt: new Date().toLocaleTimeString(),
   }))
 }
 
@@ -89,30 +59,27 @@ function serializeNotesToMarkdown(notes: NoteItem[]): string {
   return notes.map((n) => n.content.trim()).filter(Boolean).join('\n\n---\n\n')
 }
 
+const CAT_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+  architecture: { color: '#38bdf8', bg: 'rgba(56,189,248,0.12)', label: 'Map' },
+  qa: { color: '#c084fc', bg: 'rgba(192,132,252,0.12)', label: 'QA' },
+  fix: { color: '#4ade80', bg: 'rgba(74,222,128,0.12)', label: 'Fix' },
+  custom: { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: 'Note' },
+}
+
 export function NotesScreen() {
   const s = useStore()
   const [notes, setNotes] = useState<NoteItem[]>([])
-  const [selectedId, setSelectedId] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCat, setFilterCat] = useState('all')
-  const [viewMode, setViewMode] = useState<'read' | 'split' | 'all'>('read')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const taRef = useRef<HTMLTextAreaElement>(null)
-
-  const activeNote = notes.find((n) => n.id === selectedId) || notes[0]
+  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!s.runId) return
     setLoading(true)
     api.getNotes(s.runId)
-      .then((r) => {
-        const parsed = parseMarkdownToNotes(r.content || '')
-        setNotes(parsed)
-        if (parsed.length > 0 && !selectedId) {
-          setSelectedId(parsed[0].id)
-        }
-      })
+      .then((r) => setNotes(parseMarkdownToNotes(r.content || '')))
       .catch(() => s.toast('error', 'Failed to load report notes'))
       .finally(() => setLoading(false))
   }, [s.runId])
@@ -121,95 +88,13 @@ export function NotesScreen() {
     return (
       <div className="empty-mid">
         <FileText size={40} strokeWidth={1.5} color="var(--text-muted)" />
-        <h3>No report selected</h3>
-        <p>Import a codebase or select an audit run to view and manage its notes and reports.</p>
+        <h3>No audit selected</h3>
+        <p>Open a run to see the notice-board report of map, QA, and fix notes.</p>
       </div>
     )
   }
 
-  const handleNoteContentChange = (newContent: string) => {
-    if (!activeNote) return
-    setNotes((prev) =>
-      prev.map((n) => {
-        if (n.id !== activeNote.id) return n
-        const firstLine = newContent.trim().split('\n')[0] || ''
-        const inferredTitle = firstLine.replace(/^#+\s*/, '').trim() || n.title
-        return {
-          ...n,
-          content: newContent,
-          title: inferredTitle,
-          updatedAt: new Date().toLocaleTimeString()
-        }
-      })
-    )
-  }
-
-  const saveAll = async () => {
-    if (!s.runId) return
-    setSaving(true)
-    const combined = serializeNotesToMarkdown(notes)
-    try {
-      await api.putNotes(s.runId, combined)
-      s.toast('success', 'Notes synchronized with audit report')
-    } catch (e) {
-      s.toast('error', 'Failed to save notes', (e as Error).message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const createNewNote = () => {
-    const newId = `custom-${Date.now()}`
-    const fresh: NoteItem = {
-      id: newId,
-      title: 'New Note',
-      category: 'custom',
-      content: '## New Note\n\nAdd your audit observations or custom findings here.',
-      updatedAt: new Date().toLocaleTimeString()
-    }
-    const next = [fresh, ...notes]
-    setNotes(next)
-    setSelectedId(newId)
-    setViewMode('split')
-    s.toast('info', 'New note created')
-  }
-
-  const deleteCurrentNote = () => {
-    if (notes.length <= 1) {
-      s.toast('error', 'Cannot delete the only note')
-      return
-    }
-    const next = notes.filter((n) => n.id !== activeNote.id)
-    setNotes(next)
-    setSelectedId(next[0].id)
-    s.toast('info', 'Note removed')
-  }
-
-  const surroundText = (before: string, after = before) => {
-    const el = taRef.current
-    if (!el || !activeNote) return
-    const [a, b] = [el.selectionStart, el.selectionEnd]
-    const cur = activeNote.content
-    const next = cur.slice(0, a) + before + cur.slice(a, b) + after + cur.slice(b)
-    handleNoteContentChange(next)
-    requestAnimationFrame(() => {
-      el.focus()
-      el.selectionStart = a + before.length
-      el.selectionEnd = b + before.length
-    })
-  }
-
-  const prefixLine = (p: string) => {
-    const el = taRef.current
-    if (!el || !activeNote) return
-    const a = el.selectionStart
-    const cur = activeNote.content
-    const ls = cur.lastIndexOf('\n', a - 1) + 1
-    const next = cur.slice(0, ls) + p + cur.slice(ls)
-    handleNoteContentChange(next)
-  }
-
-  const visibleNotes = notes.filter((n) => {
+  const visible = notes.filter((n) => {
     if (filterCat !== 'all' && n.category !== filterCat) return false
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -218,244 +103,119 @@ export function NotesScreen() {
     return true
   })
 
-  const fullReportMarkdown = serializeNotesToMarkdown(notes)
-  const fullHtml = marked.parse(fullReportMarkdown) as string
-  const activeHtml = activeNote ? (marked.parse(activeNote.content) as string) : ''
+  const openNote = notes.find((n) => n.id === openId) || null
+
+  const createNewNote = () => {
+    const n: NoteItem = {
+      id: `note-custom-${Date.now()}`,
+      title: 'New note',
+      category: 'custom',
+      content: '# New note\n\n',
+      updatedAt: new Date().toLocaleTimeString(),
+    }
+    setNotes((prev) => [n, ...prev])
+    setOpenId(n.id)
+  }
+
+  const saveAll = async () => {
+    if (!s.runId) return
+    setSaving(true)
+    try {
+      await api.putNotes(s.runId, serializeNotesToMarkdown(notes))
+      s.toast('success', 'Report saved')
+    } catch (e) {
+      s.toast('error', 'Save failed', (e as Error).message)
+    } finally { setSaving(false) }
+  }
+
+  const deleteOpen = () => {
+    if (!openNote) return
+    setNotes((prev) => prev.filter((n) => n.id !== openNote.id))
+    setOpenId(null)
+  }
 
   return (
-    <div className="notes-workspace">
-      <div className="notes-sidebar">
-        <div className="notes-sidebar-head">
-          <div className="notes-sidebar-title-row">
-            <span className="notes-sidebar-title">Notes &amp; Reports</span>
-            <button className="btn-sm primary" onClick={createNewNote} title="Create note">
-              <Plus size={13} /> New Note
-            </button>
-          </div>
-          <div className="ex-search" style={{ margin: 0 }}>
+    <div className="notice-board">
+      <div className="notice-bar">
+        <div>
+          <h1 className="notice-title">Report</h1>
+          <p className="notice-sub">Notice-board of audit notes — rendered markdown, not a document outline.</p>
+        </div>
+        <div className="notice-bar-actions">
+          <div className="ex-search" style={{ margin: 0, width: 220 }}>
             <Search size={13} />
-            <input 
-              placeholder="Search notes…" 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-            />
+            <input placeholder="Search notes…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div className="notice-filters">
             {['all', 'architecture', 'qa', 'fix', 'custom'].map((cat) => (
               <button
                 key={cat}
                 className={`jira-pill ${filterCat === cat ? 'on' : ''}`}
-                style={{ fontSize: 11, padding: '2px 8px' }}
                 onClick={() => setFilterCat(cat)}
               >
-                {cat === 'all' ? 'All' : cat === 'architecture' ? 'Map' : cat.toUpperCase()}
+                {cat === 'all' ? 'All' : CAT_STYLE[cat]?.label || cat}
               </button>
             ))}
           </div>
+          <button className="btn-sm" onClick={createNewNote}><Plus size={13} /> Note</button>
+          <button className="btn-sm" disabled={saving} onClick={saveAll}>{saving ? 'Saving…' : 'Save'}</button>
+          <a className="btn-sm" href={api.reportUrl(s.runId)} download="report.md"><Download size={12} /> .md</a>
+          <a className="btn-sm" href={api.findingsUrl(s.runId)} download="findings.json"><Download size={12} /> .json</a>
         </div>
+      </div>
 
-        <div className="notes-items-list">
-          {loading ? (
-            <div style={{ padding: 24, textAlign: 'center' }}>
-              <div className="spin-sm" style={{ margin: '0 auto 8px' }} />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading notes…</span>
-            </div>
-          ) : visibleNotes.length ? (
-            visibleNotes.map((n) => {
-              const isSelected = n.id === activeNote?.id && viewMode !== 'all'
-              let badgeColor = '#94a3b8'
-              let badgeBg = 'rgba(148,163,184,0.1)'
-              if (n.category === 'architecture') { badgeColor = '#38bdf8'; badgeBg = 'rgba(56,189,248,0.1)' }
-              else if (n.category === 'qa') { badgeColor = '#c084fc'; badgeBg = 'rgba(192,132,252,0.1)' }
-              else if (n.category === 'fix') { badgeColor = '#4ade80'; badgeBg = 'rgba(74,222,128,0.1)' }
-
-              const previewSnippet = n.content.replace(/^#+\s+[^\n]+/, '').trim()
-              const words = n.content.trim().split(/\s+/).filter(Boolean).length
-
-              return (
-                <div
-                  key={n.id}
-                  className={`notes-item-card ${isSelected ? 'on' : ''}`}
-                  onClick={() => {
-                    setSelectedId(n.id)
-                    if (viewMode === 'all') setViewMode('read')
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ 
-                      fontSize: 10, 
-                      fontFamily: 'var(--font-mono)', 
-                      fontWeight: 600, 
-                      color: badgeColor, 
-                      background: badgeBg, 
-                      padding: '1px 5px', 
-                      borderRadius: 4,
-                      textTransform: 'uppercase'
-                    }}>
-                      {n.category}
-                    </span>
-                    <span style={{ fontSize: 10.5, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                      {words} words
-                    </span>
-                  </div>
-                  <div className="notes-item-title">{n.title}</div>
-                  <div className="notes-item-preview">
-                    {previewSnippet || n.content.slice(0, 100)}
-                  </div>
+      {loading ? (
+        <div className="empty-mid" style={{ position: 'static', paddingTop: 80 }}><div className="spin" /></div>
+      ) : (
+        <div className="notice-grid">
+          {visible.map((n) => {
+            const st = CAT_STYLE[n.category] || CAT_STYLE.custom
+            return (
+              <button
+                type="button"
+                key={n.id}
+                className="notice-card"
+                onClick={() => setOpenId(n.id)}
+              >
+                <div className="notice-card-meta">
+                  <span className="notice-badge" style={{ color: st.color, background: st.bg }}>{st.label}</span>
                 </div>
-              )
-            })
-          ) : (
-            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-              No notes match your filter.
-            </div>
+                <div className="notice-card-title">{n.title}</div>
+                <div className="notice-card-body">
+                  <Markdown text={n.content} block className="notice-md" />
+                </div>
+              </button>
+            )
+          })}
+          {!visible.length && (
+            <div className="fl-none" style={{ gridColumn: '1 / -1' }}>No notes match this filter.</div>
           )}
         </div>
+      )}
 
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-dim)', background: '#0b0b0e', display: 'flex', gap: 6, justifyContent: 'space-between' }}>
-          <a className="btn-sm" href={api.reportUrl(s.runId)} download="report.md" style={{ flex: 1, justifyContent: 'center' }}>
-            <Download size={12} /> report.md
-          </a>
-          <a className="btn-sm" href={api.findingsUrl(s.runId)} download="findings.json" style={{ flex: 1, justifyContent: 'center' }}>
-            <Download size={12} /> findings.json
-          </a>
-        </div>
-      </div>
-
-      <div className="notes-editor-pane">
-        <div className="notes-topbar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {viewMode !== 'all' && activeNote && (
-              <>
-                <FileText size={16} color="var(--text-secondary)" />
-                <span style={{ fontWeight: 600, color: '#fafafa', fontSize: 14 }}>
-                  {activeNote.title}
-                </span>
-                <span style={{ 
-                  fontSize: 10, 
-                  fontFamily: 'var(--font-mono)', 
-                  padding: '2px 6px', 
-                  borderRadius: 4, 
-                  background: 'rgba(255,255,255,0.06)', 
-                  color: 'var(--text-secondary)' 
-                }}>
-                  {activeNote.category}
-                </span>
-              </>
-            )}
-            {viewMode === 'all' && (
-              <>
-                <BookOpen size={16} color="#38bdf8" />
-                <span style={{ fontWeight: 600, color: '#fafafa', fontSize: 14 }}>
-                  Full Consolidated Audit Report ({notes.length} Sections)
-                </span>
-              </>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div className="notes-view-modes">
-              <button 
-                className={`notes-view-btn ${viewMode === 'read' ? 'on' : ''}`}
-                onClick={() => setViewMode('read')}
-              >
-                <Eye size={12} style={{ display: 'inline', marginRight: 4 }} /> Read
-              </button>
-              <button 
-                className={`notes-view-btn ${viewMode === 'split' ? 'on' : ''}`}
-                onClick={() => setViewMode('split')}
-              >
-                <Columns size={12} style={{ display: 'inline', marginRight: 4 }} /> Split
-              </button>
-              <button 
-                className={`notes-view-btn ${viewMode === 'all' ? 'on' : ''}`}
-                onClick={() => setViewMode('all')}
-              >
-                <BookOpen size={12} style={{ display: 'inline', marginRight: 4 }} /> Full Report
-              </button>
+      {openNote && (
+        <>
+          <div className="drawer-scrim" onClick={() => setOpenId(null)} />
+          <div className="notice-focus">
+            <div className="notice-focus-h">
+              <span className="notice-badge" style={{
+                color: (CAT_STYLE[openNote.category] || CAT_STYLE.custom).color,
+                background: (CAT_STYLE[openNote.category] || CAT_STYLE.custom).bg,
+              }}>
+                {(CAT_STYLE[openNote.category] || CAT_STYLE.custom).label}
+              </span>
+              <h2>{openNote.title}</h2>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <button className="btn-sm" onClick={deleteOpen}>Delete</button>
+                <button className="icon-btn" onClick={() => setOpenId(null)} title="Close"><X size={16} /></button>
+              </div>
             </div>
-
-            {viewMode !== 'all' && (
-              <button className="btn-sm" onClick={deleteCurrentNote} title="Delete note">
-                <Trash2 size={13} color="#f87171" />
-              </button>
-            )}
-
-            <button 
-              className="btn-sm primary" 
-              onClick={saveAll} 
-              disabled={saving}
-              title="Save all notes to server report"
-            >
-              <Save size={13} /> {saving ? 'Saving…' : 'Save Notes'}
-            </button>
+            <div className="notice-focus-body">
+              <Markdown text={openNote.content} block className="drawer-md" />
+            </div>
           </div>
-        </div>
-
-        {viewMode === 'split' && activeNote && (
-          <div className="md-toolbar" style={{ borderBottom: '1px solid var(--border-dim)' }}>
-            <button className="md-tool" title="Bold" onClick={() => surroundText('**')}>
-              <Bold size={14} />
-            </button>
-            <button className="md-tool" title="Italic" onClick={() => surroundText('*')}>
-              <Italic size={14} />
-            </button>
-            <button className="md-tool" title="Heading" onClick={() => prefixLine('## ')}>
-              <Heading size={14} />
-            </button>
-            <span className="md-sep" />
-            <button className="md-tool" title="Bulleted List" onClick={() => prefixLine('- ')}>
-              <List size={14} />
-            </button>
-            <button className="md-tool" title="Task List" onClick={() => prefixLine('- [ ] ')}>
-              <ListChecks size={14} />
-            </button>
-            <button className="md-tool" title="Quote" onClick={() => prefixLine('> ')}>
-              <Quote size={14} />
-            </button>
-            <span className="md-sep" />
-            <button className="md-tool" title="Inline Code" onClick={() => surroundText('`')}>
-              <Code size={14} />
-            </button>
-            <button className="md-tool" title="Link" onClick={() => surroundText('[', '](https://)')}>
-              <Link2 size={14} />
-            </button>
-          </div>
-        )}
-
-        <div className={`notes-body-wrap ${viewMode === 'split' ? 'split' : ''}`}>
-          {viewMode === 'all' ? (
-            <article 
-              className="report-read" 
-              style={{ height: '100%', overflowY: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: fullHtml }} 
-            />
-          ) : viewMode === 'read' ? (
-            <article 
-              className="report-read" 
-              style={{ height: '100%', overflowY: 'auto' }}
-              dangerouslySetInnerHTML={{ __html: activeHtml }} 
-            />
-          ) : (
-            <>
-              {activeNote && (
-                <textarea
-                  ref={taRef}
-                  className="notes-textarea"
-                  value={activeNote.content}
-                  onChange={(e) => handleNoteContentChange(e.target.value)}
-                  placeholder="Write markdown note here…"
-                  spellCheck={false}
-                />
-              )}
-              <div 
-                className="notes-preview-scroll report-read"
-                dangerouslySetInnerHTML={{ __html: activeHtml }}
-              />
-            </>
-          )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

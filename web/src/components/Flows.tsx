@@ -1,32 +1,95 @@
-import { useEffect, useState } from 'react'
-import { Database, GitBranch, AlertTriangle, ArrowRight, Play, RefreshCw } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Database, GitBranch, AlertTriangle, Play, RefreshCw } from 'lucide-react'
 import { useStore } from '../store'
-import { api, type FlowsResp, type FlowStep } from '../api'
+import { api, type FlowsResp, type FlowStep, type DataFlow, type ProductFlow } from '../api'
 
 const KIND_COLOR: Record<string, string> = {
   source: '#38bdf8', transform: '#c084fc', store: '#4ade80', read: '#e0a92e',
 }
+const KIND_BG: Record<string, string> = {
+  source: 'rgba(56,189,248,0.1)', transform: 'rgba(192,132,252,0.1)',
+  store: 'rgba(74,222,128,0.1)', read: 'rgba(224,169,46,0.1)',
+}
 
-function Steps({ steps }: { steps?: FlowStep[] }) {
+function Pipeline({ steps }: { steps?: FlowStep[] }) {
   const s = useStore()
-  if (!steps || !steps.length) return null
+  if (!steps?.length) return null
   const open = (file?: string) => {
     if (!file) return
     s.setFile(file.split(':')[0])
     s.setTab('dev')
   }
   return (
-    <div className="fl-steps">
-      {steps.map((st, i) => (
-        <div className="fl-step" key={i}>
-          <span className="fl-dot" style={{ background: KIND_COLOR[st.kind || ''] || 'var(--text-muted)' }} />
-          <span className="fl-label">{st.label}</span>
-          {st.file && (
-            <button className="fl-file" title={`Open ${st.file}`} onClick={() => open(st.file)}>{st.file}</button>
-          )}
-          {i < steps.length - 1 && <ArrowRight size={11} className="fl-arrow" />}
-        </div>
-      ))}
+    <div className="flow-pipe">
+      {steps.map((st, i) => {
+        const kind = st.kind || ''
+        const color = KIND_COLOR[kind] || 'var(--text-muted)'
+        const bg = KIND_BG[kind] || 'rgba(255,255,255,0.04)'
+        return (
+          <div className="flow-pipe-seg" key={i}>
+            <button
+              type="button"
+              className={`flow-node ${st.file ? 'clickable' : ''}`}
+              style={{ borderColor: color + '55', background: bg }}
+              title={st.file || st.label}
+              onClick={() => open(st.file)}
+              disabled={!st.file}
+            >
+              {kind && <span className="flow-node-kind" style={{ color }}>{kind}</span>}
+              <span className="flow-node-label">{st.label}</span>
+              {st.file && <span className="flow-node-file">{st.file}</span>}
+            </button>
+            {i < steps.length - 1 && (
+              <span className="flow-edge" aria-hidden>
+                <span className="flow-edge-line" />
+                <span className="flow-edge-arrow" />
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function FlowCard({
+  title, chips, steps, note, concern, outcome,
+}: {
+  title: string
+  chips?: string[]
+  steps?: FlowStep[]
+  note?: string
+  concern?: string
+  outcome?: string
+}) {
+  return (
+    <div className="flow-card">
+      <div className="flow-card-h">
+        <span className="flow-card-title">{title}</span>
+        <span className="flow-card-chips">
+          {(chips || []).filter(Boolean).map((c) => (
+            <span className="fl-chip" key={c}>{c}</span>
+          ))}
+        </span>
+      </div>
+      <Pipeline steps={steps} />
+      {outcome && <div className="fl-note"><b>Outcome</b> — {outcome}</div>}
+      {note && <div className="fl-note">{note}</div>}
+      {concern && <div className="fl-concern"><AlertTriangle size={12} /> {concern}</div>}
+    </div>
+  )
+}
+
+function FlowSection({
+  icon, title, count, children,
+}: { icon: ReactNode; title: string; count: number; children: ReactNode }) {
+  return (
+    <div className="flow-section">
+      <div className="flow-section-h">
+        <span className="flow-section-title">{icon} {title}</span>
+        <span className="vercel-row-badge" style={{ color: 'var(--text-muted)' }}>{count}</span>
+      </div>
+      <div className="flow-section-body">{children}</div>
     </div>
   )
 }
@@ -81,56 +144,41 @@ export function Flows() {
   }
 
   const doc = r.flows || {}
-  const data = doc.data_flows || []
-  const prod = doc.product_flows || []
+  const data: DataFlow[] = doc.data_flows || []
+  const prod: ProductFlow[] = doc.product_flows || []
 
   return (
     <div className="fl-wrap">
       {doc.persistence && (
         <div className="fl-persist"><Database size={13} /> <b>Storage</b> <span>{doc.persistence}</span></div>
       )}
-      <div className="vercel-two-cards">
-        <div className="vercel-card">
-          <div className="vercel-card-head">
-            <div className="vercel-card-title"><Database size={14} /> Database &amp; data flows</div>
-            <span className="vercel-row-badge" style={{ color: 'var(--text-muted)' }}>{data.length}</span>
-          </div>
-          <div className="vercel-card-body">
-            {data.length ? data.map((f, i) => (
-              <div className="fl-item" key={i}>
-                <div className="fl-head">
-                  <span className="fl-name">{f.name}</span>
-                  {f.store && <span className="fl-chip">{f.store}</span>}
-                  {f.entity && <span className="fl-chip mono">{f.entity}</span>}
-                </div>
-                <Steps steps={f.steps} />
-                {f.note && <div className="fl-note">{f.note}</div>}
-                {f.concern && <div className="fl-concern"><AlertTriangle size={11} /> {f.concern}</div>}
-              </div>
-            )) : <div className="fl-none">No data flows identified.</div>}
-          </div>
-        </div>
 
-        <div className="vercel-card">
-          <div className="vercel-card-head">
-            <div className="vercel-card-title"><GitBranch size={14} /> Product flows</div>
-            <span className="vercel-row-badge" style={{ color: 'var(--text-muted)' }}>{prod.length}</span>
-          </div>
-          <div className="vercel-card-body">
-            {prod.length ? prod.map((f, i) => (
-              <div className="fl-item" key={i}>
-                <div className="fl-head">
-                  <span className="fl-name">{f.name}</span>
-                  {f.trigger && <span className="fl-chip">{f.trigger}</span>}
-                </div>
-                <Steps steps={f.steps} />
-                {f.outcome && <div className="fl-note"><b>Outcome:</b> {f.outcome}</div>}
-                {f.concern && <div className="fl-concern"><AlertTriangle size={11} /> {f.concern}</div>}
-              </div>
-            )) : <div className="fl-none">No product flows identified.</div>}
-          </div>
-        </div>
-      </div>
+      <FlowSection icon={<Database size={14} />} title="Database & data flows" count={data.length}>
+        {data.length ? data.map((f, i) => (
+          <FlowCard
+            key={i}
+            title={f.name}
+            chips={[f.store || '', f.entity || '']}
+            steps={f.steps}
+            note={f.note}
+            concern={f.concern}
+          />
+        )) : <div className="fl-none">No data flows identified.</div>}
+      </FlowSection>
+
+      <FlowSection icon={<GitBranch size={14} />} title="Product flows" count={prod.length}>
+        {prod.length ? prod.map((f, i) => (
+          <FlowCard
+            key={i}
+            title={f.name}
+            chips={[f.trigger || '']}
+            steps={f.steps}
+            outcome={f.outcome}
+            concern={f.concern}
+          />
+        )) : <div className="fl-none">No product flows identified.</div>}
+      </FlowSection>
+
       <div className="fl-refresh">
         <button className="btn-sm" disabled={busy || r.pending} onClick={start}>
           <RefreshCw size={12} /> {r.pending ? 'Re-mapping…' : 'Re-identify flows'}

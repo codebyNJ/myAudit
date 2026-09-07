@@ -445,13 +445,13 @@ export function KanbanScreen() {
               {sel.summary && (
                 <div>
                   <div className="drawer-sec-h">Summary</div>
-                  <Markdown text={sel.summary} block />
+                  <Markdown text={sel.summary} block className="drawer-md" />
                 </div>
               )}
               {sel.detail && (
                 <div className="drawer-detail">
                   <div className="drawer-sec-h">Finding</div>
-                  <Markdown text={sel.detail} block />
+                  <Markdown text={sel.detail} block className="drawer-md" />
                 </div>
               )}
 

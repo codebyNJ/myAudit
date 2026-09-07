@@ -1044,3 +1044,86 @@ aside .row.file > span { overflow: hidden; text-overflow: ellipsis; white-space:
 .fl-empty p { margin: 0 0 6px; font-size: 12.5px; max-width: 420px; line-height: 1.6; }
 .fl-spin { animation: sp 1.1s linear infinite; }
 .fl-refresh { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+/* Draw.io-style horizontal flow pipelines */
+.flow-section { margin-bottom: 14px; background: #0a0a0c; border: 1px solid rgba(255,255,255,0.09); border-radius: 2px; overflow: hidden; }
+.flow-section-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.flow-section-title { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #f4f4f5; }
+.flow-section-body { padding: 0; }
+.flow-card { padding: 14px 14px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.flow-card:last-child { border-bottom: none; }
+.flow-card-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.flow-card-title { font-size: 14px; font-weight: 600; color: #f4f4f5; }
+.flow-card-chips { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.flow-pipe { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.flow-pipe-seg { display: inline-flex; align-items: center; flex: none; }
+.flow-node {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  min-width: 128px; max-width: 220px; text-align: left;
+  padding: 9px 11px; border: 1px solid rgba(255,255,255,0.14); border-radius: 2px;
+  color: var(--text-primary); font-family: inherit; cursor: default;
+}
+.flow-node.clickable { cursor: pointer; }
+.flow-node.clickable:hover { border-color: rgba(255,255,255,0.35); filter: brightness(1.08); }
+.flow-node:disabled { opacity: 1; cursor: default; }
+.flow-node-kind { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.flow-node-label { font-size: 12.5px; font-weight: 550; color: #f4f4f5; line-height: 1.35; }
+.flow-node-file { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-edge { display: inline-flex; align-items: center; width: 36px; flex: none; padding: 0 2px; }
+.flow-edge-line { flex: 1; height: 1px; background: rgba(255,255,255,0.22); }
+.flow-edge-arrow {
+  width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  border-left: 6px solid rgba(255,255,255,0.35);
+}
+
+/* Report notice-board */
+.notice-board { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+.notice-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 18px 20px 12px; border-bottom: 1px solid var(--border-dim); background: #0a0a0c; }
+.notice-title { margin: 0; font-size: 18px; font-weight: 650; color: #f4f4f5; letter-spacing: -0.02em; }
+.notice-sub { margin: 4px 0 0; font-size: 12.5px; color: var(--text-muted); max-width: 420px; line-height: 1.45; }
+.notice-bar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.notice-filters { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.notice-grid {
+  flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
+  align-content: start;
+  background:
+    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.notice-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  text-align: left; padding: 14px; min-height: 180px; max-height: 280px;
+  background: #111115; border: 1px solid rgba(255,255,255,0.1); border-radius: 2px;
+  color: inherit; font-family: inherit; cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03);
+  transition: border-color .12s, background .12s;
+}
+.notice-card:hover { border-color: rgba(255,255,255,0.22); background: #141418; }
+.notice-card-meta { display: flex; align-items: center; gap: 8px; }
+.notice-badge { font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 2px; }
+.notice-card-title { font-size: 14px; font-weight: 600; color: #f4f4f5; line-height: 1.35; }
+.notice-card-body { flex: 1; min-height: 0; overflow: hidden; mask-image: linear-gradient(180deg, #000 70%, transparent); }
+.notice-md { font-size: 12.5px !important; line-height: 1.55 !important; pointer-events: none; }
+.notice-md h1, .notice-md h2, .notice-md h3 { font-size: 13px !important; margin: 6px 0 4px !important; }
+.notice-md p, .notice-md ul, .notice-md ol { margin: 4px 0 !important; }
+.notice-md pre { display: none; }
+.notice-focus {
+  position: fixed; top: 48px; right: 0; bottom: 0; width: min(560px, 100vw);
+  z-index: 95; display: flex; flex-direction: column;
+  background: #0e0e12; border-left: 1px solid rgba(255,255,255,0.12);
+  box-shadow: -12px 0 40px rgba(0,0,0,0.45);
+}
+.notice-focus-h { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border-dim); }
+.notice-focus-h h2 { margin: 0; font-size: 15px; font-weight: 600; color: #f4f4f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notice-focus-body { flex: 1; overflow: auto; padding: 18px 20px 28px; }
+
+/* Richer finding markdown in drawers / note focus */
+.drawer-md { font-size: 14.5px !important; line-height: 1.65 !important; color: var(--text-secondary); }
+.drawer-md h1, .drawer-md h2, .drawer-md h3 { color: #f4f4f5; }
+.drawer-md h3 { font-size: 13px; text-transform: capitalize; letter-spacing: 0.01em; margin-top: 16px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.drawer-md strong { color: #e4e4e7; font-weight: 600; }
+.drawer-md ul, .drawer-md ol { padding-left: 20px; }
+.drawer-md li { margin: 5px 0; }
+.drawer-md code { font-size: 12.5px; }
+.drawer-md pre { background: #08080a; border-radius: 2px; }
