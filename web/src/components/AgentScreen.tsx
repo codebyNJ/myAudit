@@ -37,7 +37,7 @@ function Surface({ view, runId, expanded }: { view: LiveView; runId: string; exp
   if (view.status === 'frames' && view.frame) {
     return <img className="as-shot" src={api.rawUrl(runId, view.frame)} alt="Latest captured frame" />
   }
-  return <Connecting label="Waiting for the agent to open the app" />
+  return <Connecting label="Starting the app under test…" />
 }
 
 export function AgentScreen() {
@@ -91,7 +91,7 @@ export function AgentScreen() {
               <a className="as-link" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                 {view.url} <ExternalLink size={11} />
               </a></>
-          : <span>{view.status === 'frames' ? 'Latest capture from the QA agent' : 'The agent has not opened the app yet'}</span>}
+          : <span>{view.status === 'frames' ? 'Latest capture from the QA agent' : 'Booting this project’s dev server'}</span>}
       </div>
 
       {open && createPortal(

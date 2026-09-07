@@ -71,6 +71,8 @@ export const api = {
     req<void>('/api/runs/' + id + '/file/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from, to }) }),
   deleteFile: (id: string, path: string) =>
     req<void>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path), { method: 'DELETE' }),
+  startPreview: (id: string) => req<{ status?: string; url?: string }>('/api/runs/' + id + '/preview', { method: 'POST' }),
+  stopPreview: (id: string) => req<void>('/api/runs/' + id + '/preview', { method: 'DELETE' }),
   live: (id: string) => req<LiveView>('/api/runs/' + id + '/live'),
   flows: (id: string) => req<FlowsResp>('/api/runs/' + id + '/flows'),
   runFlows: (id: string) => req<void>('/api/runs/' + id + '/flows', { method: 'POST' }),

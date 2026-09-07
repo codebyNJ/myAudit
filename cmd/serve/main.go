@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
@@ -52,6 +53,17 @@ func main() {
 		pace = time.Duration(ms) * time.Millisecond
 	}
 	go api.StartRunLoop(context.Background(), deps, pace)
+
+	// Auto-started app-under-test previews are child processes holding ports;
+	// make sure Ctrl-C (or the desktop app quitting) takes them down too.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-stop
+		api.Previews.StopAll()
+		os.Exit(0)
+	}()
+	defer api.Previews.StopAll()
 
 	addr := ":7788"
 	if p := os.Getenv("PORT"); p != "" {

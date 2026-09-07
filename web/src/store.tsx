@@ -103,6 +103,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [toast])
 
+  // Opening a project boots its dev server so the app under test is watchable
+  // immediately (see the Agent screen on Overview). Fire-and-forget and
+  // idempotent server-side; projects with no dev script simply report
+  // "unsupported" and nothing starts.
+  const bootedPreview = useRef<string | null>(null)
+  useEffect(() => {
+    if (!runId || bootedPreview.current === runId) return
+    bootedPreview.current = runId
+    api.startPreview(runId).catch(() => {})
+  }, [runId])
+
   const loadRuns = useCallback(async () => {
     try {
       setRuns((await api.listRuns()) || []) 

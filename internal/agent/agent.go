@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"myaudit/internal/proc"
 	"myaudit/internal/sandbox"
 )
 
@@ -126,8 +127,8 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 		// the WHOLE group — including any dev server the live agent spawned via Bash
 		// (otherwise it's orphaned and holds its port, breaking later modules).
 		// Process groups are POSIX-only; see kill_windows.go for the Windows path.
-		setProcessGroup(c)
-		c.Cancel = func() error { return killProcessTree(c) }
+		proc.SetGroup(c)
+		c.Cancel = func() error { return proc.KillTree(c) }
 	}
 	c.WaitDelay = 10 * time.Second
 	return c
