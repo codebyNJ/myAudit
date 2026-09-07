@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,11 +10,13 @@ import (
 )
 
 func TestIsolateBuildsDockerCommand(t *testing.T) {
+	dir := filepath.Join(string(filepath.Separator), "runs", "abc")
+	abs, _ := filepath.Abs(dir)
 	cmd := Options{Model: "haiku", Isolate: true, Allow: []string{"Read"}}.
-		command(context.Background(), sandbox.Workspace{Dir: "/runs/abc"}, "do X")
+		command(context.Background(), sandbox.Workspace{Dir: dir}, "do X")
 	got := strings.Join(cmd.Args, " ")
 	for _, want := range []string{
-		"docker run", "--rm", "-v /runs/abc:/work", "-w /work",
+		"docker run", "--rm", "-v " + abs + ":/work", "-w /work",
 		"-e CLAUDE_CODE_OAUTH_TOKEN", "myaudit-sandbox", "claude",
 		"--add-dir /work", "-p do X",
 	} {
@@ -24,8 +27,10 @@ func TestIsolateBuildsDockerCommand(t *testing.T) {
 }
 
 func TestDirectCommandRunsInWorkspace(t *testing.T) {
-	cmd := Options{Model: "haiku"}.command(context.Background(), sandbox.Workspace{Dir: "/runs/xyz"}, "t")
-	if cmd.Dir != "/runs/xyz" {
+	dir := filepath.Join(string(filepath.Separator), "runs", "xyz")
+	abs, _ := filepath.Abs(dir)
+	cmd := Options{Model: "haiku"}.command(context.Background(), sandbox.Workspace{Dir: dir}, "t")
+	if cmd.Dir != abs {
 		t.Fatalf("direct command should run in ws dir, got %q", cmd.Dir)
 	}
 	if !strings.HasSuffix(cmd.Args[0], "claude") {

@@ -21,7 +21,8 @@ func TestCreateRunImportsRepo(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "myrepo")
 	os.MkdirAll(repo, 0o755)
 
-	body := bytes.NewBufferString(`{"repo_path":"` + repo + `"}`)
+	payload, _ := json.Marshal(map[string]string{"repo_path": repo})
+	body := bytes.NewBuffer(payload)
 	resp, err := http.Post(srv.URL+"/api/runs", "application/json", body)
 	if err != nil {
 		t.Fatal(err)

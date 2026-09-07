@@ -26,6 +26,9 @@ func listWorkspaceFiles(runID string, changed map[string]bool, reviews map[strin
 			return nil
 		}
 		rel, err := filepath.Rel(root, p)
+		// Paths cross the API as web paths; on Windows filepath.Rel yields
+		// backslashes, which the UI (and the changed/review keys) split on "/".
+		rel = filepath.ToSlash(rel)
 		if err != nil || reviews[rel] == "rejected" {
 			return nil
 		}

@@ -13,7 +13,6 @@ import (
 	"myaudit/internal/store"
 )
 
-
 // wsPath resolves a workspace-relative path to an absolute path under the run's
 // workspace, rejecting empty/absolute/escaping paths. ok=false ⇒ already 400'd.
 func wsPath(w http.ResponseWriter, r *http.Request, rel string) (id uuid.UUID, full string, ok bool) {
@@ -162,7 +161,7 @@ func searchWorkspace(root, q string, max int) []searchHit {
 		rel, _ := filepath.Rel(root, p)
 		for i, line := range strings.Split(string(b), "\n") {
 			if strings.Contains(strings.ToLower(line), needle) {
-				out = append(out, searchHit{Path: rel, Line: i + 1, Text: trim(line)})
+				out = append(out, searchHit{Path: filepath.ToSlash(rel), Line: i + 1, Text: trim(line)})
 				if len(out) >= max {
 					break
 				}
