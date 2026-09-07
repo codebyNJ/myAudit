@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"myaudit/internal/agent"
@@ -113,6 +115,14 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
 		for _, r := range finished {
 			deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run." + r.Status, Msg: "audit " + r.Status})
+			// QA installs real dependencies into the workspace to exercise the
+			// product; once the run is over those caches are dead weight (they
+			// dominated disk at ~1.7GB across four runs). Source and audit
+			// artifacts stay, so the workspace is still reviewable.
+			if freed, rerr := sandbox.Reclaim(filepath.Join(deps.WorkspaceRoot, r.ID.String())); rerr == nil && freed > 0 {
+				deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run.reclaim",
+					Msg: fmt.Sprintf("reclaimed %.0f MB of dependency caches", float64(freed)/(1<<20))})
+			}
 		}
 	}
 	if did {

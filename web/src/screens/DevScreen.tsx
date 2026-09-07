@@ -6,7 +6,12 @@ import {
 import { useStore } from '../store'
 import { api } from '../api'
 import { Diff } from '../components/Diff'
-import { Mono, detectLanguage } from '../components/Monaco'
+import { lazy, Suspense } from 'react'
+import { detectLanguage } from '../components/detectLanguage'
+
+// Monaco is ~4MB bundled; load it as its own chunk the first time the Code tab
+// actually renders an editor, so it never sits in the initial paint.
+const Mono = lazy(() => import('../components/Monaco').then((m) => ({ default: m.Mono })))
 
 const baseName = (p: string) => p.split('/').pop() || p
 const dirName = (p: string) => {
@@ -330,16 +335,18 @@ export function DevScreen() {
           ) : loading ? (
             <div className="empty-mid" style={{ position: 'static', paddingTop: 80 }}><div className="spin" /></div>
           ) : (
-            <Mono
-              path={sel.path}
-              value={content}
-              wordWrap={wrap}
-              minimap={minimap}
-              onChange={setContent}
-              onCursor={(line, col) => setCursor({ line, col })}
-              onSave={saveEdit}
-              findTrigger={findTrigger}
-            />
+            <Suspense fallback={<div className="empty-mid" style={{ position: 'static', paddingTop: 80 }}><div className="spin" /></div>}>
+              <Mono
+                path={sel.path}
+                value={content}
+                wordWrap={wrap}
+                minimap={minimap}
+                onChange={setContent}
+                onCursor={(line, col) => setCursor({ line, col })}
+                onSave={saveEdit}
+                findTrigger={findTrigger}
+              />
+            </Suspense>
           )
         ) : changedFiles.length > 0 ? (
           <ChangedList files={changedFiles} onOpen={(p) => s.setFile(p)} />

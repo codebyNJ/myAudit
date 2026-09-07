@@ -39,3 +39,8 @@ desktop:
 ## tidy: sync go.mod
 tidy:
 	go mod tidy
+
+## reclaim: delete dependency/build caches from FINISHED run workspaces
+## (new runs do this automatically when they finish; this is for old ones)
+reclaim:
+	@go run ./cmd/reclaim

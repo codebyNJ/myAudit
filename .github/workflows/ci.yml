@@ -48,3 +48,12 @@ jobs:
 
       - name: Build server
         run: go build ./cmd/serve
+
+      # The server ships inside the desktop app on all three platforms, so a
+      # Unix-only syscall must not sneak in (it did: agent.go used Setpgid and
+      # syscall.Kill, which broke the Windows release build).
+      - name: Cross-compile check
+        run: |
+          GOOS=windows GOARCH=amd64 go build ./...
+          GOOS=linux   GOARCH=amd64 go build ./...
+          GOOS=darwin  GOARCH=arm64 go build ./...

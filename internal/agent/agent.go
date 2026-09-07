@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -126,13 +125,9 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 		// Run claude in its own process group so that on cancel/timeout we can kill
 		// the WHOLE group — including any dev server the live agent spawned via Bash
 		// (otherwise it's orphaned and holds its port, breaking later modules).
-		c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-		c.Cancel = func() error {
-			if c.Process != nil {
-				_ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
-			}
-			return nil
-		}
+		// Process groups are POSIX-only; see kill_windows.go for the Windows path.
+		setProcessGroup(c)
+		c.Cancel = func() error { return killProcessTree(c) }
 	}
 	c.WaitDelay = 10 * time.Second
 	return c
