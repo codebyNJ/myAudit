@@ -76,18 +76,16 @@ let themeReady = false
 function ensureTheme(m: typeof MonacoNS) {
   if (themeReady) return
   m.editor.defineTheme('cursor-dark', THEME)
-  const ts = m.languages.typescript as unknown as {
-    typescriptDefaults: { setDiagnosticsOptions: (o: object) => void }
-    javascriptDefaults: { setDiagnosticsOptions: (o: object) => void }
-  }
-  ts.typescriptDefaults.setDiagnosticsOptions({
-    noSemanticValidation: true,
-    noSyntaxValidation: true,
-  })
-  ts.javascriptDefaults.setDiagnosticsOptions({
-    noSemanticValidation: true,
-    noSyntaxValidation: true,
-  })
+  // Optional: the bundled build does not always expose the TypeScript language
+  // service (and we ship no language workers), so this must never throw — it is
+  // only muting red squiggles in a read-and-review surface.
+  type Defaults = { setDiagnosticsOptions?: (o: object) => void }
+  const ts = (m.languages as unknown as {
+    typescript?: { typescriptDefaults?: Defaults; javascriptDefaults?: Defaults }
+  }).typescript
+  const off = { noSemanticValidation: true, noSyntaxValidation: true }
+  ts?.typescriptDefaults?.setDiagnosticsOptions?.(off)
+  ts?.javascriptDefaults?.setDiagnosticsOptions?.(off)
   themeReady = true
 }
 

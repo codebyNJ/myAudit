@@ -1130,3 +1130,26 @@ aside .row.file > span { overflow: hidden; text-overflow: ellipsis; white-space:
 
 .back-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px; border: 1px solid var(--border-subtle); background: var(--bg-panel); color: var(--text-secondary); font-size: 12px; font-weight: 500; font-family: var(--font-sans); cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s, background .15s; }
 .back-btn:hover { color: var(--text-primary); border-color: var(--border-highlight); background: var(--bg-card-hover); }
+
+.as-card { margin-bottom: 20px; }
+.as-stage { position: relative; aspect-ratio: 2964 / 1856; background: #060608; overflow: hidden; cursor: pointer; border-top: 1px solid var(--border-dim); border-bottom: 1px solid var(--border-dim); }
+.as-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+.as-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #060608; }
+.as-connecting { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); font-size: 12.5px; background: #060608; }
+.as-hover { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6,6,8,0); opacity: 0; transition: opacity .15s ease, background .15s ease; }
+.as-stage:hover .as-hover { opacity: 1; background: rgba(6,6,8,0.45); }
+.as-openpill { display: inline-flex; align-items: center; gap: 6px; pointer-events: none; }
+.as-badge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--text-muted); background: rgba(255,255,255,0.05); border: 1px solid var(--border-dim); border-radius: 999px; padding: 2px 8px; }
+.as-badge.live { color: #f87171; border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.1); }
+.as-dot { width: 6px; height: 6px; border-radius: 999px; background: #f87171; animation: run-pulse 1.2s ease-in-out infinite; }
+.as-meta { display: flex; align-items: center; gap: 8px; padding: 11px 18px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+.as-meta svg { color: var(--text-secondary); }
+.as-link { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--method-post); text-decoration: none; }
+.as-link:hover { text-decoration: underline; }
+
+.as-portal { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; }
+.as-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.75); }
+.as-window { position: relative; display: flex; flex-direction: column; width: min(1280px, 94vw); height: min(84vh, 900px); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 16px; box-shadow: var(--shadow-float); overflow: hidden; }
+.as-titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); background: var(--bg-panel); flex: none; }
+.as-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.as-viewport { position: relative; flex: 1; min-height: 0; background: #060608; }

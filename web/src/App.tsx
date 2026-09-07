@@ -3,6 +3,7 @@ import { StoreProvider, useStore, type Tab } from './store'
 import { Header } from './components/Header'
 import { Explorer } from './components/Explorer'
 import { Toasts } from './components/Toasts'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Palette } from './components/Palette'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
@@ -28,7 +29,9 @@ function Screens() {
   return (
     <>
       {SCREENS.map((s) => (
-        <div key={s.tab} className={`screen ${s.tab === tab ? 'on' : ''}`}>{s.el}</div>
+        <div key={s.tab} className={`screen ${s.tab === tab ? 'on' : ''}`}>
+          <ErrorBoundary>{s.el}</ErrorBoundary>
+        </div>
       ))}
     </>
   )

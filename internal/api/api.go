@@ -407,6 +407,8 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		w.WriteHeader(202)
 	})
 
+	mux.HandleFunc("GET /api/runs/{id}/live", liveHandler)
+
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		st, err := s.GetSettings(r.Context())
 		if err != nil {

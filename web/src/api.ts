@@ -12,6 +12,7 @@ export type FlowStep = { label: string; file?: string; kind?: string }
 export type DataFlow = { name: string; entity?: string; store?: string; steps?: FlowStep[]; note?: string; concern?: string }
 export type ProductFlow = { name: string; trigger?: string; steps?: FlowStep[]; outcome?: string; concern?: string }
 export type FlowsDoc = { persistence?: string; data_flows?: DataFlow[]; product_flows?: ProductFlow[] }
+export type LiveView = { status: 'live' | 'frames' | 'idle'; url?: string; frame?: string; At?: string; Title?: string }
 export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -70,6 +71,7 @@ export const api = {
     req<void>('/api/runs/' + id + '/file/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from, to }) }),
   deleteFile: (id: string, path: string) =>
     req<void>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path), { method: 'DELETE' }),
+  live: (id: string) => req<LiveView>('/api/runs/' + id + '/live'),
   flows: (id: string) => req<FlowsResp>('/api/runs/' + id + '/flows'),
   runFlows: (id: string) => req<void>('/api/runs/' + id + '/flows', { method: 'POST' }),
   getSettings: () => req<Record<string, unknown>>('/api/settings'),

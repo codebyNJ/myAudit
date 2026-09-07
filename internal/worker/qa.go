@@ -470,6 +470,11 @@ func qaTask(module, path string) string {
 			"actually EXERCISE it — run the existing test suite, run the linter/build, and where practical "+
 			"start the app or hit its backend to confirm real behavior. Prefer non-blocking commands; if you "+
 			"start a server, background it, probe it, then kill it — never leave a process running or block. "+
+			"WHILE the product is up and reachable, write `.myaudit/live.json` as "+
+			`{"url":"http://localhost:<port>","title":"<what is running>"}` +
+			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
+			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
+			"watchable frame by frame. "+
 			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
 			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
 			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+

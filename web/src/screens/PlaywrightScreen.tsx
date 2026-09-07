@@ -7,6 +7,7 @@ import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
 import { evColor, fmtTime } from '../components/util'
 import { Flows } from '../components/Flows'
+import { AgentScreen } from '../components/AgentScreen'
 
 export function PlaywrightScreen() {
   const s = useStore()
@@ -172,6 +173,8 @@ export function PlaywrightScreen() {
             </div>
           </div>
         </div>
+
+        <AgentScreen />
 
         <Flows />
 
