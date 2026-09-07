@@ -124,9 +124,13 @@ the server when you quit).
 Build one locally:
 
 ```bash
-./scripts/build-sidecar.sh          # web UI -> embedded in the Go server -> sidecar
-cd desktop && npx tauri build       # produces the installer for your platform
+./scripts/build-sidecar.sh                 # web UI -> embedded in the Go server -> sidecar
+cd desktop && CI=true npx tauri build      # produces the installer for your platform
 ```
+
+`CI=true` makes Tauri's `bundle_dmg.sh` skip the Finder/AppleScript window
+styling; without a GUI session that step fails and you get an `.app` but no
+`.dmg`.
 
 CI does the same on every tagged push. `.github/workflows/ci.yml` runs `go vet`,
 the Go test suite and the web typecheck/build on pushes and PRs to `main`.

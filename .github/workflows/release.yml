@@ -123,8 +123,12 @@ jobs:
       - name: Run Go tests
         run: go test ./... -count=1
 
+      # CI=true makes Tauri's bundle_dmg.sh skip the Finder/AppleScript window
+      # styling, which needs a GUI session and fails on a headless runner.
       - name: Build desktop bundle
         working-directory: desktop
+        env:
+          CI: true
         run: npx tauri build --target ${{ matrix.triple }}
 
       - name: Collect installers
