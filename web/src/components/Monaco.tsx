@@ -42,6 +42,24 @@ const THEME: MonacoNS.editor.IStandaloneThemeData = {
     { token: 'tag', foreground: '569cd6' },
     { token: 'attribute.name', foreground: '9cdcfe' },
     { token: 'attribute.value', foreground: 'ce9178' },
+    // CSS / SCSS — without these, properties and structure wash out
+    { token: 'tag.css', foreground: 'd7ba7d' },
+    { token: 'attribute.name.css', foreground: '9cdcfe' },
+    { token: 'attribute.value.css', foreground: 'ce9178' },
+    { token: 'attribute.value.number.css', foreground: 'b5cea8' },
+    { token: 'attribute.value.unit.css', foreground: 'b5cea8' },
+    { token: 'attribute.value.hex.css', foreground: 'ce9178' },
+    { token: 'keyword.css', foreground: 'c586c0' },
+    { token: 'string.css', foreground: 'ce9178' },
+    { token: 'comment.css', foreground: '6b7280', fontStyle: 'italic' },
+    { token: 'delimiter.css', foreground: 'd4d4d4' },
+    { token: 'delimiter.bracket.css', foreground: 'ffd700' },
+    { token: 'meta.scss', foreground: 'c586c0' },
+    { token: 'variable.scss', foreground: '9cdcfe' },
+    { token: 'keyword.scss', foreground: 'c586c0' },
+    { token: 'key', foreground: '9cdcfe' },
+    { token: 'string.key.json', foreground: '9cdcfe' },
+    { token: 'string.value.json', foreground: 'ce9178' },
   ],
   colors: {
     'editor.background': '#0c0c0e',
@@ -52,8 +70,9 @@ const THEME: MonacoNS.editor.IStandaloneThemeData = {
     'editorCursor.foreground': '#aeafad',
     'editor.selectionBackground': '#264f78',
     'editor.inactiveSelectionBackground': '#3a3d41',
-    'editorIndentGuide.background1': '#2a2a2e',
-    'editorIndentGuide.activeBackground1': '#4a4a50',
+    'editorIndentGuide.background1': '#3f3f46',
+    'editorIndentGuide.activeBackground1': '#71717a',
+    'editorWhitespace.foreground': '#3f3f4688',
     'editorWidget.background': '#1e1e1e',
     'editorWidget.border': '#454545',
     'input.background': '#1e1e1e',
@@ -67,7 +86,6 @@ let themeReady = false
 function ensureTheme(m: typeof MonacoNS) {
   if (themeReady) return
   m.editor.defineTheme('cursor-dark', THEME)
-  // Don't typecheck a foreign repo — highlight only, no red squiggle spam.
   const ts = m.languages.typescript as unknown as {
     typescriptDefaults: { setDiagnosticsOptions: (o: object) => void }
     javascriptDefaults: { setDiagnosticsOptions: (o: object) => void }
@@ -126,6 +144,11 @@ export function Mono({
     editor.onDidChangeCursorPosition((e) => {
       onCursor?.(e.position.lineNumber, e.position.column)
     })
+    const model = editor.getModel()
+    if (model) {
+      // Pick up the file's own indent width/style (4-space CSS, tabs, etc.).
+      model.detectIndentation(true, 2)
+    }
     editor.focus()
   }
 
@@ -143,28 +166,31 @@ export function Mono({
       options={{
         readOnly,
         fontFamily: "'Geist Mono', 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
-        fontSize: 13,
-        lineHeight: 20,
+        fontSize: 15,
+        lineHeight: 22,
+        letterSpacing: 0,
         minimap: { enabled: minimap, scale: 1, showSlider: 'mouseover' },
         scrollBeyondLastLine: false,
         wordWrap: wordWrap ? 'on' : 'off',
         tabSize: 2,
+        insertSpaces: true,
+        detectIndentation: true,
         automaticLayout: true,
-        padding: { top: 8, bottom: 8 },
+        padding: { top: 10, bottom: 10 },
         renderLineHighlight: 'all',
         matchBrackets: 'always',
         occurrencesHighlight: 'singleFile',
         selectionHighlight: true,
         bracketPairColorization: { enabled: true },
-        guides: { indentation: true, bracketPairs: true },
+        guides: { indentation: true, bracketPairs: true, highlightActiveIndentation: true },
         contextmenu: true,
         folding: true,
         foldingHighlight: true,
         glyphMargin: true,
         lineNumbers: 'on',
         lineNumbersMinChars: 3,
-        lineDecorationsWidth: 10,
-        renderWhitespace: 'selection',
+        lineDecorationsWidth: 12,
+        renderWhitespace: 'boundary',
         smoothScrolling: true,
         cursorBlinking: 'smooth',
         cursorSmoothCaretAnimation: 'on',

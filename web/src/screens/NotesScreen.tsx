@@ -95,7 +95,7 @@ export function NotesScreen() {
   const [selectedId, setSelectedId] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCat, setFilterCat] = useState('all')
-  const [viewMode, setViewMode] = useState<'read' | 'split' | 'all'>('split')
+  const [viewMode, setViewMode] = useState<'read' | 'split' | 'all'>('read')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)

@@ -60,7 +60,7 @@ export function Flows() {
 
   if (!r.ready) {
     return (
-      <div className="vercel-card" style={{ marginTop: 20 }}>
+      <div className="vercel-card" style={{ marginTop: 8 }}>
         <div className="vercel-card-head">
           <div className="vercel-card-title"><GitBranch size={14} /> Flows</div>
         </div>
