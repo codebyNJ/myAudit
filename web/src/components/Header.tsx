@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { AgentAvatar, IcBranch } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { Tabs } from './Tabs'
@@ -25,7 +26,8 @@ export function Header() {
   return (
     <header>
       <div className="h-left">
-        <div className="logo" style={{ cursor: 'pointer' }} title="Back to projects" onClick={s.goHome}><AgentAvatar size={22} radius={6} /></div>
+        <div className="logo" style={{ cursor: 'pointer' }} title="Back to dashboard" onClick={s.goHome}><AgentAvatar size={22} radius={6} /></div>
+        <button className="back-btn" title="Back to dashboard" onClick={s.goHome}><ArrowLeft size={13} /> Dashboard</button>
         <WorkspaceSwitcher />
         <div className="branch-tag"><IcBranch /> main</div>
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}

@@ -1,7 +1,25 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+use std::net::TcpStream;
+use std::time::{Duration, Instant};
+
+use tauri::Manager;
+use tauri_plugin_shell::process::CommandChild;
+use tauri_plugin_shell::ShellExt;
+
+const PORT: u16 = 7788;
+
+/// Holds the bundled Go server so it can be shut down with the app.
+struct Server(std::sync::Mutex<Option<CommandChild>>);
+
+/// Blocks until the server accepts a connection, or the deadline passes.
+fn wait_for_server(timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if TcpStream::connect(("127.0.0.1", PORT)).is_ok() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    false
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -9,7 +27,51 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            // Reuse an already-running server (developer machines) instead of
+            // starting a second one that would fail to bind the port.
+            let already_up = TcpStream::connect(("127.0.0.1", PORT)).is_ok();
+
+            if !already_up {
+                let data_dir = app.path().app_data_dir()?;
+                std::fs::create_dir_all(&data_dir)?;
+
+                let (_rx, child) = app
+                    .shell()
+                    .sidecar("myaudit-serve")?
+                    .env("PORT", PORT.to_string())
+                    .env("MYAUDIT_DB", data_dir.join("myaudit.db").to_string_lossy().to_string())
+                    .env("REAL_CLAUDE", "1")
+                    .current_dir(data_dir)
+                    .spawn()?;
+
+                app.manage(Server(std::sync::Mutex::new(Some(child))));
+            }
+
+            // The window is created hidden so a slow first boot never shows a
+            // connection-error page; reveal it once the server answers.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                wait_for_server(Duration::from_secs(30));
+                if let Some(w) = handle.get_webview_window("main") {
+                    let _ = w.eval("location.replace(location.href)");
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            });
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(state) = window.app_handle().try_state::<Server>() {
+                    if let Some(child) = state.0.lock().unwrap().take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

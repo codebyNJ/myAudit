@@ -1127,3 +1127,6 @@ aside .row.file > span { overflow: hidden; text-overflow: ellipsis; white-space:
 .drawer-md li { margin: 5px 0; }
 .drawer-md code { font-size: 12.5px; }
 .drawer-md pre { background: #08080a; border-radius: 2px; }
+
+.back-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px; border: 1px solid var(--border-subtle); background: var(--bg-panel); color: var(--text-secondary); font-size: 12px; font-weight: 500; font-family: var(--font-sans); cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s, background .15s; }
+.back-btn:hover { color: var(--text-primary); border-color: var(--border-highlight); background: var(--bg-card-hover); }

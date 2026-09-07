@@ -114,6 +114,37 @@ All optional — see [`.env.example`](.env.example).
 | `AGENT_ISOLATE` | unset | `1` = run each agent inside a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
 | `RUN_PACE_MS` | — | pace the run loop |
 
+## Desktop builds & releases
+
+The desktop app is a Tauri shell around the Go server. The server is bundled as
+a Tauri **sidecar**, so a shipped installer runs standalone — it starts the
+server on a free-standing port, waits for it, then shows the window (and stops
+the server when you quit).
+
+Build one locally:
+
+```bash
+./scripts/build-sidecar.sh          # web UI -> embedded in the Go server -> sidecar
+cd desktop && npx tauri build       # produces the installer for your platform
+```
+
+CI does the same on every tagged push. `.github/workflows/ci.yml` runs `go vet`,
+the Go test suite and the web typecheck/build on pushes and PRs to `main`.
+`.github/workflows/release.yml` builds installers for macOS (Apple Silicon and
+Intel), Linux x86_64 and Windows x86_64, then attaches them to a GitHub Release.
+
+Cut a release by tagging — the tag is the single source of truth for the version,
+and it is stamped into `tauri.conf.json`, `Cargo.toml` and `desktop/package.json`
+during the build so an installer always traces back to a commit:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+You can also run the workflow manually (**Actions → Release desktop app → Run
+workflow**) with a version string to produce installers without creating a tag.
+
 ## Status & limitations
 
 - **Model.** Defaults to Haiku (cheap; a full small-repo audit is ~$1–3). For the

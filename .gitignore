@@ -18,3 +18,7 @@ myaudit.db*
 
 # stray build artifacts
 /serve
+
+# tauri sidecar (built by scripts/build-sidecar.sh / CI)
+desktop/src-tauri/binaries/*
+!desktop/src-tauri/binaries/.gitkeep
