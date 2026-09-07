@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -56,3 +58,43 @@ func TestSettingsEndpoint(t *testing.T) {
 	s.PutSettings(context.Background(), map[string]any{"model_tier": "opus-4.8"})
 }
 
+// Mutating endpoints answer 200/202 with an EMPTY body. The web client used to
+// call .json() on those, which threw and made every action button look broken
+// while the server had already done the work. Pin the contract: a success
+// response is either empty or valid JSON — never a non-JSON body.
+func TestMutatingEndpointsReturnEmptyOrJSON(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "acme")
+	srv := httptest.NewServer(NewMux(s, nil))
+	defer srv.Close()
+
+	post := func(path string) (int, string) {
+		t.Helper()
+		resp, err := http.Post(srv.URL+path, "application/json", bytes.NewBufferString("{}"))
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, strings.TrimSpace(string(b))
+	}
+
+	for _, path := range []string{
+		"/api/runs/" + run.String() + "/cancel",
+		"/api/runs/" + run.String() + "/flows",
+	} {
+		code, body := post(path)
+		if code >= 400 {
+			continue // not-applicable states are fine; we only pin success shapes
+		}
+		if body == "" {
+			continue // empty body is the expected shape for these
+		}
+		var v any
+		if err := json.Unmarshal([]byte(body), &v); err != nil {
+			t.Errorf("%s returned %d with a non-JSON, non-empty body %q", path, code, body)
+		}
+	}
+}

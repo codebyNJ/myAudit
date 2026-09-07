@@ -16,8 +16,19 @@ export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(path, opts)
-  if (!r.ok) throw new Error((await r.text()).trim() || `HTTP ${r.status}`)
-  return r.status === 204 ? (undefined as T) : ((await r.json()) as T)
+  // Read the body once, as text: most mutating endpoints answer 200/202 with an
+  // EMPTY body, and calling .json() on that throws ("Unexpected end of JSON
+  // input" on Chromium, "The string did not match the expected pattern." in the
+  // WebKit view the desktop app runs) — which surfaced as every action button
+  // failing even though the server had already done the work.
+  const body = await r.text()
+  if (!r.ok) throw new Error(body.trim() || `HTTP ${r.status}`)
+  if (!body.trim()) return undefined as T
+  try {
+    return JSON.parse(body) as T
+  } catch {
+    throw new Error(`bad JSON from ${path}: ${body.slice(0, 120)}`)
+  }
 }
 
 export const api = {
