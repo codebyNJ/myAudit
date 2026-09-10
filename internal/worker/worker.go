@@ -206,10 +206,12 @@ func event(c *queue.ClaimedNode, kind, msg string) events.Event {
 // --- review findings parsing (shared with qa.go) ---
 
 type finding struct {
-	Title    string `json:"title"`
-	File     string `json:"file"`
-	Severity string `json:"severity"`
-	Detail   string `json:"detail"`
+	Title      string `json:"title"`
+	File       string `json:"file"`
+	Severity   string `json:"severity"`
+	Category   string `json:"category"`
+	Confidence string `json:"confidence"`
+	Detail     string `json:"detail"`
 }
 
 var jsonArrayRe = regexp.MustCompile(`(?s)\[.*\]`)

@@ -80,6 +80,17 @@ func TestParseFindings(t *testing.T) {
 	}
 }
 
+func TestParseFindingsCapturesCategoryAndConfidence(t *testing.T) {
+	raw := `[{"title":"SQL injection","file":"db.go:10","severity":"high","category":"security","confidence":"high","detail":"unsanitized"}]`
+	fs := parseFindings(raw)
+	if len(fs) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(fs))
+	}
+	if fs[0].Category != "security" || fs[0].Confidence != "high" {
+		t.Fatalf("category/confidence not parsed: %+v", fs[0])
+	}
+}
+
 func TestDetectTestCmd(t *testing.T) {
 	node := t.TempDir()
 	os.WriteFile(filepath.Join(node, "package.json"), []byte("{}"), 0o644)

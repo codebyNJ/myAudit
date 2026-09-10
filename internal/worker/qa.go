@@ -127,13 +127,15 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	for _, f := range findings {
 		sev := normSeverity(f.Severity)
 		bug := store.Bug{
-			Title:    f.Title,
-			Name:     f.Title,
-			File:     f.File,
-			Severity: sev,
-			Priority: map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
-			Detail:   f.Detail,
-			Tags:     []string{"from:qa", "module:" + sp.Module, sev},
+			Title:      f.Title,
+			Name:       f.Title,
+			File:       f.File,
+			Severity:   sev,
+			Priority:   map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
+			Category:   f.Category,
+			Confidence: f.Confidence,
+			Detail:     f.Detail,
+			Tags:       []string{"from:qa", "module:" + sp.Module, sev},
 		}
 		var bid uuid.UUID
 		var err error
@@ -509,7 +511,9 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"to prove a bug, but do not fix the code. If this module has a visible UI and you can render it, "+
 			"save a screenshot as evidence to `.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
 			"Your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
-			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
+			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low",`+
+			`"category":"bug|correctness|best-practice|test-gap|security","confidence":"high|medium|low",`+
+			`"detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path))
 	return sb.String()
