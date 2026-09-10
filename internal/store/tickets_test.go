@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -70,6 +71,27 @@ func TestCreateBugDedups(t *testing.T) {
 	}
 	if bugs != 2 {
 		t.Fatalf("want 2 tickets after dedup, got %d", bugs)
+	}
+}
+
+func TestCreateBugPersistsCategoryAndConfidence(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(ctx, testURL(t))
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+
+	id, err := s.CreateBug(ctx, run, Bug{
+		Title: "SQL injection", Severity: "high", Priority: "P0",
+		Category: "security", Confidence: "high",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var raw string
+	s.db.QueryRowContext(ctx, `SELECT input_snapshot FROM nodes WHERE id=?`, id).Scan(&raw)
+	if !strings.Contains(raw, `"category":"security"`) || !strings.Contains(raw, `"confidence":"high"`) {
+		t.Fatalf("category/confidence not persisted in input_snapshot: %s", raw)
 	}
 }
 

@@ -12,14 +12,16 @@ import (
 // so it shows on the same board but is never claimed by the worker queue (which
 // only takes status='ready').
 type Bug struct {
-	Title    string   `json:"title"`
-	Name     string   `json:"name"`     // short label for the card
-	File     string   `json:"file"`     // file:line or path
-	Severity string   `json:"severity"` // high | medium | low
-	Priority string   `json:"priority"` // P0 | P1 | P2
-	Detail   string   `json:"detail"`   // the finding body
-	Tags     []string `json:"tags"`
-	Kind     string   `json:"type"` // "bug" | "feature" | "chore" (card type)
+	Title      string   `json:"title"`
+	Name       string   `json:"name"`                 // short label for the card
+	File       string   `json:"file"`                 // file:line or path
+	Severity   string   `json:"severity"`             // high | medium | low
+	Priority   string   `json:"priority"`             // P0 | P1 | P2
+	Category   string   `json:"category,omitempty"`   // bug | correctness | best-practice | test-gap | security
+	Confidence string   `json:"confidence,omitempty"` // high | medium | low — how sure the model is
+	Detail     string   `json:"detail"`               // the finding body
+	Tags       []string `json:"tags"`
+	Kind       string   `json:"type"` // "bug" | "feature" | "chore" (card type)
 }
 
 // CreateBug inserts a bug ticket node. With no deps it lands in the manual 'open'
