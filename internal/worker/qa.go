@@ -38,7 +38,7 @@ const mapTimeout = 5 * time.Minute
 // scan is deterministic and $0; the agent overview is best-effort (skipped/empty
 // under the stub) and never blocks the fan-out.
 func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	mods := scanModules(ws.Dir)
+	mods, dropped := scanModules(ws.Dir)
 
 	// map is on the critical path of every run and gates the whole fan-out; bound
 	// the read-only overview call so a hang can't wedge the (single) run loop.
@@ -57,6 +57,10 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	b.WriteString("## Modules under QA\n")
 	for _, m := range mods {
 		b.WriteString(fmt.Sprintf("- **%s** — `%s`\n", m.Name, m.Path))
+	}
+	if len(dropped) > 0 {
+		b.WriteString(fmt.Sprintf("\n_%d module(s) skipped (10-module cap reached): %s_\n",
+			len(dropped), strings.Join(dropped, ", ")))
 	}
 	_ = d.Store.PutNotes(ctx, c.RunID, b.String())
 
@@ -390,8 +394,7 @@ var skipModuleDir = map[string]bool{
 // descending one level into common container dirs (src/app/apps/packages) so a
 // Next.js or monorepo layout splits sensibly. Falls back to the whole repo as a
 // single "(root)" module. Capped so a huge repo doesn't explode the board.
-func scanModules(root string) []module {
-	var mods []module
+func scanModules(root string) (mods []module, dropped []string) {
 	seen := map[string]bool{}
 	add := func(name, rel string) {
 		if seen[rel] {
@@ -425,13 +428,16 @@ func scanModules(root string) []module {
 		}
 	}
 	if len(mods) == 0 {
-		return []module{{Name: "(root)", Path: "."}}
+		return []module{{Name: "(root)", Path: "."}}, nil
 	}
 	const cap = 10
 	if len(mods) > cap {
+		for _, m := range mods[cap:] {
+			dropped = append(dropped, m.Name)
+		}
 		mods = mods[:cap]
 	}
-	return mods
+	return mods, dropped
 }
 
 func readDirs(dir string) []string {

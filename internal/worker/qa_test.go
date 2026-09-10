@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,7 +182,7 @@ func TestClassifyTests(t *testing.T) {
 func TestScanModules(t *testing.T) {
 	flat := t.TempDir()
 	mkFile(t, flat, "main.go")
-	if m := scanModules(flat); len(m) != 1 || m[0].Path != "." {
+	if m, _ := scanModules(flat); len(m) != 1 || m[0].Path != "." {
 		t.Fatalf("flat repo → single (root) module, got %+v", m)
 	}
 
@@ -190,7 +191,8 @@ func TestScanModules(t *testing.T) {
 	mkFile(t, multi, "web/app.ts")
 	mkFile(t, multi, "node_modules/dep/index.js") // skip-dir
 	mkFile(t, multi, "docs/readme.md")            // no code → excluded
-	got := modulePaths(scanModules(multi))
+	mods, _ := scanModules(multi)
+	got := modulePaths(mods)
 	if !got["internal"] || !got["web"] {
 		t.Fatalf("want internal+web modules, got %v", got)
 	}
@@ -201,9 +203,29 @@ func TestScanModules(t *testing.T) {
 	mono := t.TempDir()
 	mkFile(t, mono, "src/a/a.go")
 	mkFile(t, mono, "src/b/b.go")
-	got = modulePaths(scanModules(mono))
+	mods, _ = scanModules(mono)
+	got = modulePaths(mods)
 	if !got["src/a"] || !got["src/b"] {
 		t.Fatalf("src container should descend one level, got %v", got)
+	}
+}
+
+// TestScanModulesReportsDropped: with more than the 10-module cap worth of
+// top-level directories, scanModules must report which ones got dropped, not
+// just silently truncate.
+func TestScanModulesReportsDropped(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < 12; i++ {
+		name := fmt.Sprintf("svc-%02d", i)
+		os.MkdirAll(filepath.Join(root, name), 0o755)
+		os.WriteFile(filepath.Join(root, name, "main.go"), []byte("package main\n"), 0o644)
+	}
+	mods, dropped := scanModules(root)
+	if len(mods) != 10 {
+		t.Fatalf("expected 10 kept modules (the cap), got %d", len(mods))
+	}
+	if len(dropped) != 2 {
+		t.Fatalf("expected 2 dropped modules (12 - cap of 10), got %d: %v", len(dropped), dropped)
 	}
 }
 
