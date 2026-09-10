@@ -94,6 +94,41 @@ func TestQALedFlow(t *testing.T) {
 	}
 }
 
+// TestQAScopesWorkspaceToItsModule: a qa node for module "moduleA" (path
+// "moduleA") must invoke the agent with a workspace rooted at
+// <run-root>/moduleA, not the run root itself — otherwise every QA card can
+// read/exercise the whole repo regardless of which module it was assigned.
+func TestQAScopesWorkspaceToItsModule(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+
+	src := t.TempDir()
+	os.MkdirAll(filepath.Join(src, "moduleA"), 0o755)
+	os.WriteFile(filepath.Join(src, "moduleA", "x.go"), []byte("package a\n"), 0o644)
+	root := t.TempDir()
+	if _, err := sandbox.Import(ctx, root, run.String(), src); err != nil {
+		t.Fatal(err)
+	}
+
+	qaID, _ := s.AddNodeFull(ctx, run, "qa", nil,
+		map[string]any{"module": "moduleA", "path": "moduleA"}, "ready")
+
+	fake := &recordingAgent{result: agent.Result{OK: true, Summary: "[]"}}
+	deps := newDeps(s, fake, root)
+	if _, err := RunOnce(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+
+	wantDir := filepath.Join(root, run.String(), "moduleA")
+	wantAbs, _ := filepath.Abs(wantDir)
+	gotAbs, _ := filepath.Abs(fake.lastWSDir)
+	if gotAbs != wantAbs {
+		t.Fatalf("qa should scope the workspace to its module:\n got:  %s\n want: %s", gotAbs, wantAbs)
+	}
+	_ = qaID
+}
+
 func TestClassifyTestsDistinguishesNotRunnable(t *testing.T) {
 	// The core of the false-positive fix: "command not found" is not a defect.
 	if !looksNotRunnable("sh: vitest: command not found") {

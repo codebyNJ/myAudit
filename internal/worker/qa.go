@@ -94,16 +94,21 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	if sp.Module == "" {
 		sp.Module, sp.Path = "(root)", "."
 	}
+	// Scope tool access + the Bash working directory to just this module's
+	// subtree, not the whole imported repo — otherwise every QA card can
+	// read/exercise modules it wasn't assigned (the "singleton understanding"
+	// gap from the audit).
+	moduleWS := sandbox.Workspace{Dir: filepath.Join(ws.Dir, sp.Path)}
 
 	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
 	defer cancel()
 	// Install deps once up front so the QA agent spends its budget running the
 	// product, not on `npm install` (idempotent — skipped if already present).
-	if did, msg := ensureInstalled(ctx, ws); did {
+	if did, msg := ensureInstalled(ctx, moduleWS); did {
 		d.Log.Log(ctx, event(c, "qa.install", msg))
 	}
 
-	r, ok := d.runAgent(ctx, c, ws, qaTask(sp.Module, sp.Path), agent.Live)
+	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path), agent.Live)
 	if !ok {
 		return true, nil
 	}

@@ -18,6 +18,7 @@ import (
 type recordingAgent struct {
 	calls     int
 	lastMode  agent.Mode
+	lastWSDir string // captures ws.Dir for scoping assertions
 	result    agent.Result
 	writeFile string
 }
@@ -25,6 +26,7 @@ type recordingAgent struct {
 func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
 	f.calls++
 	f.lastMode = mode
+	f.lastWSDir = ws.Dir
 	if f.writeFile != "" {
 		p := filepath.Join(ws.Dir, f.writeFile)
 		os.MkdirAll(filepath.Dir(p), 0o755)
