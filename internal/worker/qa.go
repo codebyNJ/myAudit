@@ -108,7 +108,8 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 		d.Log.Log(ctx, event(c, "qa.install", msg))
 	}
 
-	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path), agent.Live)
+	notes, _ := d.Store.GetNotes(ctx, c.RunID)
+	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path, notes), agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -468,8 +469,12 @@ const mapTask = "Read this codebase and write a concise product map as markdown:
 	"(1) what the product does and its scope, (2) its main modules/areas and what each is responsible for, " +
 	"(3) the key user + backend flows a QA should exercise. Do NOT modify any files; your final message IS the map."
 
-func qaTask(module, path string) string {
-	return fmt.Sprintf(
+func qaTask(module, path, notes string) string {
+	var sb strings.Builder
+	if strings.TrimSpace(notes) != "" {
+		sb.WriteString("Prior analysis + audit log for this codebase:\n\n" + notes + "\n\n")
+	}
+	sb.WriteString(fmt.Sprintf(
 		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+
 			"(Bash) and the dependencies are installed. QA it like a real product: read the code, then "+
 			"actually EXERCISE it — run the existing test suite, run the linter/build, and where practical "+
@@ -487,7 +492,8 @@ func qaTask(module, path string) string {
 			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
 			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
-		module, path)
+		module, path))
+	return sb.String()
 }
 
 func fixTask(b store.Bug, notes string) string {
