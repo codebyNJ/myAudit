@@ -76,6 +76,14 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	if c == nil {
 		return false, nil
 	}
+	return true, d.ProcessClaimed(ctx, c)
+}
+
+// ProcessClaimed dispatches an already-claimed node by type. Split out of
+// RunOnce so a batch-claiming caller (TickAll's bounded-concurrency path)
+// can claim N nodes up front via Queue.ClaimN and dispatch each one here,
+// concurrently, without re-implementing the claim step.
+func (d Deps) ProcessClaimed(ctx context.Context, c *queue.ClaimedNode) error {
 	nid := c.ID
 	d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "node.start", Msg: c.Type})
 	ws := sandbox.Workspace{Dir: filepath.Join(d.WorkspaceRoot, c.RunID.String())}
@@ -88,18 +96,23 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 
 	switch c.Type {
 	case "import":
-		return d.doImport(ctx, c, ws)
+		_, err := d.doImport(ctx, c, ws)
+		return err
 	case "map":
-		return d.doMap(ctx, c, ws)
+		_, err := d.doMap(ctx, c, ws)
+		return err
 	case "flows":
-		return d.doFlows(ctx, c, ws)
+		_, err := d.doFlows(ctx, c, ws)
+		return err
 	case "qa":
-		return d.qa(ctx, c, ws)
+		_, err := d.qa(ctx, c, ws)
+		return err
 	case "bug":
-		return d.bug(ctx, c, ws)
+		_, err := d.bug(ctx, c, ws)
+		return err
 	default:
 		d.fail(ctx, c, "unknown node type: "+c.Type)
-		return true, nil
+		return nil
 	}
 }
 

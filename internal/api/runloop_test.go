@@ -100,3 +100,34 @@ func TestTickAllAdvancesRun(t *testing.T) {
 		t.Fatalf("drained run should finalize done, got %q", r.Status)
 	}
 }
+
+// TestTickAllClaimsAndDispatchesUpToMaxConcurrent: with MaxConcurrent=2 and
+// 3 independent ready qa nodes (no deps between them), one TickAll call
+// should process 2 concurrently in a single tick, not 1.
+func TestTickAllClaimsAndDispatchesUpToMaxConcurrent(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+	for i := 0; i < 3; i++ {
+		id, _ := s.AddNode(ctx, run, "qa", nil)
+		s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, id)
+	}
+
+	deps := NewStubDeps(s)
+	deps.MaxConcurrent = 2
+
+	n, err := TickAll(ctx, deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("expected TickAll to report 2 nodes processed, got %d", n)
+	}
+
+	var doneCount int
+	s.DB().QueryRowContext(ctx, `SELECT count(*) FROM nodes WHERE run_id=? AND status='done'`, run).Scan(&doneCount)
+	if doneCount != 2 {
+		t.Fatalf("expected 2 nodes marked done after one tick, got %d", doneCount)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"myaudit/internal/agent"
@@ -104,21 +105,47 @@ func NewStubDeps(s *store.Store) worker.Deps {
 	}
 }
 
-// TickAll promotes ready nodes then processes one across all runs. Returns the
-// number of nodes processed (0 or 1).
+// TickAll promotes ready nodes then claims and dispatches up to MaxConcurrent
+// of them across all runs, concurrently. Returns the number of nodes
+// processed.
 func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if _, err := deps.Queue.PromoteReady(ctx); err != nil {
 		return 0, err
 	}
-	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
-		for _, id := range paused {
-			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
-		}
+
+	n := deps.MaxConcurrent
+	if n < 1 {
+		n = 1
 	}
-	did, err := worker.RunOnce(ctx, deps)
+	claimed, err := deps.Queue.ClaimN(ctx, n)
 	if err != nil {
 		return 0, err
 	}
+
+	processed := 0
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, c := range claimed {
+		// Budget check before EACH dispatch in the batch, not once per tick —
+		// a burst of concurrent claims must not all start real, billed calls
+		// before any of them finishes and gets its cost recorded.
+		if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
+			for _, id := range paused {
+				deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
+			}
+		}
+		wg.Add(1)
+		go func(c *queue.ClaimedNode) {
+			defer wg.Done()
+			if procErr := deps.ProcessClaimed(ctx, c); procErr == nil {
+				mu.Lock()
+				processed++
+				mu.Unlock()
+			}
+		}(c)
+	}
+	wg.Wait()
+
 	// Mark any drained run finished and announce it (drives the runs list off the
 	// perpetual "running" and gives the UI a completion signal to toast).
 	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
@@ -134,10 +161,7 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 			}
 		}
 	}
-	if did {
-		return 1, nil
-	}
-	return 0, nil
+	return processed, nil
 }
 
 // StartRunLoop ticks the graph forward until ctx is cancelled. Ticks run
