@@ -109,7 +109,11 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	}
 
 	notes, _ := d.Store.GetNotes(ctx, c.RunID)
-	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path, notes), agent.Live)
+	testCmdHint := ""
+	if name, args, ok := detectTestCmd(moduleWS.Dir); ok {
+		testCmdHint = strings.TrimSpace(name + " " + strings.Join(args, " "))
+	}
+	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path, notes, testCmdHint), agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -469,10 +473,13 @@ const mapTask = "Read this codebase and write a concise product map as markdown:
 	"(1) what the product does and its scope, (2) its main modules/areas and what each is responsible for, " +
 	"(3) the key user + backend flows a QA should exercise. Do NOT modify any files; your final message IS the map."
 
-func qaTask(module, path, notes string) string {
+func qaTask(module, path, notes, testCmdHint string) string {
 	var sb strings.Builder
 	if strings.TrimSpace(notes) != "" {
 		sb.WriteString("Prior analysis + audit log for this codebase:\n\n" + notes + "\n\n")
+	}
+	if testCmdHint != "" {
+		sb.WriteString("Detected test command for this module: `" + testCmdHint + "` — run it rather than guessing.\n\n")
 	}
 	sb.WriteString(fmt.Sprintf(
 		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+

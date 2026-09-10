@@ -224,16 +224,30 @@ func TestCountFailLines(t *testing.T) {
 // context the same way fixTask already does, so QA doesn't redundantly
 // rediscover product structure the map step already paid for.
 func TestQATaskIncludesNotesWhenPresent(t *testing.T) {
-	got := qaTask("backend", "backend", "# Audit map\n\nThis product is a payment gateway.")
+	got := qaTask("backend", "backend", "# Audit map\n\nThis product is a payment gateway.", "")
 	if !strings.Contains(got, "payment gateway") {
 		t.Fatalf("qaTask should include the notes content, got:\n%s", got)
 	}
 }
 
 func TestQATaskOmitsNotesSectionWhenEmpty(t *testing.T) {
-	got := qaTask("backend", "backend", "")
+	got := qaTask("backend", "backend", "", "")
 	if strings.Contains(got, "Prior analysis") {
 		t.Fatalf("qaTask should not add an empty notes section, got:\n%s", got)
+	}
+}
+
+func TestQATaskIncludesDetectedTestCommand(t *testing.T) {
+	got := qaTask("backend", "backend", "", "go test ./...")
+	if !strings.Contains(got, "go test ./...") {
+		t.Fatalf("qaTask should surface the pre-detected test command, got:\n%s", got)
+	}
+}
+
+func TestQATaskOmitsTestCommandHintWhenNoneDetected(t *testing.T) {
+	got := qaTask("backend", "backend", "", "")
+	if strings.Contains(got, "detected test command") {
+		t.Fatalf("qaTask should not mention a test command hint when none was detected, got:\n%s", got)
 	}
 }
 
