@@ -86,16 +86,34 @@ type Options struct {
 	Resume         bool     // true → --resume SessionID (continue), else --session-id
 	Isolate        bool     // run claude inside a docker container (blast-radius isolation)
 	Image          string   // container image when Isolate (default "myaudit-sandbox")
+	Bin            string   // claude binary/command name (default "claude"); CLAUDE_BIN override
 	// OnStep, if set, switches to streamed output: it's called with a short
 	// human description of each tool the agent uses (e.g. "$ npm test", "Edit
 	// x.ts") so the UI can show live progress instead of dead air.
 	OnStep func(step string)
 }
 
+// bin returns the configured claude binary name, defaulting to "claude".
+func (o Options) bin() string {
+	if o.Bin != "" {
+		return o.Bin
+	}
+	return "claude"
+}
+
 // command builds the exec.Cmd, either running claude directly (cwd = workspace)
 // or inside a container with the workspace bind-mounted at /work. In the
 // container, claude auths via CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`)
 // since the host keychain isn't reachable.
+//
+// task is delivered over stdin, never as a CLI argument: on Windows, "claude"
+// resolves via PATH/PATHEXT to a .cmd shim, and Go's os/exec argument-escaping
+// for .bat/.cmd launches (added for CVE-2024-24576) can mangle long prompts
+// dense with quotes/backticks/braces — exactly the shape of the real QA/flows/
+// fix task strings — before they ever reach the process, surfacing as a raw
+// "the system cannot find the file specified" with no useful diagnostic. -p
+// with no positional prompt reads the prompt from stdin instead, which isn't
+// subject to argv construction/escaping at all.
 func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string) *exec.Cmd {
 	dir := ws.Dir
 	if abs, err := filepath.Abs(dir); err == nil {
@@ -108,8 +126,10 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 			img = "myaudit-sandbox"
 		}
 		name := "myaudit-run-" + uuid.NewString()[:8]
-		docker := []string{"run", "--rm", "--name", name, "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, "claude"}
-		docker = append(docker, o.Args(task, "/work")...)
+		// -i keeps stdin open so the task text (piped in below) actually reaches
+		// the containerized claude process.
+		docker := []string{"run", "--rm", "-i", "--name", name, "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, o.bin()}
+		docker = append(docker, o.Args("/work")...)
 		c = exec.CommandContext(ctx, "docker", docker...)
 		// Killing the `docker run` client alone leaves the container running, so on
 		// cancel/timeout force-remove it by name.
@@ -121,7 +141,7 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 			return nil
 		}
 	} else {
-		c = exec.CommandContext(ctx, "claude", o.Args(task, dir)...)
+		c = exec.CommandContext(ctx, o.bin(), o.Args(dir)...)
 		c.Dir = dir
 		// Run claude in its own process group so that on cancel/timeout we can kill
 		// the WHOLE group — including any dev server the live agent spawned via Bash
@@ -130,19 +150,21 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 		proc.SetGroup(c)
 		c.Cancel = func() error { return proc.KillTree(c) }
 	}
+	c.Stdin = strings.NewReader(task)
 	c.WaitDelay = 10 * time.Second
 	return c
 }
 
-// Args builds the claude command arguments (exposed for testing).
-func (o Options) Args(task, wsDir string) []string {
+// Args builds the claude command arguments (exposed for testing). "-p" is a
+// bare flag — no positional prompt — so claude reads the task from stdin.
+func (o Options) Args(wsDir string) []string {
 	pm := o.PermissionMode
 	if pm == "" {
 		pm = "acceptEdits"
 	}
 	// Streamed mode (OnStep set) needs stream-json, which requires --verbose in -p.
 	format := "json"
-	args := []string{"-p", task}
+	args := []string{"-p"}
 	if o.OnStep != nil {
 		format = "stream-json"
 	}
@@ -233,8 +255,7 @@ func parseEnvelope(b []byte) Result {
 // When opt.OnStep is set it streams (stream-json), forwarding each tool use as a
 // step; otherwise it uses the simple buffered json path.
 func Run(ctx context.Context, ws sandbox.Workspace, task string, opt Options) (Result, error) {
-	cmd := opt.command(ctx, ws, task)
-	cmd.Stdin = nil // CRITICAL: -p mode blocks forever waiting on stdin EOF
+	cmd := opt.command(ctx, ws, task) // sets cmd.Stdin to the task (see command's doc comment)
 	cmd.Env = agentEnv()
 	if opt.OnStep != nil {
 		return runStreaming(cmd, opt.OnStep)

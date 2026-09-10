@@ -1,6 +1,88 @@
 package worker
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"myaudit/internal/agent"
+	"myaudit/internal/sandbox"
+)
+
+// TestDoFlowsRoutesThroughRunAgentRetry: an agent-level failure (r.OK=false,
+// r.Err set, no infra err) must go through the same bounded-retry-then-
+// checkpoint path qa/bug already get via runAgent, not straight to a
+// downstream JSON-parse error. Before this fix, doFlows called d.Agent.Run
+// directly and never even looked at r.OK/r.Err.
+func TestDoFlowsRoutesThroughRunAgentRetry(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "x.go"), []byte("package x\n"), 0o644)
+	root := t.TempDir()
+	if _, err := sandbox.Import(ctx, root, run.String(), src); err != nil {
+		t.Fatal(err)
+	}
+
+	flowsID, _ := s.AddNode(ctx, run, "flows", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, flowsID)
+
+	fake := &recordingAgent{result: agent.Result{OK: false, Err: "model refused"}}
+	deps := newDeps(s, fake, root) // MaxRepairs: 2 (newDeps helper)
+	if _, err := RunOnce(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+
+	if fake.calls != 3 { // MaxRepairs(2) + 1 initial attempt
+		t.Fatalf("expected runAgent to retry MaxRepairs+1=3 times, got %d calls", fake.calls)
+	}
+	nodes := nodesOfType(t, s, run, "flows")
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 flows node, got %d", len(nodes))
+	}
+	if nodes[0].Status != "blocked" {
+		t.Fatalf("exhausted retries should raise a checkpoint (status=blocked), got %q", nodes[0].Status)
+	}
+	if fake.lastMode != agent.ReadOnly {
+		t.Fatalf("flows must stay ReadOnly mode, got %v", fake.lastMode)
+	}
+}
+
+// TestDoFlowsSucceedsAndParses is the regression check: a genuinely OK agent
+// result with valid flows JSON still completes the node as before.
+func TestDoFlowsSucceedsAndParses(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+
+	src := t.TempDir()
+	os.WriteFile(filepath.Join(src, "x.go"), []byte("package x\n"), 0o644)
+	root := t.TempDir()
+	if _, err := sandbox.Import(ctx, root, run.String(), src); err != nil {
+		t.Fatal(err)
+	}
+
+	flowsID, _ := s.AddNode(ctx, run, "flows", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, flowsID)
+
+	fake := &recordingAgent{result: agent.Result{OK: true,
+		Summary: `{"persistence":"sqlite","data_flows":[{"name":"A"}]}`}}
+	deps := newDeps(s, fake, root)
+	if _, err := RunOnce(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+
+	if fake.calls != 1 {
+		t.Fatalf("a successful first attempt should not retry, got %d calls", fake.calls)
+	}
+	nodes := nodesOfType(t, s, run, "flows")
+	if len(nodes) != 1 || nodes[0].Status != "done" {
+		t.Fatalf("expected 1 done flows node, got %+v", nodes)
+	}
+}
 
 func TestParseFlowsPlainJSON(t *testing.T) {
 	doc, err := parseFlows(`{"persistence":"none — static JSON","data_flows":[{"name":"Playlist","store":"static file","steps":[{"label":"load","file":"lib/p.ts:3","kind":"source"}]}],"product_flows":[{"name":"Play","steps":[{"label":"click","file":"app/page.tsx:9"}]}]}`)

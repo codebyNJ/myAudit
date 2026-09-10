@@ -18,11 +18,14 @@ import (
 
 // realAgent implements worker.Agent by driving the real Claude Code CLI with the
 // default allow/deny tool policy. Model comes from CLAUDE_MODEL (default Haiku);
-// AGENT_ISOLATE=1 runs claude inside a container.
+// AGENT_ISOLATE=1 runs claude inside a container; CLAUDE_BIN overrides the
+// claude binary/command name for a user whose install isn't plain "claude" on
+// PATH (default, empty, leaves agent.Options to default it to "claude").
 type realAgent struct {
 	store   *store.Store
 	isolate bool
 	image   string
+	bin     string
 }
 
 func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
@@ -33,6 +36,7 @@ func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, m
 		Deny:    deny,
 		Isolate: a.isolate,
 		Image:   a.image,
+		Bin:     a.bin,
 		OnStep:  onStep,
 	})
 }
@@ -81,7 +85,7 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
-		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image},
+		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image, bin: os.Getenv("CLAUDE_BIN")},
 		WorkspaceRoot: "runs", MaxRepairs: 2,
 	}
 }
