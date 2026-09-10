@@ -56,6 +56,23 @@ func TestNewRealDepsReadsClaudeBinFromEnv(t *testing.T) {
 	}
 }
 
+func TestNewRealDepsReadsMaxConcurrentFromEnv(t *testing.T) {
+	s := newStore(t)
+	defer s.Close()
+
+	t.Setenv("MAX_CONCURRENT_CLAUDE", "")
+	deps := NewRealDeps(s)
+	if deps.MaxConcurrent != 1 {
+		t.Fatalf("unset MAX_CONCURRENT_CLAUDE should default to 1 (serial), got %d", deps.MaxConcurrent)
+	}
+
+	t.Setenv("MAX_CONCURRENT_CLAUDE", "3")
+	deps = NewRealDeps(s)
+	if deps.MaxConcurrent != 3 {
+		t.Fatalf("MAX_CONCURRENT_CLAUDE=3 should set MaxConcurrent=3, got %d", deps.MaxConcurrent)
+	}
+}
+
 // TickAll should advance a run end-to-end on the stub: a map node promotes,
 // completes, fans out a qa card (empty workspace → the "(root)" module), the qa
 // card completes, the run drains, and FinalizeDrainedRuns marks it done.

@@ -38,6 +38,7 @@ type Deps struct {
 	Agent         Agent
 	WorkspaceRoot string // runs live under <root>/<run-id>
 	MaxRepairs    int    // bounded agent retries before a checkpoint
+	MaxConcurrent int    // ready nodes claimed+dispatched per tick; 0 or 1 = serial (current behavior)
 }
 
 // nodeOutput is what we persist per node (shown in the UI, summed for cost).

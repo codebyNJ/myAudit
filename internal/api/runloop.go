@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"myaudit/internal/agent"
@@ -83,10 +84,14 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	if image == "" {
 		image = "myaudit-sandbox"
 	}
+	maxConcurrent := 1
+	if n, err := strconv.Atoi(os.Getenv("MAX_CONCURRENT_CLAUDE")); err == nil && n > 0 {
+		maxConcurrent = n
+	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image, bin: os.Getenv("CLAUDE_BIN")},
-		WorkspaceRoot: "runs", MaxRepairs: 2,
+		WorkspaceRoot: "runs", MaxRepairs: 2, MaxConcurrent: maxConcurrent,
 	}
 }
 
@@ -95,7 +100,7 @@ func NewStubDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         stubAgent{},
-		WorkspaceRoot: "runs", MaxRepairs: 0,
+		WorkspaceRoot: "runs", MaxRepairs: 0, MaxConcurrent: 1,
 	}
 }
 
