@@ -73,6 +73,50 @@ func TestPromoteReadyUnblocksOnFailedDep(t *testing.T) {
 	}
 }
 
+// ClaimN returns up to n ready nodes in one batch, capped by however many are
+// actually ready — bounded concurrency needs to grab a batch, not one at a time.
+func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
+	ctx := context.Background()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	q := New(s.DB())
+	run, _ := s.CreateRun(ctx, "proj")
+
+	var ids []uuid.UUID
+	for i := 0; i < 3; i++ {
+		id, _ := s.AddNode(ctx, run, "qa", nil)
+		s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, id)
+		ids = append(ids, id)
+	}
+
+	claimed, err := q.ClaimN(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claimed) != 2 {
+		t.Fatalf("expected 2 claimed nodes (capped by n=2), got %d", len(claimed))
+	}
+	for _, c := range claimed {
+		var status string
+		s.DB().QueryRowContext(ctx, `SELECT status FROM nodes WHERE id=?`, c.ID).Scan(&status)
+		if status != "running" {
+			t.Fatalf("claimed node should be marked running, got %s", status)
+		}
+	}
+
+	// third node should still be ready, untouched
+	remaining, err := q.ClaimN(ctx, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remaining) != 1 {
+		t.Fatalf("expected exactly 1 remaining ready node, got %d", len(remaining))
+	}
+}
+
 // RecoverStuck requeues 'running' nodes under the attempt cap and fails poison
 // ones — so a crash/restart self-heals instead of wedging the run forever.
 func TestRecoverStuck(t *testing.T) {
