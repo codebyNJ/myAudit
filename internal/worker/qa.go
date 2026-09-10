@@ -483,20 +483,26 @@ func qaTask(module, path, notes, testCmdHint string) string {
 	}
 	sb.WriteString(fmt.Sprintf(
 		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+
-			"(Bash) and the dependencies are installed. QA it like a real product: read the code, then "+
-			"actually EXERCISE it — run the existing test suite, run the linter/build, and where practical "+
-			"start the app or hit its backend to confirm real behavior. Prefer non-blocking commands; if you "+
-			"start a server, background it, probe it, then kill it — never leave a process running or block. "+
-			"WHILE the product is up and reachable, write `.myaudit/live.json` as "+
+			"(Bash) and the dependencies are installed. Work through these steps IN ORDER, once each — "+
+			"do not explore beyond this module's boundary and do not loop back to an earlier step:\n\n"+
+			"1. Identify this module's entry point(s) and manifest (package.json, go.mod, etc.).\n"+
+			"2. Check whether a test suite exists and what command runs it (a detected command may be "+
+			"given below). Run it if present; note the result.\n"+
+			"3. Read the module's main flow (routes/handlers/exported functions) — list what it does "+
+			"before judging anything.\n"+
+			"4. Now look for defects, in this order: broken/incorrect logic → missing error handling → "+
+			"security issues → missing tests → style/best-practice gaps.\n"+
+			"5. Stop actively exploring once you've covered 1–4 once. Do not keep re-reading files.\n"+
+			"6. write your findings now, even if incomplete — a partial finding list beats a truncated response.\n\n"+
+			"WHILE the product is up and reachable (if you start a server), write `.myaudit/live.json` as "+
 			`{"url":"http://localhost:<port>","title":"<what is running>"}` +
 			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
-			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
-			"watchable frame by frame. "+
-			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
-			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
-			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+
-			"`.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
-			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
+			"Prefer non-blocking commands; if you start a server, background it, probe it, then kill it — "+
+			"never leave a process running or block. As you exercise the UI, save successive screenshots to "+
+			"`.myaudit/live/<step>.png` so the run is watchable frame by frame. You may write NEW test files "+
+			"to prove a bug, but do not fix the code. If this module has a visible UI and you can render it, "+
+			"save a screenshot as evidence to `.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
+			"Your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
 			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path))

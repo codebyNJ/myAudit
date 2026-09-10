@@ -251,6 +251,23 @@ func TestQATaskOmitsTestCommandHintWhenNoneDetected(t *testing.T) {
 	}
 }
 
+// TestQATaskFollowsStagedProcedure: qaTask's main body must walk QA through a
+// staged procedure (module boundary → detect/run tests → read before judging →
+// priority-ordered defect search → stop-and-write) rather than an open-ended
+// "explore and find bugs" instruction, so QA runs converge instead of wandering.
+func TestQATaskFollowsStagedProcedure(t *testing.T) {
+	got := qaTask("backend", "backend", "", "go test ./...")
+	for _, want := range []string{
+		"do not explore beyond this module's boundary",
+		"Stop actively exploring",
+		"write your findings now, even if incomplete",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("qaTask missing staged-procedure instruction %q, got:\n%s", want, got)
+		}
+	}
+}
+
 func writeGoModule(t *testing.T, dir, testBody string) {
 	t.Helper()
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module t\n\ngo 1.21\n"), 0o644)
