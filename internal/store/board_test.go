@@ -26,3 +26,23 @@ func TestNodeDetailsHandlesOutputWithoutFiles(t *testing.T) {
 		t.Fatalf("detail: %+v", c)
 	}
 }
+
+func TestNodeDetailsForRunSurfacesCategoryAndConfidence(t *testing.T) {
+	ctx := context.Background()
+	s, _ := Open(ctx, testURL(t))
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+	s.CreateBug(ctx, run, Bug{Title: "X", Severity: "high", Priority: "P0",
+		Category: "security", Confidence: "medium"})
+
+	details, err := s.NodeDetailsForRun(ctx, run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(details) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(details))
+	}
+	if details[0].Category != "security" || details[0].Confidence != "medium" {
+		t.Fatalf("category/confidence not surfaced: %+v", details[0])
+	}
+}
