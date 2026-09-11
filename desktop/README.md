@@ -16,12 +16,17 @@ cargo install tauri-cli
 ## Development
 
 ```bash
+# One-time (or after web/ changes) — embeds React into the Go server:
+make ui-build
+
 # terminal 1 — API + embedded UI
 make run
 
-# terminal 2 — Tauri dev window
+# terminal 2 — Tauri dev window (loads http://localhost:7788)
 make desktop
 ```
+
+`make dev`, `make run`, and `make desktop` auto-run `ui-build` when `internal/api/web/dist/assets/` is missing. A bare clone without that step used to show a **blank white window**.
 
 ## Production build
 
