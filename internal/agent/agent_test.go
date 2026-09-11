@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -129,7 +130,11 @@ func TestArgsRepairUsesResume(t *testing.T) {
 }
 
 func TestParseSuccess(t *testing.T) {
-	r := parseEnvelope([]byte(`{"result":"Created project module","is_error":false,"subtype":"success","total_cost_usd":0.0736,"usage":{"input_tokens":26,"output_tokens":549}}`))
+	raw, err := os.ReadFile("testdata/envelope_success.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := parseEnvelope(raw)
 	if !r.OK {
 		t.Fatalf("expected OK, err=%q", r.Err)
 	}
@@ -162,7 +167,11 @@ func TestPoliciesRenderAndAreSafe(t *testing.T) {
 }
 
 func TestParseError(t *testing.T) {
-	r := parseEnvelope([]byte(`{"result":"","is_error":true,"subtype":"error_max_turns","total_cost_usd":0.01}`))
+	raw, err := os.ReadFile("testdata/envelope_error.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := parseEnvelope(raw)
 	if r.OK {
 		t.Fatal("is_error must yield !OK")
 	}

@@ -23,6 +23,12 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: go-test
+        name: go test (fast)
+        entry: bash -c 'go test $(go list ./... | grep -v "/runs/") -count=1'
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: oxlint
         name: oxlint
         entry: bash -c 'cd web && npm run lint'

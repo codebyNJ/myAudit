@@ -5,19 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"github.com/codebyNJ/myAudit/internal/store"
 )
-
-func newStore(t *testing.T) *store.Store {
-	s, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "api.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return s
-}
 
 func TestListRunsEndpoint(t *testing.T) {
 	ctx := context.Background()

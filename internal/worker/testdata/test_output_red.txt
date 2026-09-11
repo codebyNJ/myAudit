@@ -1,0 +1,4 @@
+✓ add works
+✕ subtracts by mistake
+FAIL src/math.test.js
+2 failed, 1 passed
