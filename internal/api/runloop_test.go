@@ -29,6 +29,33 @@ func TestResolveModel(t *testing.T) {
 	}
 }
 
+// NewRealDeps should read CLAUDE_BIN so a user whose claude install isn't on
+// PATH (or who wants a wrapper script) can point myAudit at it explicitly.
+func TestNewRealDepsReadsClaudeBinFromEnv(t *testing.T) {
+	s := newStore(t)
+	defer s.Close()
+
+	t.Setenv("CLAUDE_BIN", "")
+	deps := NewRealDeps(s)
+	ra, ok := deps.Agent.(realAgent)
+	if !ok {
+		t.Fatalf("expected realAgent, got %T", deps.Agent)
+	}
+	if ra.bin != "" {
+		t.Fatalf("unset CLAUDE_BIN should leave bin empty (agent.Options defaults it to \"claude\"), got %q", ra.bin)
+	}
+
+	t.Setenv("CLAUDE_BIN", "/opt/claude/bin/claude")
+	deps = NewRealDeps(s)
+	ra, ok = deps.Agent.(realAgent)
+	if !ok {
+		t.Fatalf("expected realAgent, got %T", deps.Agent)
+	}
+	if ra.bin != "/opt/claude/bin/claude" {
+		t.Fatalf("CLAUDE_BIN should be read into realAgent.bin, got %q", ra.bin)
+	}
+}
+
 // TickAll should advance a run end-to-end on the stub: a map node promotes,
 // completes, fans out a qa card (empty workspace → the "(root)" module), the qa
 // card completes, the run drains, and FinalizeDrainedRuns marks it done.

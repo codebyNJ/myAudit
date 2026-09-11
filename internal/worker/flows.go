@@ -49,12 +49,15 @@ type FlowsDoc struct {
 }
 
 func (d Deps) doFlows(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	flowCtx, cancel := context.WithTimeout(ctx, flowsTimeout)
+	ctx, cancel := context.WithTimeout(ctx, flowsTimeout)
 	defer cancel()
 
-	r, err := d.Agent.Run(flowCtx, ws, flowsTask, agent.ReadOnly, nil)
-	if err != nil {
-		d.fail(ctx, c, "flows agent: "+err.Error())
+	// Routed through runAgent (like qa/bug) so an agent-level failure (r.OK
+	// false, or an infra err) gets the same bounded retry-then-checkpoint
+	// treatment instead of silently falling through to parseFlows("") and
+	// reporting a misleading "unexpected end of JSON input".
+	r, ok := d.runAgent(ctx, c, ws, flowsTask, agent.ReadOnly)
+	if !ok {
 		return true, nil
 	}
 
