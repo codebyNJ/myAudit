@@ -12,7 +12,7 @@ export function Palette() {
   const [hits, setHits] = useState<SearchHit[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const runIdRef = useRef(s.runId)
-  runIdRef.current = s.runId 
+  runIdRef.current = s.runId
 
   const open = (m: Mode) => { if (!runIdRef.current) return; setMode(m); setQ(''); setHits([]); setSel(0); setTimeout(() => inputRef.current?.focus(), 0) }
 
@@ -25,7 +25,7 @@ export function Palette() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, []) 
+  }, [])
 
   const fileMatches = useMemo(() => {
     if (mode !== 'files') return []

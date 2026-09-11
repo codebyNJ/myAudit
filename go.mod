@@ -1,4 +1,4 @@
-module myaudit
+module github.com/codebyNJ/myAudit
 
 go 1.26.5
 

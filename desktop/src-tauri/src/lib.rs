@@ -29,8 +29,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            
-            
+
+
             let already_up = TcpStream::connect(("127.0.0.1", PORT)).is_ok();
 
             if !already_up {
@@ -49,7 +49,7 @@ pub fn run() {
                 app.manage(Server(std::sync::Mutex::new(Some(child))));
             }
 
-            
+
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 wait_for_server(Duration::from_secs(30));

@@ -1,0 +1,21 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+
+issues:
+  exclude-dirs:
+    - runs
+    - internal/api/web/dist
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

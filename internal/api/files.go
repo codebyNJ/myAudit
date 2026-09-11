@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func wsPath(w http.ResponseWriter, r *http.Request, rel string) (id uuid.UUID, full string, ok bool) {
@@ -48,7 +48,10 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 			Path string `json:"path"`
 			Dir  bool   `json:"dir"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		_, full, ok := wsPath(w, r, b.Path)
 		if !ok {
 			return
@@ -80,7 +83,10 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 			From string `json:"from"`
 			To   string `json:"to"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		id, from, ok := wsPath(w, r, b.From)
 		if !ok {
 			return
@@ -128,7 +134,7 @@ type searchHit struct {
 func searchWorkspace(root, q string, max int) []searchHit {
 	needle := strings.ToLower(q)
 	out := []searchHit{}
-	filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil || len(out) >= max {
 			if len(out) >= max {
 				return filepath.SkipAll

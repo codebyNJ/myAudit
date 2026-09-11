@@ -5,11 +5,15 @@
 MYAUDIT_DB ?= myaudit.db
 export
 
-.PHONY: test run dev seed ui-build ui-dev desktop tidy
+.PHONY: test run dev seed ui-build ui-dev desktop tidy lint-go
 
 ## test: run the full Go suite (each test uses its own temp SQLite; no services)
 test:
-	go test ./...
+	go test $$(go list ./... | grep -v '/runs/')
+
+## lint-go: run golangci-lint (install: https://golangci-lint.run/welcome/install/)
+lint-go:
+	golangci-lint run ./...
 
 ## run: serve UI + API at http://localhost:7788 with the REAL Claude Code agent
 run:

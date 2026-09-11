@@ -5,7 +5,7 @@ export function Splash({ onDone }: { onDone: () => void }) {
   const [exiting, setExiting] = useState(false)
   useEffect(() => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    if (reduce) { onDone(); return } 
+    if (reduce) { onDone(); return }
     const t1 = setTimeout(() => setExiting(true), 2600)
     const t2 = setTimeout(onDone, 3400)
 

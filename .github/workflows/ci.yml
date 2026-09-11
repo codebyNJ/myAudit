@@ -31,6 +31,14 @@ jobs:
         working-directory: web
         run: npm ci --no-audit --no-fund
 
+      - name: Lint web
+        working-directory: web
+        run: npm run lint
+
+      - name: Test web
+        working-directory: web
+        run: npm test
+
       - name: Typecheck & build web
         working-directory: web
         run: npm run build
@@ -40,11 +48,24 @@ jobs:
           rm -rf internal/api/web/dist
           cp -r web/dist internal/api/web/dist
 
+      - name: Check Go formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
       - name: Vet
         run: go vet ./...
 
       - name: Test
-        run: go test ./... -count=1
+        run: go test $(go list ./... | grep -v '/runs/') -count=1
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck $(go list ./... | grep -v '/runs/')
 
       - name: Build server
         run: go build ./cmd/serve

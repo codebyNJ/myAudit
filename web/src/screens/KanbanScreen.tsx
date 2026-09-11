@@ -30,7 +30,7 @@ const bucket = (st: string) => {
     case 'done': case 'verified': case 'closed': return 'done'
     case 'running': case 'ready': case 'in_progress': return 'active'
     case 'failed': case 'reopened': case 'blocked': case 'in_review': return 'review'
-    default: return 'todo' 
+    default: return 'todo'
   }
 }
 const isFailed = (st: string) => st === 'failed' || st === 'reopened'
@@ -111,10 +111,10 @@ export function KanbanScreen() {
 
   useEffect(() => {
     if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
-  }, [cards]) 
+  }, [cards])
 
   const [fixDiff, setFixDiff] = useState('')
-  const orderedRef = useRef<NodeCard[]>([]) 
+  const orderedRef = useRef<NodeCard[]>([])
 
   const step = (dir: 1 | -1) => {
     const list = orderedRef.current
@@ -134,7 +134,7 @@ export function KanbanScreen() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sel]) 
+  }, [sel])
 
   useEffect(() => {
     setFixDiff('')
@@ -143,7 +143,7 @@ export function KanbanScreen() {
     let alive = true
     api.diff(s.runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [sel?.id, sel?.file, s.runId, s.detail]) 
+  }, [sel?.id, sel?.file, s.runId, s.detail])
 
   const openedFromUrl = useRef(false)
   useEffect(() => {
@@ -157,7 +157,7 @@ export function KanbanScreen() {
     const c = cards.find((x) => x.id === s.focusCard)
     if (c) setSel(c)
     s.clearFocusCard()
-  }, [s.focusCard, cards]) 
+  }, [s.focusCard, cards])
 
   const openFile = (card: NodeCard) => {
     if (!card.file) return
@@ -198,7 +198,7 @@ export function KanbanScreen() {
   }
   const patch = async (card: NodeCard, p: { severity?: string; priority?: string; status?: string }) => {
     if (!s.runId) return
-    setSel({ ...card, ...p }) 
+    setSel({ ...card, ...p })
     try { await api.patchNode(s.runId, card.id, p); api.board(s.runId).then(setCards) }
     catch (e) { s.toast('error', 'Update failed', (e as Error).message) }
   }
@@ -230,7 +230,7 @@ export function KanbanScreen() {
   const ql = q.trim().toLowerCase()
   const dismissedCount = cards.filter((n) => n.status === 'dismissed').length
   const visible = cards.filter((n) => {
-    if (n.status === 'cancelled') return false 
+    if (n.status === 'cancelled') return false
     if (n.status === 'dismissed' && !showDismissed) return false
     if (fSev !== 'all' && n.severity !== fSev) return false
     if (fType === 'bug' && n.type !== 'bug') return false

@@ -12,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/agent"
-	"myaudit/internal/events"
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/events"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func registerChat(mux *http.ServeMux, s *store.Store) {
@@ -29,7 +29,10 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 		var b struct {
 			Message string `json:"message"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		if strings.TrimSpace(b.Message) == "" {
 			http.Error(w, "message required", 400)
 			return
@@ -72,7 +75,10 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 			Priority string `json:"priority"`
 			Status   string `json:"status"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		patch := map[string]any{}
 		if b.Severity == "high" || b.Severity == "medium" || b.Severity == "low" {
 			patch["severity"] = b.Severity
@@ -110,7 +116,10 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 		var b struct {
 			Tags []string `json:"tags"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		if err := s.SetNodeTags(r.Context(), nid, b.Tags); err != nil {
 			http.Error(w, err.Error(), 500)
 			return

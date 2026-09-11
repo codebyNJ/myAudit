@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/config"
-	"myaudit/internal/events"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/config"
+	"github.com/codebyNJ/myAudit/internal/events"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func main() {
@@ -37,7 +37,10 @@ func main() {
 		os.Exit(1)
 	}
 	set := func(key, status string) {
-		s.DB().ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, ids[key])
+		if _, err := s.DB().ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, ids[key]); err != nil {
+			slog.Error("seed node status", "key", key, "err", err)
+			os.Exit(1)
+		}
 	}
 	set("import", "done")
 	set("map", "done")

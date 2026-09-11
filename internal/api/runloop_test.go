@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestResolveModel(t *testing.T) {

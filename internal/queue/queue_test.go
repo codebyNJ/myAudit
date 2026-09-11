@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestClaimGatingAndComplete(t *testing.T) {
@@ -88,6 +88,9 @@ func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
 	claimed, err := q.ClaimN(ctx, 2)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(ids) != 3 {
+		t.Fatalf("expected 3 nodes, got %d", len(ids))
 	}
 	if len(claimed) != 2 {
 		t.Fatalf("expected 2 claimed nodes (capped by n=2), got %d", len(claimed))

@@ -21,7 +21,7 @@ func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpe
 	if err != nil {
 		return uuid.Nil, nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	run := uuid.New()
 	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(id, project) VALUES(?,?)`, run, project); err != nil {

@@ -25,8 +25,8 @@ type Store = {
   explorerW: number
   setExplorerW: (n: number) => void
   setTab: (t: Tab) => void
-  focusCard: string | null       
-  openCard: (id: string) => void 
+  focusCard: string | null
+  openCard: (id: string) => void
   clearFocusCard: () => void
   setRun: (id: string) => void
   goHome: () => void
@@ -47,7 +47,7 @@ function parseHash(): { runId: string | null; tab: Tab } {
   const m = location.hash.match(/^#\/run\/([\w-]+)(?:\/(\w+))?/)
   if (!m) return { runId: null, tab: 'kanban' }
   let t = m[2] as Tab
-  if ((t as string) === 'activity') t = 'playwright' 
+  if ((t as string) === 'activity') t = 'playwright'
   return { runId: m[1], tab: TABS.has(t) ? t : 'kanban' }
 }
 
@@ -91,7 +91,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (spinner) setLoadingDetail(true)
     try {
       setDetail(await api.runDetail(id))
-      pollFailed.current = false 
+      pollFailed.current = false
     } catch (e) {
 
       if (!pollFailed.current) {
@@ -103,7 +103,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [toast])
 
-  
+
   const bootedPreview = useRef<string | null>(null)
   useEffect(() => {
     if (!runId || bootedPreview.current === runId) return
@@ -113,7 +113,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const loadRuns = useCallback(async () => {
     try {
-      setRuns((await api.listRuns()) || []) 
+      setRuns((await api.listRuns()) || [])
     } catch (e) {
       setRuns([])
       toast('error', 'Failed to load audits', (e as Error).message)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 func TestIsolateBuildsDockerCommand(t *testing.T) {
