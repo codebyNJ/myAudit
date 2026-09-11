@@ -1,4 +1,3 @@
-// Command serve runs the myAudit API + embedded UI over a single SQLite file.
 package main
 
 import (
@@ -31,9 +30,6 @@ func main() {
 	}
 	defer s.Close()
 
-	// Drive ready runs so the UI shows live progression. REAL_CLAUDE=1 drives
-	// feature nodes with the real Claude Code agent; default is the $0 stub agent
-	// (scaffold still runs for real — it's deterministic and free).
 	var deps worker.Deps
 	if os.Getenv("REAL_CLAUDE") != "" {
 		deps = api.NewRealDeps(s)
@@ -42,9 +38,7 @@ func main() {
 		deps = api.NewStubDeps(s)
 		slog.Info("run loop: stub mode ($0 agent; scaffold real)")
 	}
-	// Pace between processed nodes: real agent calls are throttled a little to
-	// avoid bursting the request-rate limit; the stub is effectively instant.
-	// Override with RUN_PACE_MS.
+
 	pace := time.Second
 	if os.Getenv("REAL_CLAUDE") != "" {
 		pace = 2 * time.Second
@@ -54,8 +48,6 @@ func main() {
 	}
 	go api.StartRunLoop(context.Background(), deps, pace)
 
-	// Auto-started app-under-test previews are child processes holding ports;
-	// make sure Ctrl-C (or the desktop app quitting) takes them down too.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	go func() {

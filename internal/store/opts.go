@@ -7,15 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// RunOpts are per-run knobs stored on the import node's input_snapshot so we
-// don't need a schema migration for every product toggle.
 type RunOpts struct {
 	RepoPath  string  `json:"repo_path"`
 	AuditOnly bool    `json:"audit_only"`
 	BudgetUSD float64 `json:"budget_usd"`
 }
 
-// RunOptsFor reads the import node's snapshot for a run. Missing/empty → zero opts.
 func (s *Store) RunOptsFor(ctx context.Context, run uuid.UUID) RunOpts {
 	var raw []byte
 	_ = s.db.QueryRowContext(ctx,
@@ -26,9 +23,6 @@ func (s *Store) RunOptsFor(ctx context.Context, run uuid.UUID) RunOpts {
 	return o
 }
 
-// PauseOverBudget parks runs that have hit their spend cap: flips ready/pending
-// qa/bug/flows cards to 'paused' and the run itself to 'paused' so Finalize won't
-// mark it done and Claim won't pick more paid work.
 func (s *Store) PauseOverBudget(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id,

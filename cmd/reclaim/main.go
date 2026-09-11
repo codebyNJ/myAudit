@@ -1,5 +1,3 @@
-// Command reclaim frees disk from finished run workspaces by deleting the
-// dependency and build caches QA installed. Runs still in progress are skipped.
 package main
 
 import (

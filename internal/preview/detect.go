@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Kind classifies how an app-under-test should be watched in the agent screen.
 type Kind string
 
 const (
@@ -33,8 +32,6 @@ var webConfigs = []string{
 
 var uiDirs = []string{"web", "ui", "frontend", "client", "app", "src", "pages"}
 
-// Detect reports whether a workspace has a visible UI worth booting for the agent
-// screen. CLI-only libraries and test-only repos return KindNone.
 func Detect(dir string) Kind {
 	if fileExists(filepath.Join(dir, "src-tauri", "tauri.conf.json")) ||
 		fileExists(filepath.Join(dir, "tauri.conf.json")) {
@@ -104,7 +101,7 @@ func hasUIFiles(dir string) bool {
 			if base == "node_modules" || base == "dist" || base == "build" || base == ".git" {
 				return filepath.SkipDir
 			}
-			// don't walk deep — top-level UI dirs only need a few levels
+
 			rel, _ := filepath.Rel(dir, p)
 			if strings.Count(rel, string(os.PathSeparator)) > 4 {
 				return filepath.SkipDir

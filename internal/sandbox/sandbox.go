@@ -1,7 +1,3 @@
-// Package sandbox creates a per-run workspace by copying an imported codebase
-// into an isolated directory with a committed git baseline. All node work
-// (mapping, QA, and autonomous fixes) happens on this copy, never the user's
-// original repo.
 package sandbox
 
 import (
@@ -14,28 +10,17 @@ import (
 	"strings"
 )
 
-// Workspace is a per-run working copy of an imported codebase.
 type Workspace struct{ Dir string }
 
-// excludeDirs are skipped when copying a repo — VCS metadata and heavy build
-// artifacts we never want in the working copy. ponytail: static list covering
-// the common ecosystems; extend if a target repo carries a different heavy dir.
 var excludeDirs = map[string]bool{
 	".git": true, "node_modules": true, "dist": true, "build": true, ".next": true,
 	"target": true, ".venv": true, "venv": true, "__pycache__": true, "vendor": true,
 	".svelte-kit": true, "coverage": true, ".gradle": true,
-	".vercel": true, ".turbo": true, ".output": true, ".cache": true, // build output / caches
+	".vercel": true, ".turbo": true, ".output": true, ".cache": true,
 }
 
-// SkipDir reports whether a directory name is heavy/derived and should be
-// excluded from copies and file-tree walks. Shared so every walker uses one list
-// (the live QA step regenerates .venv/target/node_modules etc, which a lean list
-// would let balloon the tree returned to the UI every poll).
 func SkipDir(name string) bool { return excludeDirs[name] }
 
-// Import copies the repo at src into <root>/<runID> (skipping excludeDirs) and
-// gives it a single committed baseline so per-node git diffs have a clean start.
-// The user's original repo is never touched.
 func Import(ctx context.Context, root, runID, src string) (Workspace, error) {
 	info, err := os.Stat(src)
 	if err != nil || !info.IsDir() {
@@ -51,9 +36,6 @@ func Import(ctx context.Context, root, runID, src string) (Workspace, error) {
 	return Workspace{Dir: dir}, nil
 }
 
-// Run executes a command inside the workspace and returns combined output and
-// exit code. A non-zero exit is returned in code (not err); err is only for
-// failures to start/execute.
 func (w Workspace) Run(ctx context.Context, name string, args ...string) (out string, code int, err error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = w.Dir
@@ -68,8 +50,6 @@ func (w Workspace) Run(ctx context.Context, name string, args ...string) (out st
 	return string(b), 0, nil
 }
 
-// Diff returns the uncommitted changes in the workspace (staged + unstaged),
-// i.e. what the current node produced since the last Commit/baseline.
 func (w Workspace) Diff(ctx context.Context) (string, error) {
 	if _, _, err := w.Run(ctx, "git", "add", "-A"); err != nil {
 		return "", err
@@ -78,9 +58,6 @@ func (w Workspace) Diff(ctx context.Context) (string, error) {
 	return out, err
 }
 
-// ChangedPaths returns the workspace-relative paths changed since the last
-// commit (the current node's edits) — used to verify only what the agent
-// touched, not the whole tree.
 func (w Workspace) ChangedPaths(ctx context.Context) ([]string, error) {
 	if _, _, err := w.Run(ctx, "git", "add", "-A"); err != nil {
 		return nil, err
@@ -98,10 +75,6 @@ func (w Workspace) ChangedPaths(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
-// DiffFromBaseline returns the unified diff of the workspace against the import
-// baseline commit — i.e. everything the audit changed (all fix commits, plus any
-// uncommitted edits), optionally scoped to one path. This is what the UI shows to
-// review an autonomous fix.
 func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, error) {
 	base, _, err := w.Run(ctx, "git", "rev-list", "--max-parents=0", "HEAD")
 	if err != nil {
@@ -119,8 +92,6 @@ func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, e
 	return out, err
 }
 
-// Commit snapshots the current tree as one node's result, so the next node's
-// Diff starts clean.
 func (w Workspace) Commit(ctx context.Context, msg string) error {
 	if _, _, err := w.Run(ctx, "git", "add", "-A"); err != nil {
 		return err
@@ -136,9 +107,6 @@ func (w Workspace) Commit(ctx context.Context, msg string) error {
 	return nil
 }
 
-// ensureGitBaseline makes the workspace a single clean commit of the imported
-// tree, so a node's Diff starts from an empty delta regardless of the source
-// repo's own git state.
 func ensureGitBaseline(ctx context.Context, dir string) error {
 	_ = os.RemoveAll(filepath.Join(dir, ".git"))
 	steps := [][]string{
@@ -154,14 +122,10 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 	return nil
 }
 
-// copyDir recursively copies src into dst, skipping excludeDirs by name.
-// Symlinks are recreated as symlinks (not followed) — following a symlinked
-// directory would try to read it as a file (EISDIR) and could loop. A single
-// unreadable entry is skipped rather than aborting the whole import.
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // unreadable entry → skip, don't kill the import
+			return nil
 		}
 		rel, err := filepath.Rel(src, p)
 		if err != nil {
@@ -170,7 +134,7 @@ func copyDir(src, dst string) error {
 		if info.Mode()&os.ModeSymlink != 0 {
 			target, err := os.Readlink(p)
 			if err != nil {
-				return nil // skip a broken/unreadable link
+				return nil
 			}
 			_ = os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755)
 			_ = os.Symlink(target, filepath.Join(dst, rel))
@@ -183,10 +147,10 @@ func copyDir(src, dst string) error {
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
 		if !info.Mode().IsRegular() {
-			return nil // skip sockets/fifos/devices
+			return nil
 		}
 		if err := copyFile(p, filepath.Join(dst, rel), info); err != nil {
-			return nil // skip a single bad file rather than abort
+			return nil
 		}
 		return nil
 	})

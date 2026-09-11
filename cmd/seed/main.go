@@ -1,4 +1,3 @@
-// Command seed creates a demo run so the UI has something to show.
 package main
 
 import (
@@ -44,7 +43,6 @@ func main() {
 	set("map", "done")
 	set("qa", "running")
 
-	// A demo bug ticket filed by QA (dep-gated on the qa card, like the real flow).
 	_, _ = s.CreateBug(ctx, run, store.Bug{
 		Title: "password compared with == (timing leak)", File: "src/auth/login.go:42",
 		Severity: "high", Priority: "P0", Detail: "Use a constant-time compare.",

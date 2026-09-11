@@ -7,28 +7,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// A drained run with a completed map node finalizes to 'done'; a root (import/map)
-// failure finalizes to 'failed'; a run with active nodes is left 'running'.
 func TestFinalizeDrainedRuns(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))
 	defer s.Close()
 
-	// run A: import+map done → done
 	a, _ := s.CreateRun(ctx, "a")
 	ia, _ := s.AddNode(ctx, a, "import", nil)
 	ma, _ := s.AddNode(ctx, a, "map", []uuid.UUID{ia})
 	setStatus(t, s, ia, "done")
 	setStatus(t, s, ma, "done")
 
-	// run B: map failed → failed
 	b, _ := s.CreateRun(ctx, "b")
 	ib, _ := s.AddNode(ctx, b, "import", nil)
 	mb, _ := s.AddNode(ctx, b, "map", []uuid.UUID{ib})
 	setStatus(t, s, ib, "done")
 	setStatus(t, s, mb, "failed")
 
-	// run C: still has a running node → untouched
 	c, _ := s.CreateRun(ctx, "c")
 	ic, _ := s.AddNode(ctx, c, "import", nil)
 	setStatus(t, s, ic, "running")
@@ -50,7 +45,7 @@ func TestFinalizeDrainedRuns(t *testing.T) {
 	if _, ok := got[c]; ok {
 		t.Fatal("run C still has a running node; must not be finalized")
 	}
-	// persisted + idempotent
+
 	if r, _ := s.GetRun(ctx, a); r.Status != "done" {
 		t.Fatalf("run A status not persisted: %q", r.Status)
 	}
@@ -59,8 +54,6 @@ func TestFinalizeDrainedRuns(t *testing.T) {
 	}
 }
 
-// CancelRun stops queued work (pending/ready → cancelled) and marks the run
-// cancelled, without touching a currently-running or already-done node.
 func TestCancelRun(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))
@@ -88,8 +81,6 @@ func TestCancelRun(t *testing.T) {
 	}
 }
 
-// EventsForRun keeps the NEWEST `limit` events (not the oldest) and returns them
-// oldest-first — the fix for the live log freezing past the cap.
 func TestEventsForRunKeepsNewest(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))
@@ -110,7 +101,7 @@ func TestEventsForRunKeepsNewest(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("want 3 events, got %d", len(got))
 	}
-	// newest three are H,I,J → returned oldest-first
+
 	if got[0].Msg != "H" || got[2].Msg != "J" {
 		t.Fatalf("should keep newest 3 in chronological order, got %q..%q", got[0].Msg, got[2].Msg)
 	}

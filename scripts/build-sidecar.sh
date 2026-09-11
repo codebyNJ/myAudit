@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# Builds the web UI, embeds it in the Go server, and places that server where
-# Tauri expects its sidecar: binaries/myaudit-serve-<target-triple>[.exe]
+
+
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

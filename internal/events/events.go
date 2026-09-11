@@ -9,8 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Event is a single typed, correlated log entry. Kind comes from a fixed
-// vocabulary (run.start, node.start, understand.done, finding, ...).
 type Event struct {
 	RunID  uuid.UUID
 	NodeID *uuid.UUID
@@ -21,16 +19,12 @@ type Event struct {
 	Attrs  map[string]any
 }
 
-// Logger writes typed events to SQLite and mirrors them to slog.
 type Logger struct {
 	db *sql.DB
 }
 
-// New builds a Logger over the given DB handle.
 func New(db *sql.DB) *Logger { return &Logger{db: db} }
 
-// Log persists one event. Insert failures never block the caller — they are
-// logged and swallowed.
 func (l *Logger) Log(ctx context.Context, e Event) {
 	if e.Level == "" {
 		e.Level = "info"
@@ -53,7 +47,6 @@ func nullStr(s string) any {
 	return s
 }
 
-// nodeArg passes a nullable node id to SQL: nil pointer → NULL.
 func nodeArg(p *uuid.UUID) any {
 	if p == nil {
 		return nil

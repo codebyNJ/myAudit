@@ -1,5 +1,3 @@
-// Package api exposes read-only HTTP endpoints over RunState for the UI, plus
-// the embedded static page.
 package api
 
 import (
@@ -20,7 +18,6 @@ import (
 	"myaudit/internal/worker"
 )
 
-// RunDetail is a run plus its nodes and event log.
 type RunDetail struct {
 	Run         store.RunSummary   `json:"run"`
 	Nodes       []store.Node       `json:"nodes"`
@@ -30,7 +27,6 @@ type RunDetail struct {
 	CostUSD     float64            `json:"cost_usd"`
 }
 
-// NewMux wires the JSON API and the static UI over the store.
 func NewMux(s *store.Store, static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
@@ -41,7 +37,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		if runs == nil {
-			runs = []store.RunSummary{} // encode empty as [] not null
+			runs = []store.RunSummary{}
 		}
 		writeJSON(w, runs)
 	})
@@ -57,8 +53,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// Default 200 newest events; ?events=N (capped) lets Activity/API callers
-		// pull more history when a long run blows past the default.
+
 		evLimit := 200
 		if n, err := strconv.Atoi(r.URL.Query().Get("events")); err == nil && n > 0 {
 			evLimit = min(n, 5000)
@@ -73,9 +68,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		// Full workspace tree (scaffold + generated), lazily loaded — content is
-		// fetched per-file via GET /api/runs/{id}/file. Feature-changed files are
-		// flagged so the UI can highlight the deltas.
+
 		changed, err := s.ChangedFilesForRun(r.Context(), id)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -90,7 +83,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		cost, _ := s.RunCostUSD(r.Context(), id)
 		run, err := s.GetRun(r.Context(), id)
 		if err != nil {
-			run = store.RunSummary{ID: id} // fall back to a bare id if the row is gone
+			run = store.RunSummary{ID: id}
 		}
 		writeJSON(w, RunDetail{Run: run, Nodes: nodes, Events: events, Checkpoints: checkpoints, Files: files, CostUSD: cost})
 	})
@@ -106,9 +99,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, "repo_path required", 400)
 			return
 		}
-		// A relative path resolves against the SERVER's cwd (the myAudit repo), not
-		// the user's — silently the wrong thing. Require absolute + give actionable
-		// errors for the common mistakes.
+
 		if !filepath.IsAbs(body.RepoPath) {
 			http.Error(w, "repo_path must be an absolute path (e.g. /Users/you/project)", 400)
 			return
@@ -131,12 +122,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		if body.BudgetUSD > 0 {
 			importSpec["budget_usd"] = body.BudgetUSD
 		}
-		// The audit graph starts tiny and grows itself (a living board): import the
-		// repo, then map it into modules. The map step spawns one qa card per module
-		// at runtime; each qa card files bug tickets, and each bug is an autonomous
-		// dev fix — all added dynamically, so the board fills as work is discovered.
-		//   import → map ─┬→ qa(module A) ─→ bug… (dev fixes, blocked until QA)
-		//                 └→ qa(module B) ─→ bug…
+
 		specs := []store.TaskSpec{
 			{Key: "import", Type: "import", Spec: importSpec},
 			{Key: "map", Type: "map", DepKeys: []string{"import"}},
@@ -151,7 +137,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		json.NewEncoder(w).Encode(map[string]string{"id": run.String()})
 	})
 
-	// Absolute path to the bundled demo repo (F4 sample run).
 	mux.HandleFunc("GET /api/demo", func(w http.ResponseWriter, r *http.Request) {
 		p, err := filepath.Abs("demo")
 		if err != nil {
@@ -165,8 +150,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		writeJSON(w, map[string]string{"path": p})
 	})
 
-	// Stop a running audit: mark queued nodes + the run cancelled (no new work),
-	// and interrupt the in-flight node's agent.
 	mux.HandleFunc("POST /api/runs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -199,7 +182,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		w.WriteHeader(200)
 	})
 
-	// One file's content from the run workspace (lazy-loaded by the Dev tab).
 	mux.HandleFunc("GET /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -220,8 +202,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		writeJSON(w, map[string]string{"path": clean, "content": string(b)})
 	})
 
-	// Raw bytes of a workspace file (for images like QA preview screenshots, which
-	// can't ride the JSON /file endpoint). Content-type is sniffed from the bytes.
 	mux.HandleFunc("GET /api/runs/{id}/raw", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -237,8 +217,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		http.ServeFile(w, r, filepath.Join("runs", id.String(), clean))
 	})
 
-	// Unified diff of what the audit changed (optionally one path) vs the import
-	// baseline — how a user reviews an autonomous fix.
 	mux.HandleFunc("GET /api/runs/{id}/diff", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -263,7 +241,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		writeJSON(w, map[string]string{"path": path, "diff": diff})
 	})
 
-	// Save edits to a file in the run workspace.
 	mux.HandleFunc("PUT /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -281,7 +258,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		full := filepath.Join("runs", id.String(), clean)
-		_ = os.MkdirAll(filepath.Dir(full), 0o755) // allow saving into a new nested path
+		_ = os.MkdirAll(filepath.Dir(full), 0o755)
 		if err := os.WriteFile(full, []byte(b.Content), 0o644); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -298,7 +275,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		}
 		var b struct {
 			Path   string `json:"path"`
-			Status string `json:"status"` // accepted | rejected
+			Status string `json:"status"`
 		}
 		json.NewDecoder(r.Body).Decode(&b)
 		if b.Path == "" || (b.Status != "accepted" && b.Status != "rejected") {
@@ -310,7 +287,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		if b.Status == "rejected" {
-			// remove the generated file from the run workspace
+
 			clean := filepath.Clean(b.Path)
 			if !strings.HasPrefix(clean, "..") && !filepath.IsAbs(clean) {
 				os.Remove(filepath.Join("runs", id.String(), clean))

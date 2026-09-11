@@ -7,28 +7,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// Bug is a ticket auto-filed from a finding (verify failure or review issue). It
-// is stored as a node with type='bug' and a lifecycle status ('open' initially),
-// so it shows on the same board but is never claimed by the worker queue (which
-// only takes status='ready').
 type Bug struct {
 	Title      string   `json:"title"`
-	Name       string   `json:"name"`                 // short label for the card
-	File       string   `json:"file"`                 // file:line or path
-	Severity   string   `json:"severity"`             // high | medium | low
-	Priority   string   `json:"priority"`             // P0 | P1 | P2
-	Category   string   `json:"category,omitempty"`   // bug | correctness | best-practice | test-gap | security
-	Confidence string   `json:"confidence,omitempty"` // high | medium | low — how sure the model is
-	Detail     string   `json:"detail"`               // the finding body
+	Name       string   `json:"name"`
+	File       string   `json:"file"`
+	Severity   string   `json:"severity"`
+	Priority   string   `json:"priority"`
+	Category   string   `json:"category,omitempty"`
+	Confidence string   `json:"confidence,omitempty"`
+	Detail     string   `json:"detail"`
 	Tags       []string `json:"tags"`
-	Kind       string   `json:"type"` // "bug" | "feature" | "chore" (card type)
+	Kind       string   `json:"type"`
 }
 
-// CreateBug inserts a bug ticket node. With no deps it lands in the manual 'open'
-// state (never queue-claimed) — the legacy behavior. Passed a dep (its module's
-// qa node), it lands 'pending' and blocked on that dep, so the autonomous dev fix
-// loop can only pick it up AFTER that module's QA is done ("QA over dev"): the
-// queue's PromoteReady flips it to 'ready' once the qa node completes.
 func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug, deps ...uuid.UUID) (uuid.UUID, error) {
 	if b.Name == "" {
 		b.Name = b.Title
@@ -39,10 +30,7 @@ func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug, deps ...uui
 	if b.Tags == nil {
 		b.Tags = []string{}
 	}
-	// Dedup: if an equivalent ticket (same title + file, case-insensitive) already
-	// exists in this run, return it instead of filing a duplicate card. Re-running
-	// a module, or two modules reporting the same issue at the same location, then
-	// collapses to one ticket rather than N.
+
 	var existingID uuid.UUID
 	dup := s.db.QueryRowContext(ctx, `
 		SELECT id FROM nodes WHERE run_id=? AND type='bug'
@@ -64,8 +52,6 @@ func (s *Store) CreateBug(ctx context.Context, run uuid.UUID, b Bug, deps ...uui
 	return id, err
 }
 
-// SetNodeTags replaces a node's tags (merged into its input_snapshot JSON).
-// Works for any card — audit node or bug ticket.
 func (s *Store) SetNodeTags(ctx context.Context, node uuid.UUID, tags []string) error {
 	if tags == nil {
 		tags = []string{}
@@ -80,9 +66,6 @@ func (s *Store) SetNodeTags(ctx context.Context, node uuid.UUID, tags []string) 
 	return err
 }
 
-// ReopenableBugs returns the ids of bug tickets that can be (re-)queued for the
-// autonomous dev loop: still open, failed a prior attempt, or parked in review.
-// Used by the chat "fix" command.
 func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id FROM nodes WHERE run_id=? AND type='bug' AND status IN ('open','failed','in_review')`, run)
@@ -101,8 +84,6 @@ func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID,
 	return ids, rows.Err()
 }
 
-// MergeNodeSnapshot merges keys into a node's input_snapshot JSON — used for
-// manual triage edits (severity, priority, …) that the board reads back out.
 func (s *Store) MergeNodeSnapshot(ctx context.Context, node uuid.UUID, patch map[string]any) error {
 	var raw []byte
 	_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(input_snapshot,'{}') FROM nodes WHERE id=?`, node).Scan(&raw)
@@ -116,8 +97,6 @@ func (s *Store) MergeNodeSnapshot(ctx context.Context, node uuid.UUID, patch map
 	return err
 }
 
-// SetNodeStatus moves a card to a new lifecycle status (used to advance bug
-// tickets: open → in_progress → in_review → verified, or failed/reopened).
 func (s *Store) SetNodeStatus(ctx context.Context, node uuid.UUID, status string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET status=? WHERE id=?`, status, node)
 	return err

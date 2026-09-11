@@ -9,9 +9,6 @@ import (
 	"myaudit/internal/store"
 )
 
-// listWorkspaceFiles walks a run's on-disk workspace and returns every file,
-// sorted by path, flagging changed files and carrying review status. Rejected
-// files are omitted. Content is not read here (fetched per-file by the UI).
 func listWorkspaceFiles(runID string, changed map[string]bool, reviews map[string]string) []store.FileEntry {
 	root := filepath.Join("runs", runID)
 	out := []store.FileEntry{}
@@ -26,8 +23,7 @@ func listWorkspaceFiles(runID string, changed map[string]bool, reviews map[strin
 			return nil
 		}
 		rel, err := filepath.Rel(root, p)
-		// Paths cross the API as web paths; on Windows filepath.Rel yields
-		// backslashes, which the UI (and the changed/review keys) split on "/".
+
 		rel = filepath.ToSlash(rel)
 		if err != nil || reviews[rel] == "rejected" {
 			return nil

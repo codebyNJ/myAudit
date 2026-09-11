@@ -8,20 +8,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// TaskSpec describes one node in a graph. Deps are referenced by Key so a plan
-// can be written before any ids exist; CreateGraph resolves them.
 type TaskSpec struct {
 	Key     string
 	Type    string
 	DepKeys []string
-	// Spec is per-node data stored in nodes.input_snapshot; the worker reads it
-	// to build the agent task. nil ⇒ stored as '{}'.
+
 	Spec any
 }
 
-// CreateGraph materializes a whole run + its nodes in one transaction, wiring
-// deps from keys to the generated node ids. Returns the run id and a
-// key→node-id map. An unknown dep key aborts the whole graph.
 func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpec) (uuid.UUID, map[string]uuid.UUID, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -35,7 +29,7 @@ func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpe
 	}
 
 	ids := make(map[string]uuid.UUID, len(specs))
-	// First pass: create nodes without deps so every key has an id.
+
 	for _, sp := range specs {
 		snap := "{}"
 		if sp.Spec != nil {
@@ -53,7 +47,7 @@ func (s *Store) CreateGraph(ctx context.Context, project string, specs []TaskSpe
 		}
 		ids[sp.Key] = id
 	}
-	// Second pass: resolve dep keys and set the deps array.
+
 	for _, sp := range specs {
 		if len(sp.DepKeys) == 0 {
 			continue

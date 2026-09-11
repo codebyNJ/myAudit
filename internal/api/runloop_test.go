@@ -7,13 +7,12 @@ import (
 	"myaudit/internal/store"
 )
 
-// resolveModel precedence: CLAUDE_MODEL env override > Settings tier > default.
 func TestResolveModel(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
 	defer s.Close()
 
-	t.Setenv("CLAUDE_MODEL", "") // no explicit override
+	t.Setenv("CLAUDE_MODEL", "")
 	if m := resolveModel(ctx, s); m != defaultModel {
 		t.Fatalf("default should be %s, got %s", defaultModel, m)
 	}
@@ -29,8 +28,6 @@ func TestResolveModel(t *testing.T) {
 	}
 }
 
-// NewRealDeps should read CLAUDE_BIN so a user whose claude install isn't on
-// PATH (or who wants a wrapper script) can point myAudit at it explicitly.
 func TestNewRealDepsReadsClaudeBinFromEnv(t *testing.T) {
 	s := newStore(t)
 	defer s.Close()
@@ -73,9 +70,6 @@ func TestNewRealDepsReadsMaxConcurrentFromEnv(t *testing.T) {
 	}
 }
 
-// TickAll should advance a run end-to-end on the stub: a map node promotes,
-// completes, fans out a qa card (empty workspace → the "(root)" module), the qa
-// card completes, the run drains, and FinalizeDrainedRuns marks it done.
 func TestTickAllAdvancesRun(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -101,9 +95,6 @@ func TestTickAllAdvancesRun(t *testing.T) {
 	}
 }
 
-// TestTickAllClaimsAndDispatchesUpToMaxConcurrent: with MaxConcurrent=2 and
-// 3 independent ready qa nodes (no deps between them), one TickAll call
-// should process 2 concurrently in a single tick, not 1.
 func TestTickAllClaimsAndDispatchesUpToMaxConcurrent(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -132,11 +123,6 @@ func TestTickAllClaimsAndDispatchesUpToMaxConcurrent(t *testing.T) {
 	}
 }
 
-// TestTickAllChecksBudgetBeforeClaiming: a run whose spend already meets/exceeds
-// its budget must have its ready qa node parked as 'paused' by TickAll and must
-// NOT be dispatched — even though ClaimN's SQL only selects 'ready' nodes, the
-// budget check has to run BEFORE ClaimN or the node is claimed into 'running'
-// (and gets dispatched) before PauseOverBudget ever gets a chance to park it.
 func TestTickAllChecksBudgetBeforeClaiming(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -152,7 +138,7 @@ func TestTickAllChecksBudgetBeforeClaiming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Mark import/map done with spend already at/over the budget, leave qa ready.
+
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.6}`, ids["import"])
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.5}`, ids["map"])
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, ids["qa"])

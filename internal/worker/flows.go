@@ -14,15 +14,12 @@ import (
 
 const flowsTimeout = 12 * time.Minute
 
-// FlowStep is one hop in a flow, optionally anchored to a file:line so the UI
-// can jump straight to the code.
 type FlowStep struct {
 	Label string `json:"label"`
 	File  string `json:"file,omitempty"`
 	Kind  string `json:"kind,omitempty"`
 }
 
-// DataFlow describes how one piece of state is produced, moved and persisted.
 type DataFlow struct {
 	Name    string     `json:"name"`
 	Entity  string     `json:"entity,omitempty"`
@@ -32,7 +29,6 @@ type DataFlow struct {
 	Concern string     `json:"concern,omitempty"`
 }
 
-// ProductFlow describes one user-facing journey through the product.
 type ProductFlow struct {
 	Name    string     `json:"name"`
 	Trigger string     `json:"trigger,omitempty"`
@@ -41,7 +37,6 @@ type ProductFlow struct {
 	Concern string     `json:"concern,omitempty"`
 }
 
-// FlowsDoc is the persisted result of the flows node.
 type FlowsDoc struct {
 	Persistence  string        `json:"persistence,omitempty"`
 	DataFlows    []DataFlow    `json:"data_flows,omitempty"`
@@ -52,10 +47,6 @@ func (d Deps) doFlows(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Work
 	ctx, cancel := context.WithTimeout(ctx, flowsTimeout)
 	defer cancel()
 
-	// Routed through runAgent (like qa/bug) so an agent-level failure (r.OK
-	// false, or an infra err) gets the same bounded retry-then-checkpoint
-	// treatment instead of silently falling through to parseFlows("") and
-	// reporting a misleading "unexpected end of JSON input".
 	r, ok := d.runAgent(ctx, c, ws, flowsTask, agent.ReadOnly)
 	if !ok {
 		return true, nil
@@ -82,7 +73,6 @@ func (d Deps) doFlows(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Work
 	return true, nil
 }
 
-// parseFlows tolerates the fenced / prose-wrapped JSON agents sometimes emit.
 func parseFlows(s string) (FlowsDoc, error) {
 	var doc FlowsDoc
 	txt := strings.TrimSpace(s)

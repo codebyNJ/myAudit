@@ -15,29 +15,22 @@ import (
 	"myaudit/internal/preview"
 )
 
-// Previews owns the auto-started dev servers for the app under test.
 var Previews = preview.New("runs")
 
-// LiveView is what the agent-screen viewer renders: a live URL when the agent
-// currently has the product running, otherwise the most recent captured frame.
 type LiveView struct {
-	Status string `json:"status"`           // "live" | "frames" | "idle"
-	Kind   string `json:"kind,omitempty"`   // "web" | "desktop" | "none"
+	Status string `json:"status"`
+	Kind   string `json:"kind,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Frame  string `json:"frame,omitempty"`
 	At     string `json:"at,omitempty"`
 	Title  string `json:"title,omitempty"`
 }
 
-// liveTarget is the file the QA agent writes while it has the product running.
 type liveTarget struct {
 	URL   string `json:"url"`
 	Title string `json:"title,omitempty"`
 }
 
-// reachable reports whether the host:port behind a URL is accepting connections,
-// so a stale live.json (agent killed its server, or crashed) never leaves the
-// viewer pointing at a dead page.
 func reachable(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
@@ -59,8 +52,6 @@ func reachable(raw string) bool {
 	return true
 }
 
-// newestFrame returns the most recently modified image under the run's .myaudit
-// capture dirs, workspace-relative.
 func newestFrame(root string) (string, time.Time) {
 	var best string
 	var bestAt time.Time
@@ -86,7 +77,7 @@ func newestFrame(root string) (string, time.Time) {
 			return nil
 		})
 		if best != "" {
-			break // prefer live captures over end-of-module previews
+			break
 		}
 	}
 	return best, bestAt
@@ -100,8 +91,6 @@ func isImage(p string) bool {
 	return false
 }
 
-// previewStart boots the app under test for a run so it can be watched live.
-// Idempotent, and a no-op for projects with no recognisable dev server.
 func previewStart(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -125,7 +114,6 @@ func previewStart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(202)
 }
 
-// previewStop tears a run's preview down.
 func previewStop(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -136,7 +124,6 @@ func previewStop(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 }
 
-// liveHandler serves the agent-screen source for a run.
 func liveHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

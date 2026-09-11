@@ -4,9 +4,7 @@ import * as MonacoNS from 'monaco-editor'
 import { detectLanguage } from './detectLanguage'
 export { detectLanguage }
 
-// Bundle Monaco with the app instead of @monaco-editor/react's default CDN
-// loader: the desktop build and the embedded Go binary must work offline, and a
-// CDN fetch also pins a different version than package.json.
+
 ;(self as unknown as { MonacoEnvironment: MonacoNS.Environment }).MonacoEnvironment = {
   getWorker() {
     return new Worker(URL.createObjectURL(new Blob(['self.onmessage=()=>{}'], { type: 'application/javascript' })))
@@ -32,7 +30,7 @@ const THEME: MonacoNS.editor.IStandaloneThemeData = {
     { token: 'tag', foreground: '569cd6' },
     { token: 'attribute.name', foreground: '9cdcfe' },
     { token: 'attribute.value', foreground: 'ce9178' },
-    // CSS / SCSS — without these, properties and structure wash out
+    
     { token: 'tag.css', foreground: 'd7ba7d' },
     { token: 'attribute.name.css', foreground: '9cdcfe' },
     { token: 'attribute.value.css', foreground: 'ce9178' },
@@ -76,9 +74,8 @@ let themeReady = false
 function ensureTheme(m: typeof MonacoNS) {
   if (themeReady) return
   m.editor.defineTheme('cursor-dark', THEME)
-  // Optional: the bundled build does not always expose the TypeScript language
-  // service (and we ship no language workers), so this must never throw — it is
-  // only muting red squiggles in a read-and-review surface.
+  
+  
   type Defaults = { setDiagnosticsOptions?: (o: object) => void }
   const ts = (m.languages as unknown as {
     typescript?: { typescriptDefaults?: Defaults; javascriptDefaults?: Defaults }
@@ -134,7 +131,7 @@ export function Mono({
     })
     const model = editor.getModel()
     if (model) {
-      // Pick up the file's own indent width/style (4-space CSS, tabs, etc.).
+      
       model.detectIndentation(true, 2)
     }
     editor.focus()

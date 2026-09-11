@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// testURL returns a fresh SQLite file path in the test's temp dir, so every
-// test gets an isolated database (no shared-DB TRUNCATE dance).
 func testURL(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "test.db")
 }

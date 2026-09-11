@@ -8,34 +8,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// ClaimedNode is a node a worker has exclusively taken to run.
 type ClaimedNode struct {
 	ID, RunID uuid.UUID
 	Type      string
 	Attempts  int
-	Spec      []byte // nodes.input_snapshot — per-node data
+	Spec      []byte
 }
 
-// Queue is the SQLite-backed job queue. A job's state is a row, so the whole
-// system is queryable at any instant.
 type Queue struct {
 	db *sql.DB
 }
 
-// New builds a Queue over the DB handle.
 func New(db *sql.DB) *Queue { return &Queue{db: db} }
 
-// Claim atomically takes one ready node and marks it running. Returns nil when
-// none is ready.
-//
-// ponytail: a single UPDATE ... WHERE id=(SELECT ... LIMIT 1) RETURNING is
-// atomic under SQLite's statement-level write lock — no FOR UPDATE SKIP LOCKED
-// needed. Fine for a local single-process run loop; revisit if we ever run
-// multiple worker processes against one file.
-//
-// Claim order encodes "QA over dev": import/map first, then qa (find everything),
-// then bug (dev fixes) last, tie-broken by created_at. So the board drains all
-// discovery before any fix begins.
 func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	var c ClaimedNode
 	var spec sql.NullString
@@ -59,11 +44,6 @@ func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	return &c, nil
 }
 
-// ClaimN atomically takes up to n ready nodes and marks them running, same
-// priority ordering as Claim (import > map > qa > everything else, tie-broken
-// by created_at). Returns fewer than n if fewer are ready. Used by the
-// bounded-concurrency run loop; Claim (n=1 behavior) is kept as-is since
-// existing callers/tests depend on its exact single-node contract.
 func (q *Queue) ClaimN(ctx context.Context, n int) ([]*ClaimedNode, error) {
 	var out []*ClaimedNode
 	for i := 0; i < n; i++ {
@@ -79,37 +59,25 @@ func (q *Queue) ClaimN(ctx context.Context, n int) ([]*ClaimedNode, error) {
 	return out, nil
 }
 
-// Complete marks a node done and stores its output.
 func (q *Queue) Complete(ctx context.Context, id uuid.UUID, output []byte) error {
 	return q.Finish(ctx, id, output, "done")
 }
 
-// Finish stores a node's output and sets its terminal status in ONE write, so a
-// non-done outcome (failed / in_review) can't be lost by a fire-and-forget
-// follow-up update — the bug handler relies on this for its "never a false
-// fixed" guarantee.
 func (q *Queue) Finish(ctx context.Context, id uuid.UUID, output []byte, status string) error {
 	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status=?, output=? WHERE id=?`, status, string(output), id)
 	return err
 }
 
-// Fail marks a node failed.
 func (q *Queue) Fail(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status='failed' WHERE id=?`, id)
 	return err
 }
 
-// Requeue puts a running node back to ready for another attempt (retry).
 func (q *Queue) Requeue(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, id)
 	return err
 }
 
-// RecoverStuck reclaims nodes left 'running' by a crashed/killed process (no
-// worker is actually running them after a restart). Nodes under maxAttempts are
-// requeued to 'ready'; those that have already burned maxAttempts are failed
-// (poison guard) so a repeatedly-crashing node can't loop forever. Returns the
-// number requeued. Call once on startup.
 func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) {
 	if _, err := q.db.ExecContext(ctx,
 		`UPDATE nodes SET status='failed' WHERE status='running' AND attempts >= ?`, maxAttempts); err != nil {
@@ -124,12 +92,8 @@ func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) 
 	return int(n), nil
 }
 
-// PromoteReady moves pending nodes whose every dependency is done to ready.
-// Returns the number promoted.
 func (q *Queue) PromoteReady(ctx context.Context) (int, error) {
-	// Promote once no dependency is still ACTIVE (pending/ready/running). A dep
-	// that ended in any terminal state — done, but also failed/cancelled — unblocks
-	// its dependents, so one failed node can't strand the rest of the graph forever.
+
 	res, err := q.db.ExecContext(ctx, `
 		UPDATE nodes SET status='ready'
 		WHERE status='pending'

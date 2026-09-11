@@ -19,7 +19,6 @@ func TestNotesEndpoint(t *testing.T) {
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
 
-	// PUT then GET
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/runs/"+run.String()+"/notes", bytes.NewBufferString(`{"content":"hello notes"}`))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
@@ -48,7 +47,7 @@ func TestSettingsEndpoint(t *testing.T) {
 	if merged["model_tier"] != "sonnet-5" {
 		t.Fatalf("settings merge: %+v", merged)
 	}
-	// GET reflects it
+
 	r2, _ := http.Get(srv.URL + "/api/settings")
 	var got map[string]any
 	json.NewDecoder(r2.Body).Decode(&got)
@@ -58,10 +57,6 @@ func TestSettingsEndpoint(t *testing.T) {
 	s.PutSettings(context.Background(), map[string]any{"model_tier": "opus-4.8"})
 }
 
-// Mutating endpoints answer 200/202 with an EMPTY body. The web client used to
-// call .json() on those, which threw and made every action button look broken
-// while the server had already done the work. Pin the contract: a success
-// response is either empty or valid JSON — never a non-JSON body.
 func TestMutatingEndpointsReturnEmptyOrJSON(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -87,10 +82,10 @@ func TestMutatingEndpointsReturnEmptyOrJSON(t *testing.T) {
 	} {
 		code, body := post(path)
 		if code >= 400 {
-			continue // not-applicable states are fine; we only pin success shapes
+			continue
 		}
 		if body == "" {
-			continue // empty body is the expected shape for these
+			continue
 		}
 		var v any
 		if err := json.Unmarshal([]byte(body), &v); err != nil {

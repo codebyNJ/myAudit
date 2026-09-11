@@ -18,11 +18,6 @@ import (
 	"myaudit/internal/worker"
 )
 
-// realAgent implements worker.Agent by driving the real Claude Code CLI with the
-// default allow/deny tool policy. Model comes from CLAUDE_MODEL (default Haiku);
-// AGENT_ISOLATE=1 runs claude inside a container; CLAUDE_BIN overrides the
-// claude binary/command name for a user whose install isn't plain "claude" on
-// PATH (default, empty, leaves agent.Options to default it to "claude").
 type realAgent struct {
 	store   *store.Store
 	isolate bool
@@ -43,7 +38,6 @@ func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, m
 	})
 }
 
-// tierToModel maps the Settings "model tier" to a concrete claude model id.
 var tierToModel = map[string]string{
 	"opus-4.8":  "claude-opus-4-8",
 	"sonnet-5":  "claude-sonnet-5",
@@ -52,9 +46,6 @@ var tierToModel = map[string]string{
 
 const defaultModel = "claude-haiku-4-5-20251001"
 
-// resolveModel picks the agent model, read per run so the UI takes effect live:
-// the CLAUDE_MODEL env override wins (so `make run CLAUDE_MODEL=…` still works),
-// else the model tier the user picked in Settings, else the Haiku default.
 func resolveModel(ctx context.Context, s *store.Store) string {
 	if m := os.Getenv("CLAUDE_MODEL"); m != "" {
 		return m
@@ -71,15 +62,12 @@ func resolveModel(ctx context.Context, s *store.Store) string {
 	return defaultModel
 }
 
-// stubAgent is the $0 dev runner: it reports success without calling a model, so
-// the UI/graph can be exercised without spending tokens.
 type stubAgent struct{}
 
 func (stubAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
 	return agent.Result{OK: true, Summary: "[stub] node skipped (dev mode)"}, nil
 }
 
-// NewRealDeps drives nodes with the REAL Claude Code agent.
 func NewRealDeps(s *store.Store) worker.Deps {
 	image := os.Getenv("AGENT_IMAGE")
 	if image == "" {
@@ -96,7 +84,6 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	}
 }
 
-// NewStubDeps drives nodes with the $0 stub agent (dev/UI mode).
 func NewStubDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
@@ -105,18 +92,11 @@ func NewStubDeps(s *store.Store) worker.Deps {
 	}
 }
 
-// TickAll promotes ready nodes then claims and dispatches up to MaxConcurrent
-// of them across all runs, concurrently. Returns the number of nodes
-// processed.
 func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if _, err := deps.Queue.PromoteReady(ctx); err != nil {
 		return 0, err
 	}
 
-	// Check budget BEFORE claiming, not after -- PauseOverBudget flips an
-	// over-budget run's ready qa/bug/flows nodes to 'paused', and Claim only
-	// selects 'ready' nodes, so this must run first or a whole concurrent
-	// batch can be claimed (and start billed calls) before the check bites.
 	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
 		for _, id := range paused {
 			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
@@ -148,15 +128,10 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	}
 	wg.Wait()
 
-	// Mark any drained run finished and announce it (drives the runs list off the
-	// perpetual "running" and gives the UI a completion signal to toast).
 	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
 		for _, r := range finished {
 			deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run." + r.Status, Msg: "audit " + r.Status})
-			// QA installs real dependencies into the workspace to exercise the
-			// product; once the run is over those caches are dead weight (they
-			// dominated disk at ~1.7GB across four runs). Source and audit
-			// artifacts stay, so the workspace is still reviewable.
+
 			if freed, rerr := sandbox.Reclaim(filepath.Join(deps.WorkspaceRoot, r.ID.String())); rerr == nil && freed > 0 {
 				deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run.reclaim",
 					Msg: fmt.Sprintf("reclaimed %.0f MB of dependency caches", float64(freed)/(1<<20))})
@@ -166,9 +141,6 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	return processed, nil
 }
 
-// StartRunLoop ticks the graph forward until ctx is cancelled. Ticks run
-// sequentially; after a node is processed it waits `every`, else polls gently.
-// On start it recovers nodes left 'running' by a prior crash so restarts self-heal.
 func StartRunLoop(ctx context.Context, deps worker.Deps, every time.Duration) {
 	if n, err := deps.Queue.RecoverStuck(ctx, 3); err == nil && n > 0 {
 		slog.Info("recovered stuck nodes on startup", "count", n)

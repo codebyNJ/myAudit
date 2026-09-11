@@ -17,7 +17,6 @@ func TestCreateRunImportsRepo(t *testing.T) {
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
 
-	// a real directory to import
 	repo := filepath.Join(t.TempDir(), "myrepo")
 	os.MkdirAll(repo, 0o755)
 

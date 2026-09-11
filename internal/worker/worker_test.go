@@ -13,12 +13,10 @@ import (
 	"myaudit/internal/store"
 )
 
-// recordingAgent fakes the Claude Code seam: records calls + the readOnly flag,
-// optionally writes a file into the workspace, returns a configured Result.
 type recordingAgent struct {
 	calls     int
 	lastMode  agent.Mode
-	lastWSDir string // captures ws.Dir for scoping assertions
+	lastWSDir string
 	result    agent.Result
 	writeFile string
 }
@@ -52,8 +50,6 @@ func newDeps(s *store.Store, a Agent, root string) Deps {
 	}
 }
 
-// --- pure-unit tests ---
-
 func TestChangedFiles(t *testing.T) {
 	d := "diff --git a/src/x.js b/src/x.js\n@@\n+a\ndiff --git a/src/y.js b/src/y.js\n@@\n+b\n"
 	f := changedFiles(d)
@@ -63,7 +59,7 @@ func TestChangedFiles(t *testing.T) {
 }
 
 func TestParseFindings(t *testing.T) {
-	// model output wrapped in prose + a json fence (the realistic case)
+
 	raw := "Here are the issues:\n```json\n" +
 		`[{"title":"SQL injection","file":"db.go:10","severity":"high","detail":"unsanitized"},` +
 		`{"title":"no timeout","file":"http.go:5","severity":"low","detail":"add ctx"}]` +
@@ -106,5 +102,3 @@ func TestDetectTestCmd(t *testing.T) {
 		t.Fatal("empty dir should have no runner")
 	}
 }
-
-// (map/qa/bug dispatch is covered end-to-end in qa_test.go's TestQALedFlow.)

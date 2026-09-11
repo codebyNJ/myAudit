@@ -9,8 +9,7 @@ import { Diff } from '../components/Diff'
 import { lazy, Suspense } from 'react'
 import { detectLanguage } from '../components/detectLanguage'
 
-// Monaco is ~4MB bundled; load it as its own chunk the first time the Code tab
-// actually renders an editor, so it never sits in the initial paint.
+
 const Mono = lazy(() => import('../components/Monaco').then((m) => ({ default: m.Mono })))
 
 const baseName = (p: string) => p.split('/').pop() || p
@@ -75,7 +74,7 @@ export function DevScreen() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [diff, setDiff] = useState('')
-  const [showDiff, setShowDiff] = useState(false) // code-first, like VS Code
+  const [showDiff, setShowDiff] = useState(false) 
   const [wrap, setWrap] = useState(true)
   const [minimap, setMinimap] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -115,7 +114,7 @@ export function DevScreen() {
     else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
   }, [files.map((f) => f.path).join(',') + '|' + changedKey])
 
-  // Load file when selection changes. Always editable — no Edit-mode gate.
+  
   useEffect(() => {
     setShowDiff(false)
     if (!sel || !s.runId) { setContent(''); setSaved(''); return }
@@ -135,7 +134,7 @@ export function DevScreen() {
       .finally(() => { if (loadGen.current === gen) setLoading(false) })
   }, [sel?.path, s.runId])
 
-  // Soft-refresh from disk when run detail updates, but never clobber dirty edits.
+  
   useEffect(() => {
     if (!sel || !s.runId || dirty) return
     let alive = true
@@ -196,7 +195,7 @@ export function DevScreen() {
 
   const breadcrumbParts = sel?.path ? sel.path.split('/') : []
 
-  // Global ⌘S when Code tab is focused (Monaco also binds it when focused).
+  
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {

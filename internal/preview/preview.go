@@ -1,4 +1,3 @@
-// Package preview runs the application under test so it can be watched live.
 package preview
 
 import (
@@ -20,7 +19,6 @@ const (
 	portHigh    = 41200
 )
 
-// Server is one running app-under-test.
 type Server struct {
 	RunID string
 	URL   string
@@ -28,7 +26,6 @@ type Server struct {
 	Log   string
 }
 
-// Manager owns at most one preview per run and guarantees they are torn down.
 type Manager struct {
 	mu   sync.Mutex
 	live map[string]*Server
@@ -39,8 +36,6 @@ func New(workspaceRoot string) *Manager {
 	return &Manager{live: map[string]*Server{}, root: workspaceRoot}
 }
 
-// Command describes how to boot a project. Returns ok=false when the workspace
-// has no recognisable UI dev server, in which case nothing is started.
 func Command(dir string) (name string, args []string, ok bool) {
 	if Detect(dir) == KindNone {
 		return "", nil, false
@@ -56,9 +51,7 @@ func Command(dir string) (name string, args []string, ok bool) {
 	if json.Unmarshal(b, &m) != nil {
 		return "", nil, false
 	}
-	// Only start what the project itself calls a dev server, and only when its
-	// dependencies are already installed — auto-installing on open would be a
-	// slow, surprising side effect of merely clicking a project.
+
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err != nil {
 		return "", nil, false
 	}
@@ -90,7 +83,6 @@ func reachable(port int) bool {
 	return true
 }
 
-// Get returns the running preview for a run, if any.
 func (m *Manager) Get(runID string) (*Server, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -98,8 +90,6 @@ func (m *Manager) Get(runID string) (*Server, bool) {
 	return s, ok
 }
 
-// Start boots the app under test for a run. It is idempotent: if a preview is
-// already up and answering, that one is returned.
 func (m *Manager) Start(runID string) (*Server, error) {
 	m.mu.Lock()
 	if s, ok := m.live[runID]; ok {
@@ -132,7 +122,7 @@ func (m *Manager) Start(runID string) (*Server, error) {
 	if lf != nil {
 		c.Stdout, c.Stderr = lf, lf
 	}
-	proc.SetGroup(c) // so KillTree takes the framework's child processes too
+	proc.SetGroup(c)
 
 	if err := c.Start(); err != nil {
 		if lf != nil {
@@ -160,7 +150,6 @@ func (m *Manager) Start(runID string) (*Server, error) {
 	return nil, fmt.Errorf("dev server did not answer on port %d within %s", port, bootTimeout)
 }
 
-// Stop tears down a run's preview and clears the live marker.
 func (m *Manager) Stop(runID string) {
 	m.mu.Lock()
 	s, ok := m.live[runID]
@@ -170,11 +159,10 @@ func (m *Manager) Stop(runID string) {
 		return
 	}
 	_ = proc.KillTree(s.Cmd)
-	go func() { _ = s.Cmd.Wait() }() // reap without blocking the caller
+	go func() { _ = s.Cmd.Wait() }()
 	clearLive(filepath.Join(m.root, runID))
 }
 
-// StopAll tears down every preview (server shutdown).
 func (m *Manager) StopAll() {
 	m.mu.Lock()
 	ids := make([]string, 0, len(m.live))
@@ -187,7 +175,6 @@ func (m *Manager) StopAll() {
 	}
 }
 
-// writeLive publishes the URL the agent-screen viewer reads.
 func writeLive(dir, url string) {
 	b, _ := json.Marshal(map[string]string{"url": url, "title": "dev server (auto-started)"})
 	os.WriteFile(filepath.Join(dir, ".myaudit", "live.json"), b, 0o644)

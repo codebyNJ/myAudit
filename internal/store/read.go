@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// RunSummary is a run row for list views.
 type RunSummary struct {
 	ID        uuid.UUID `json:"id"`
 	Project   string    `json:"project"`
@@ -17,7 +16,6 @@ type RunSummary struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// EventRow is one event for the log view.
 type EventRow struct {
 	TS     time.Time  `json:"ts"`
 	Kind   string     `json:"kind"`
@@ -26,8 +24,6 @@ type EventRow struct {
 	NodeID *uuid.UUID `json:"node_id,omitempty"`
 }
 
-// GetRun loads a single run row (project/status/created), so the detail endpoint
-// returns real metadata instead of a bare id.
 func (s *Store) GetRun(ctx context.Context, id uuid.UUID) (RunSummary, error) {
 	var r RunSummary
 	err := s.db.QueryRowContext(ctx,
@@ -36,7 +32,6 @@ func (s *Store) GetRun(ctx context.Context, id uuid.UUID) (RunSummary, error) {
 	return r, err
 }
 
-// ListRuns returns recent runs, newest first.
 func (s *Store) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 	if limit <= 0 {
 		limit = 50
@@ -58,22 +53,20 @@ func (s *Store) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 	return out, rows.Err()
 }
 
-// NodeDetail is a node enriched for the board/cards: attempts, timing, a
-// summary distilled from its output, and how many events it has emitted.
 type NodeDetail struct {
 	ID        uuid.UUID  `json:"id"`
 	Type      string     `json:"type"`
-	Name      string     `json:"name"` // spec name from input_snapshot
+	Name      string     `json:"name"`
 	Status    string     `json:"status"`
 	Deps      int        `json:"deps"`
 	Attempts  int        `json:"attempts"`
 	Summary   string     `json:"summary"`
-	Files     int        `json:"files"` // count of changed files
+	Files     int        `json:"files"`
 	CostUSD   float64    `json:"cost_usd"`
 	Events    int        `json:"events"`
 	CreatedAt time.Time  `json:"created_at"`
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
-	// Ticket fields (bug/feature cards) — read from input_snapshot JSON.
+
 	Title      string   `json:"title,omitempty"`
 	File       string   `json:"file,omitempty"`
 	Severity   string   `json:"severity,omitempty"`
@@ -84,7 +77,6 @@ type NodeDetail struct {
 	Tags       []string `json:"tags"`
 }
 
-// NodesForRun returns all nodes of a run (basic, for the graph view).
 func (s *Store) NodesForRun(ctx context.Context, run uuid.UUID) ([]Node, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, run_id, type, status, deps FROM nodes WHERE run_id=? ORDER BY created_at`, run)
@@ -105,7 +97,6 @@ func (s *Store) NodesForRun(ctx context.Context, run uuid.UUID) ([]Node, error) 
 	return out, rows.Err()
 }
 
-// NodeDetailsForRun returns enriched node cards, joining event counts.
 func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDetail, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT n.id, n.type, coalesce(json_extract(n.input_snapshot,'$.name'),''), n.status,
@@ -147,19 +138,14 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 	return out, rows.Err()
 }
 
-// FileEntry is a file in a run's workspace. In tree listings Content is empty
-// (fetched lazily per file); Changed marks files a node produced/flagged.
 type FileEntry struct {
 	Path    string `json:"path"`
 	Content string `json:"content,omitempty"`
 	Action  string `json:"action,omitempty"`
 	Changed bool   `json:"changed"`
-	Review  string `json:"review,omitempty"` // "" | accepted
+	Review  string `json:"review,omitempty"`
 }
 
-// ChangedFilesForRun returns paths a run's nodes flagged (from each node
-// output's `changed` array), first-seen order, excluding rejected. Content is
-// NOT included — the API layer reads file content from the workspace on disk.
 func (s *Store) ChangedFilesForRun(ctx context.Context, run uuid.UUID) ([]FileEntry, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT output FROM nodes WHERE run_id=? AND output IS NOT NULL ORDER BY created_at`, run)
@@ -204,7 +190,6 @@ func (s *Store) ChangedFilesForRun(ctx context.Context, run uuid.UUID) ([]FileEn
 	return files, nil
 }
 
-// RunCostUSD sums the cost recorded across a run's node outputs.
 func (s *Store) RunCostUSD(ctx context.Context, run uuid.UUID) (float64, error) {
 	var total float64
 	err := s.db.QueryRowContext(ctx,
@@ -213,7 +198,6 @@ func (s *Store) RunCostUSD(ctx context.Context, run uuid.UUID) (float64, error) 
 	return total, err
 }
 
-// OpenCheckpointsForRun returns unresolved checkpoints for a run.
 func (s *Store) OpenCheckpointsForRun(ctx context.Context, run uuid.UUID) ([]Checkpoint, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, run_id, node_id, question, resolved, COALESCE(answer,'')
@@ -233,10 +217,6 @@ func (s *Store) OpenCheckpointsForRun(ctx context.Context, run uuid.UUID) ([]Che
 	return out, rows.Err()
 }
 
-// EventsForRun returns a run's most recent `limit` events, oldest-first.
-// It selects the newest by id DESC (id is monotonic; ts ties at 1s resolution)
-// then reverses, so a long run keeps showing its LATEST activity instead of
-// freezing on the first 200 events (chat/activity/verify all read this).
 func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]EventRow, error) {
 	if limit <= 0 {
 		limit = 200
@@ -260,15 +240,13 @@ func (s *Store) EventsForRun(ctx context.Context, run uuid.UUID, limit int) ([]E
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	// reverse newest-first → oldest-first for chronological rendering
+
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, nil
 }
 
-// FlowsForRun returns the raw flows document from the most recent completed
-// flows node of a run, or nil when the run has none yet.
 func (s *Store) FlowsForRun(ctx context.Context, run uuid.UUID) (json.RawMessage, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT output FROM nodes WHERE run_id=? AND type='flows' AND output IS NOT NULL ORDER BY created_at DESC`, run)
@@ -292,8 +270,6 @@ func (s *Store) FlowsForRun(ctx context.Context, run uuid.UUID) (json.RawMessage
 	return nil, rows.Err()
 }
 
-// HasPendingFlows reports whether a flows node is already queued or running,
-// so the API doesn't stack duplicates.
 func (s *Store) HasPendingFlows(ctx context.Context, run uuid.UUID) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx,

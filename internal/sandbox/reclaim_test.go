@@ -45,7 +45,6 @@ func TestReclaimDropsCachesKeepsSource(t *testing.T) {
 	}
 }
 
-// A workspace that IS itself named node_modules must not delete itself.
 func TestReclaimIgnoresRootName(t *testing.T) {
 	base := t.TempDir()
 	dir := filepath.Join(base, "node_modules")

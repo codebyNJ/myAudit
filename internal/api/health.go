@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// registerHealth exposes a preflight the UI checks on load, so the #1 first-run
-// cliff (claude CLI missing / git missing) surfaces as clear guidance instead of
-// a silently-dead run. It reports tool PRESENCE only — it never spends tokens, so
-// it can't verify Claude auth; an unauthenticated CLI still surfaces via the
-// node's failure reason on the card.
 func registerHealth(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		claudeOK, claudeVer := probe("claude", "--version")
@@ -35,7 +30,6 @@ func registerHealth(mux *http.ServeMux) {
 	})
 }
 
-// probe reports whether a command runs, plus its trimmed first line of output.
 func probe(name string, args ...string) (bool, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

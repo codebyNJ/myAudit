@@ -13,8 +13,6 @@ import (
 	"myaudit/internal/store"
 )
 
-// wsPath resolves a workspace-relative path to an absolute path under the run's
-// workspace, rejecting empty/absolute/escaping paths. ok=false ⇒ already 400'd.
 func wsPath(w http.ResponseWriter, r *http.Request, rel string) (id uuid.UUID, full string, ok bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -29,11 +27,8 @@ func wsPath(w http.ResponseWriter, r *http.Request, rel string) (id uuid.UUID, f
 	return id, filepath.Join("runs", id.String(), clean), true
 }
 
-// registerFileOps adds VSCode-style file management + find-in-files over a run's
-// workspace: search, create, rename, delete.
 func registerFileOps(mux *http.ServeMux, s *store.Store) {
-	// Find-in-files: substring match across the workspace. Skips excluded/binary/
-	// large files; caps results so a huge repo can't blow up the response.
+
 	mux.HandleFunc("GET /api/runs/{id}/search", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -48,7 +43,6 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 		writeJSON(w, searchWorkspace(filepath.Join("runs", id.String()), q, 200))
 	})
 
-	// Create a file (or folder with {"dir":true}). Parents are created.
 	mux.HandleFunc("POST /api/runs/{id}/file/new", func(w http.ResponseWriter, r *http.Request) {
 		var b struct {
 			Path string `json:"path"`
@@ -81,7 +75,6 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 		w.WriteHeader(201)
 	})
 
-	// Rename/move a file or folder within the workspace.
 	mux.HandleFunc("POST /api/runs/{id}/file/rename", func(w http.ResponseWriter, r *http.Request) {
 		var b struct {
 			From string `json:"from"`
@@ -113,7 +106,6 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 		w.WriteHeader(200)
 	})
 
-	// Delete a file or folder (recursive).
 	mux.HandleFunc("DELETE /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
 		_, full, ok := wsPath(w, r, r.URL.Query().Get("path"))
 		if !ok {
@@ -133,8 +125,6 @@ type searchHit struct {
 	Text string `json:"text"`
 }
 
-// searchWorkspace does a case-insensitive substring scan, returning up to max
-// hits. Binary and oversized files are skipped; long lines are trimmed.
 func searchWorkspace(root, q string, max int) []searchHit {
 	needle := strings.ToLower(q)
 	out := []searchHit{}
@@ -151,7 +141,7 @@ func searchWorkspace(root, q string, max int) []searchHit {
 			}
 			return nil
 		}
-		if info.Size() > 512*1024 { // skip large/generated files
+		if info.Size() > 512*1024 {
 			return nil
 		}
 		b, err := os.ReadFile(p)

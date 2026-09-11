@@ -25,7 +25,6 @@ func TestRunOptsAndPauseOverBudget(t *testing.T) {
 		t.Fatalf("opts=%+v", opts)
 	}
 
-	// Mark import/map done, leave qa ready, fake spend over budget.
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.6}`, ids["import"])
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.5}`, ids["map"])
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, ids["qa"])

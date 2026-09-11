@@ -15,16 +15,11 @@ import (
 	"myaudit/internal/store"
 )
 
-// TestQALedFlow drives the whole reshaped pipeline with a fake agent:
-// map fans out per-module qa cards, qa files a bug ticket blocked on its module
-// (QA-over-dev), promotion unblocks it, and the autonomous dev applies a fix that
-// lands in review because the suite isn't runnable here. No real model, no cost.
 func TestQALedFlow(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
 	run, _ := s.CreateRun(ctx, "proj")
 
-	// Build a real workspace (two code modules + git baseline) via import.
 	src := t.TempDir()
 	os.MkdirAll(filepath.Join(src, "moduleA"), 0o755)
 	os.MkdirAll(filepath.Join(src, "lib"), 0o755)
@@ -35,11 +30,9 @@ func TestQALedFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A ready map node (import already happened above).
 	mapID, _ := s.AddNode(ctx, run, "map", nil)
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, mapID)
 
-	// 1) map → spawns one qa card per module.
 	if _, err := RunOnce(ctx, newDeps(s, &recordingAgent{result: agent.Result{OK: true, Summary: "product map"}}, root)); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +46,6 @@ func TestQALedFlow(t *testing.T) {
 		}
 	}
 
-	// 2) promote + run one qa card → files a bug ticket, blocked on the qa card.
 	q := newDeps(s, &recordingAgent{result: agent.Result{OK: true,
 		Summary: `[{"title":"nil deref in handler","file":"moduleA/x.go:1","severity":"high","detail":"reproduce: call with empty body"}]`}}, root)
 	if _, err := q.Queue.PromoteReady(ctx); err != nil {
@@ -70,8 +62,6 @@ func TestQALedFlow(t *testing.T) {
 		t.Fatalf("bug must be blocked (pending) until its QA is done, got %s", bugs[0].Status)
 	}
 
-	// 3) drain the board: remaining qa cards run first (QA over dev), then the
-	// bug is unblocked and the autonomous dev fixes it.
 	bugDeps := newDeps(s, &recordingAgent{result: agent.Result{OK: true, Summary: "guarded the nil case"}, writeFile: "moduleA/x.go"}, root)
 	for i := 0; i < 10; i++ {
 		bugDeps.Queue.PromoteReady(ctx)
@@ -84,8 +74,7 @@ func TestQALedFlow(t *testing.T) {
 		}
 	}
 	bugs = nodesOfType(t, s, run, "bug")
-	// No test runner in this workspace → fix can't be verified → parks in review,
-	// never a false "fixed" (the old vitest-not-found false-positive is gone).
+
 	if bugs[0].Status != "in_review" {
 		t.Fatalf("unverifiable fix should land in review, got %s", bugs[0].Status)
 	}
@@ -95,10 +84,6 @@ func TestQALedFlow(t *testing.T) {
 	}
 }
 
-// TestQAScopesWorkspaceToItsModule: a qa node for module "moduleA" (path
-// "moduleA") must invoke the agent with a workspace rooted at
-// <run-root>/moduleA, not the run root itself — otherwise every QA card can
-// read/exercise the whole repo regardless of which module it was assigned.
 func TestQAScopesWorkspaceToItsModule(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -131,7 +116,7 @@ func TestQAScopesWorkspaceToItsModule(t *testing.T) {
 }
 
 func TestClassifyTestsDistinguishesNotRunnable(t *testing.T) {
-	// The core of the false-positive fix: "command not found" is not a defect.
+
 	if !looksNotRunnable("sh: vitest: command not found") {
 		t.Fatal("vitest-not-found must be classified not-runnable")
 	}
@@ -155,8 +140,6 @@ func nodesOfType(t *testing.T, s *store.Store, run uuid.UUID, typ string) []stor
 	return out
 }
 
-// classifyTests decides "fixed vs broken vs unverifiable" — the core of the
-// auto-close guarantee. Exercise all three branches with a real tiny go module.
 func TestClassifyTests(t *testing.T) {
 	ctx := context.Background()
 
@@ -177,8 +160,6 @@ func TestClassifyTests(t *testing.T) {
 	}
 }
 
-// scanModules shapes the whole board fan-out; a regression here mis-splits every
-// repo. Cover flat, multi-dir (with exclusions), and container-descent layouts.
 func TestScanModules(t *testing.T) {
 	flat := t.TempDir()
 	mkFile(t, flat, "main.go")
@@ -189,8 +170,8 @@ func TestScanModules(t *testing.T) {
 	multi := t.TempDir()
 	mkFile(t, multi, "internal/x.go")
 	mkFile(t, multi, "web/app.ts")
-	mkFile(t, multi, "node_modules/dep/index.js") // skip-dir
-	mkFile(t, multi, "docs/readme.md")            // no code → excluded
+	mkFile(t, multi, "node_modules/dep/index.js")
+	mkFile(t, multi, "docs/readme.md")
 	mods, _ := scanModules(multi)
 	got := modulePaths(mods)
 	if !got["internal"] || !got["web"] {
@@ -210,9 +191,6 @@ func TestScanModules(t *testing.T) {
 	}
 }
 
-// TestScanModulesReportsDropped: with more than the 10-module cap worth of
-// top-level directories, scanModules must report which ones got dropped, not
-// just silently truncate.
 func TestScanModulesReportsDropped(t *testing.T) {
 	root := t.TempDir()
 	for i := 0; i < 12; i++ {
@@ -229,8 +207,6 @@ func TestScanModulesReportsDropped(t *testing.T) {
 	}
 }
 
-// countFailLines underpins the relative regression gate (fix judged worse-or-not
-// vs a pre-fix baseline), so it must roughly track how many tests failed.
 func TestCountFailLines(t *testing.T) {
 	green := "PASS ok  3 passed"
 	if countFailLines(green) != 0 {
@@ -242,9 +218,6 @@ func TestCountFailLines(t *testing.T) {
 	}
 }
 
-// TestQATaskIncludesNotesWhenPresent: qaTask must fold in prior map-step
-// context the same way fixTask already does, so QA doesn't redundantly
-// rediscover product structure the map step already paid for.
 func TestQATaskIncludesNotesWhenPresent(t *testing.T) {
 	got := qaTask("backend", "backend", "# Audit map\n\nThis product is a payment gateway.", "")
 	if !strings.Contains(got, "payment gateway") {
@@ -273,10 +246,6 @@ func TestQATaskOmitsTestCommandHintWhenNoneDetected(t *testing.T) {
 	}
 }
 
-// TestQATaskFollowsStagedProcedure: qaTask's main body must walk QA through a
-// staged procedure (module boundary → detect/run tests → read before judging →
-// priority-ordered defect search → stop-and-write) rather than an open-ended
-// "explore and find bugs" instruction, so QA runs converge instead of wandering.
 func TestQATaskFollowsStagedProcedure(t *testing.T) {
 	got := qaTask("backend", "backend", "", "go test ./...")
 	for _, want := range []string{

@@ -10,7 +10,6 @@ import (
 //go:embed all:web/dist
 var webFS embed.FS
 
-
 func StaticHandler() http.Handler {
 	sub, err := fs.Sub(webFS, "web/dist")
 	if err != nil {

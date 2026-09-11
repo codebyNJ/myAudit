@@ -42,9 +42,6 @@ func TestDirectCommandRunsInWorkspace(t *testing.T) {
 	}
 }
 
-// TestCommandDeliversTaskViaStdin is the core regression test for the Windows
-// .cmd argument-mangling bug: the task must travel via stdin, never as a CLI
-// argument, regardless of its content (long, quotes, backticks, JSON braces).
 func TestCommandDeliversTaskViaStdin(t *testing.T) {
 	dir := filepath.Join(string(filepath.Separator), "runs", "stdin-test")
 	task := `a "quoted" task with ` + "`backticks`" + ` and {"json":"braces"}` + "\nand a newline"
@@ -107,9 +104,6 @@ func TestArgsBuilder(t *testing.T) {
 	}
 }
 
-// TestArgsPNeverCarriesAValue guards against a future regression where someone
-// re-adds the task as a positional argument after "-p" — the whole point of
-// the stdin-delivery fix is that "-p" is a bare flag.
 func TestArgsPNeverCarriesAValue(t *testing.T) {
 	args := Options{}.Args("/ws")
 	for i, a := range args {
@@ -145,7 +139,7 @@ func TestParseSuccess(t *testing.T) {
 }
 
 func TestPoliciesRenderAndAreSafe(t *testing.T) {
-	// Live: file tools + Bash (it must run the product); web tools denied.
+
 	la, ld := PolicyFor(Live)
 	live := strings.Join(Options{Allow: la, Deny: ld}.Args("/ws"), " ")
 	for _, want := range []string{"Read", "Write", "Bash"} {
@@ -158,7 +152,7 @@ func TestPoliciesRenderAndAreSafe(t *testing.T) {
 			t.Fatalf("Live policy should deny %s: %s", bad, live)
 		}
 	}
-	// ReadOnly: never able to mutate or shell — no Write/Edit/Bash in allow.
+
 	ra, _ := PolicyFor(ReadOnly)
 	for _, a := range ra {
 		if a == "Write" || a == "Edit" || a == "MultiEdit" || strings.HasPrefix(a, "Bash") {

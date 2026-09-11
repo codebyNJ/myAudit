@@ -45,6 +45,6 @@ func TestSettingsMerge(t *testing.T) {
 	if merged["model_tier"] != "sonnet-5" || merged["theme"] != "dark" {
 		t.Fatalf("merge failed: %+v", merged)
 	}
-	// reset for other test runs
+
 	s.PutSettings(ctx, map[string]any{"model_tier": "haiku-4.5"})
 }

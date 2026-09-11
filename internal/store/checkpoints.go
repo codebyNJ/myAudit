@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Checkpoint is a human-in-the-loop interrupt raised by a node.
 type Checkpoint struct {
 	ID       uuid.UUID `json:"id"`
 	RunID    uuid.UUID `json:"run_id"`
@@ -19,8 +18,6 @@ type Checkpoint struct {
 	Answer   string    `json:"answer"`
 }
 
-// RaiseCheckpoint records an interrupt and blocks the node until it is
-// resolved. Returns the checkpoint id.
 func (s *Store) RaiseCheckpoint(ctx context.Context, run, node uuid.UUID, question string, options []string) (uuid.UUID, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -41,8 +38,6 @@ func (s *Store) RaiseCheckpoint(ctx context.Context, run, node uuid.UUID, questi
 	return id, tx.Commit()
 }
 
-// ResolveCheckpoint stores the answer and requeues the node to ready so it
-// re-runs with the decision available.
 func (s *Store) ResolveCheckpoint(ctx context.Context, checkpoint uuid.UUID, answer string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -62,7 +57,6 @@ func (s *Store) ResolveCheckpoint(ctx context.Context, checkpoint uuid.UUID, ans
 	return tx.Commit()
 }
 
-// OpenCheckpointForNode returns the unresolved checkpoint for a node, if any.
 func (s *Store) OpenCheckpointForNode(ctx context.Context, node uuid.UUID) (Checkpoint, bool, error) {
 	var cp Checkpoint
 	err := s.db.QueryRowContext(ctx,

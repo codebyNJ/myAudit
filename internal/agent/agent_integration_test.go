@@ -13,10 +13,6 @@ import (
 	"myaudit/internal/sandbox"
 )
 
-// TestRealFeatureAddProject drives the REAL claude agent (no mocks) to add a
-// backend feature module to a real scaffold, then asserts the files exist, are
-// registered, and are syntactically valid. Bounded by an 8-minute context.
-// Run: TEMPLATE_PATH=... go test -tags integration ./internal/agent/ -run RealFeature -v
 func TestRealFeatureAddProject(t *testing.T) {
 	if os.Getenv("TEMPLATE_PATH") == "" {
 		t.Skip("TEMPLATE_PATH required (real template, no mocks)")

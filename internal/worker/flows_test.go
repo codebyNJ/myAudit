@@ -10,11 +10,6 @@ import (
 	"myaudit/internal/sandbox"
 )
 
-// TestDoFlowsRoutesThroughRunAgentRetry: an agent-level failure (r.OK=false,
-// r.Err set, no infra err) must go through the same bounded-retry-then-
-// checkpoint path qa/bug already get via runAgent, not straight to a
-// downstream JSON-parse error. Before this fix, doFlows called d.Agent.Run
-// directly and never even looked at r.OK/r.Err.
 func TestDoFlowsRoutesThroughRunAgentRetry(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)
@@ -31,12 +26,12 @@ func TestDoFlowsRoutesThroughRunAgentRetry(t *testing.T) {
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, flowsID)
 
 	fake := &recordingAgent{result: agent.Result{OK: false, Err: "model refused"}}
-	deps := newDeps(s, fake, root) // MaxRepairs: 2 (newDeps helper)
+	deps := newDeps(s, fake, root)
 	if _, err := RunOnce(ctx, deps); err != nil {
 		t.Fatal(err)
 	}
 
-	if fake.calls != 3 { // MaxRepairs(2) + 1 initial attempt
+	if fake.calls != 3 {
 		t.Fatalf("expected runAgent to retry MaxRepairs+1=3 times, got %d calls", fake.calls)
 	}
 	nodes := nodesOfType(t, s, run, "flows")
@@ -51,8 +46,6 @@ func TestDoFlowsRoutesThroughRunAgentRetry(t *testing.T) {
 	}
 }
 
-// TestDoFlowsSucceedsAndParses is the regression check: a genuinely OK agent
-// result with valid flows JSON still completes the node as before.
 func TestDoFlowsSucceedsAndParses(t *testing.T) {
 	ctx := context.Background()
 	s := newStore(t)

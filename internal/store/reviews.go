@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// SetReview records an accept/reject decision for a file.
 func (s *Store) SetReview(ctx context.Context, run uuid.UUID, path, status string) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO file_reviews(run_id, path, status, updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP)
@@ -15,7 +14,6 @@ func (s *Store) SetReview(ctx context.Context, run uuid.UUID, path, status strin
 	return err
 }
 
-// Reviews returns the current review status per path for a run.
 func (s *Store) Reviews(ctx context.Context, run uuid.UUID) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT path, status FROM file_reviews WHERE run_id=?`, run)
 	if err != nil {

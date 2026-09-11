@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetNotes returns a run's notes ("" if none yet).
 func (s *Store) GetNotes(ctx context.Context, run uuid.UUID) (string, error) {
 	var content string
 	err := s.db.QueryRowContext(ctx, `SELECT content FROM notes WHERE run_id=?`, run).Scan(&content)
@@ -19,7 +18,6 @@ func (s *Store) GetNotes(ctx context.Context, run uuid.UUID) (string, error) {
 	return content, err
 }
 
-// PutNotes upserts a run's notes.
 func (s *Store) PutNotes(ctx context.Context, run uuid.UUID, content string) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO notes(run_id, content, updated_at) VALUES(?,?,CURRENT_TIMESTAMP)
@@ -28,7 +26,6 @@ func (s *Store) PutNotes(ctx context.Context, run uuid.UUID, content string) err
 	return err
 }
 
-// GetSettings returns the singleton settings blob.
 func (s *Store) GetSettings(ctx context.Context) (map[string]any, error) {
 	var raw []byte
 	if err := s.db.QueryRowContext(ctx, `SELECT data FROM settings WHERE id=1`).Scan(&raw); err != nil {
@@ -41,7 +38,6 @@ func (s *Store) GetSettings(ctx context.Context) (map[string]any, error) {
 	return m, nil
 }
 
-// PutSettings merges the given keys into the settings blob.
 func (s *Store) PutSettings(ctx context.Context, patch map[string]any) (map[string]any, error) {
 	cur, err := s.GetSettings(ctx)
 	if err != nil {

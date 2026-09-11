@@ -10,8 +10,6 @@ import (
 	"myaudit/internal/store"
 )
 
-// Exercises the SQLite port's tricky bits: dependency gating via json_each,
-// the atomic single-statement Claim, and "nothing ready → nil".
 func TestClaimGatingAndComplete(t *testing.T) {
 	ctx := context.Background()
 	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
@@ -23,9 +21,8 @@ func TestClaimGatingAndComplete(t *testing.T) {
 
 	run, _ := s.CreateRun(ctx, "x")
 	a, _ := s.AddNode(ctx, run, "understand", nil)
-	b, _ := s.AddNode(ctx, run, "testgen", []uuid.UUID{a}) // depends on a
+	b, _ := s.AddNode(ctx, run, "testgen", []uuid.UUID{a})
 
-	// Only a (no deps) promotes; b is gated on a.
 	if n, err := q.PromoteReady(ctx); err != nil || n != 1 {
 		t.Fatalf("promote1: n=%d err=%v (want 1)", n, err)
 	}
@@ -33,11 +30,11 @@ func TestClaimGatingAndComplete(t *testing.T) {
 	if err != nil || c == nil || c.ID != a || c.Type != "understand" {
 		t.Fatalf("claim a: %+v err=%v", c, err)
 	}
-	// a is running, b still gated → nothing to claim.
+
 	if c2, err := q.Claim(ctx); err != nil || c2 != nil {
 		t.Fatalf("claim2 should be nil, got %+v err=%v", c2, err)
 	}
-	// Completing a unblocks b.
+
 	if err := q.Complete(ctx, a, []byte(`{"summary":"ok"}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -50,8 +47,6 @@ func TestClaimGatingAndComplete(t *testing.T) {
 	}
 }
 
-// A dependency that ends FAILED still unblocks its dependents — a failed node
-// must not strand the rest of the graph in 'pending' forever.
 func TestPromoteReadyUnblocksOnFailedDep(t *testing.T) {
 	ctx := context.Background()
 	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
@@ -73,8 +68,6 @@ func TestPromoteReadyUnblocksOnFailedDep(t *testing.T) {
 	}
 }
 
-// ClaimN returns up to n ready nodes in one batch, capped by however many are
-// actually ready — bounded concurrency needs to grab a batch, not one at a time.
 func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
 	ctx := context.Background()
 	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
@@ -107,7 +100,6 @@ func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
 		}
 	}
 
-	// third node should still be ready, untouched
 	remaining, err := q.ClaimN(ctx, 5)
 	if err != nil {
 		t.Fatal(err)
@@ -117,8 +109,6 @@ func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
 	}
 }
 
-// RecoverStuck requeues 'running' nodes under the attempt cap and fails poison
-// ones — so a crash/restart self-heals instead of wedging the run forever.
 func TestRecoverStuck(t *testing.T) {
 	ctx := context.Background()
 	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
@@ -129,8 +119,8 @@ func TestRecoverStuck(t *testing.T) {
 	q := New(s.DB())
 	run, _ := s.CreateRun(ctx, "x")
 
-	stuck, _ := s.AddNode(ctx, run, "qa", nil)   // attempts 1 → requeue
-	poison, _ := s.AddNode(ctx, run, "bug", nil) // attempts 3 → fail
+	stuck, _ := s.AddNode(ctx, run, "qa", nil)
+	poison, _ := s.AddNode(ctx, run, "bug", nil)
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='running', attempts=1 WHERE id=?`, stuck)
 	s.DB().ExecContext(ctx, `UPDATE nodes SET status='running', attempts=3 WHERE id=?`, poison)
 

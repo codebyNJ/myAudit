@@ -19,29 +19,13 @@ import (
 	"myaudit/internal/store"
 )
 
-// liveTimeout bounds a single live node (QA run or dev fix): dep installs,
-// servers, and suites can be slow, but a hung process must not wedge the loop.
-// ponytail: fixed 20m ceiling; make it an env knob if a real target needs more.
 const liveTimeout = 20 * time.Minute
 
-// mapTimeout bounds the read-only map overview call (no Bash, just reading), so a
-// hung model call on the critical path can't stall the run loop.
 const mapTimeout = 5 * time.Minute
 
-// This file holds the QA-led pipeline that mirrors a real org: map the product
-// into modules, let QA (priority) find bugs + test gaps per module and file
-// tickets with reproduce detail, then let the autonomous dev loop fix each
-// ticket. The board is the living logger; notes are the running markdown report.
-
-// doMap turns one repo into a board: it writes a high-level product map to notes
-// and spawns one qa card per module (the dynamic fan-out). The structural module
-// scan is deterministic and $0; the agent overview is best-effort (skipped/empty
-// under the stub) and never blocks the fan-out.
 func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	mods, dropped := scanModules(ws.Dir)
 
-	// map is on the critical path of every run and gates the whole fan-out; bound
-	// the read-only overview call so a hang can't wedge the (single) run loop.
 	overview := ""
 	mapCtx, cancel := context.WithTimeout(ctx, mapTimeout)
 	if r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly, nil); err == nil {
@@ -86,9 +70,6 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	return true, nil
 }
 
-// qa is the QA role for one module: review its code for real bugs + best-practice
-// misses, note the test cases that should exist, and file one bug ticket per
-// finding (each blocked on this qa card, so dev can only start after QA is done).
 func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	var sp struct {
 		Module string `json:"module"`
@@ -98,16 +79,12 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	if sp.Module == "" {
 		sp.Module, sp.Path = "(root)", "."
 	}
-	// Scope tool access + the Bash working directory to just this module's
-	// subtree, not the whole imported repo — otherwise every QA card can
-	// read/exercise modules it wasn't assigned (the "singleton understanding"
-	// gap from the audit).
+
 	moduleWS := sandbox.Workspace{Dir: filepath.Join(ws.Dir, sp.Path)}
 
 	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
 	defer cancel()
-	// Install deps once up front so the QA agent spends its budget running the
-	// product, not on `npm install` (idempotent — skipped if already present).
+
 	if did, msg := ensureInstalled(ctx, moduleWS); did {
 		d.Log.Log(ctx, event(c, "qa.install", msg))
 	}
@@ -140,8 +117,7 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 		var bid uuid.UUID
 		var err error
 		if opts.AuditOnly {
-			// Findings-only: file as open so the queue never auto-claims; user
-			// clicks "Fix this" to enqueue.
+
 			bid, err = d.Store.CreateBug(ctx, c.RunID, bug)
 		} else {
 			bid, err = d.Store.CreateBug(ctx, c.RunID, bug, c.ID)
@@ -163,12 +139,6 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	return true, nil
 }
 
-// bug is the autonomous dev: read the ticket, apply a minimal root-cause fix,
-// commit it, then verify. On a green suite the card auto-closes to done; a
-// genuine test failure marks it failed; a suite that can't run (missing deps/
-// runner) parks the fix in review for a human — never a false "fixed". Live
-// dep-install + app boot land in the next checkpoint, which makes more suites
-// actually runnable here.
 func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	var b store.Bug
 	_ = json.Unmarshal(c.Spec, &b)
@@ -177,8 +147,6 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
 	defer cancel()
 
-	// How many failures did the suite have BEFORE this fix? Used to avoid blaming a
-	// correct fix for a repo-wide suite that was already red for unrelated reasons.
 	baseFails := d.regressionBaseline(ctx, ws, c.RunID)
 
 	r, ok := d.runAgent(ctx, c, ws, fixTask(b, notes), agent.Live)
@@ -200,18 +168,14 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 	if fixMsg == "" {
 		fixMsg = "Applied a fix."
 	}
-	out = firstN(out, 1200) // keep embedded command output readable in notes
+	out = firstN(out, 1200)
 
-	// One atomic write per outcome (finish) — a failed/in_review result can never
-	// be lost to a follow-up update, so a broken fix never shows green.
 	switch state {
 	case testPass:
 		d.appendFix(ctx, c.RunID, b, "✅ Fixed & verified (regression green).\n\n"+fixMsg, changed)
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fixed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "done")
 	case testFail:
-		// Only a genuine regression (MORE failures than before the fix) is a
-		// failure; a still-red suite that's no worse means the fix is applied but
-		// this change isn't covered — park it for review, don't blame it.
+
 		if countFailLines(out) <= baseFails {
 			d.appendFix(ctx, c.RunID, b, "🟡 Fix applied — the suite has pre-existing failures unrelated to this change (no new failures introduced). Needs manual verify.\n\n"+fixMsg, changed)
 			d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix applied (suite already red): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
@@ -219,14 +183,13 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 		}
 		d.appendFix(ctx, c.RunID, b, "❌ Fix introduced new test failures:\n\n```\n"+out+"\n```", changed)
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix failed regression: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "failed")
-	default: // testNotRunnable
+	default:
 		d.appendFix(ctx, c.RunID, b, "🟡 Fix ready — tests not runnable here, needs manual verify.\n\n"+fixMsg, changed)
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix ready (unverified): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
 	}
 	return true, nil
 }
 
-// appendFix records the dev's work on a ticket into the running notes log.
 func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg string, changed []string) {
 	cur, _ := d.Store.GetNotes(ctx, run)
 	var sb strings.Builder
@@ -239,15 +202,8 @@ func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg str
 	_ = d.Store.PutNotes(ctx, run, sb.String())
 }
 
-// --- test classification (honest verify gate) ---
+var baselineFails sync.Map
 
-// baselineFails memoizes, per run, how many test failures the suite already had
-// BEFORE any fix — so a fix is judged by whether it made things WORSE, not by a
-// repo-wide suite that was already red (or thinly set up) for unrelated reasons.
-var baselineFails sync.Map // runID string -> int
-
-// regressionBaseline is the pre-fix failing-test count for a run (computed once,
-// on the first fix, against the current — pre-edit — workspace).
 func (d Deps) regressionBaseline(ctx context.Context, ws sandbox.Workspace, run uuid.UUID) int {
 	if v, ok := baselineFails.Load(run.String()); ok {
 		return v.(int)
@@ -260,9 +216,6 @@ func (d Deps) regressionBaseline(ctx context.Context, ws sandbox.Workspace, run 
 	return n
 }
 
-// countFailLines is a cross-runner heuristic for how many tests failed.
-// ponytail: line-marker counting, not a real parser — good enough to tell
-// "this fix added failures" from "the suite was already red".
 func countFailLines(out string) int {
 	n := 0
 	for _, ln := range strings.Split(out, "\n") {
@@ -277,21 +230,17 @@ func countFailLines(out string) int {
 type testResult int
 
 const (
-	testNotRunnable testResult = iota // no runner, missing deps/binary — not a defect signal
+	testNotRunnable testResult = iota
 	testPass
 	testFail
 )
 
-// classifyTests runs the project's suite and distinguishes a genuine failure from
-// a suite that simply can't run (the old false-positive: `vitest: command not
-// found` is not a bug). ponytail: signature sniffing on output; extend the list
-// if a runner reports "can't run" in a new way.
 func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, string) {
 	name, args, ok := detectTestCmd(ws.Dir)
 	if !ok {
 		return testNotRunnable, "no test runner detected"
 	}
-	_, imsg := ensureInstalled(ctx, ws) // make the runner resolvable (idempotent)
+	_, imsg := ensureInstalled(ctx, ws)
 	out, code, err := ws.Run(ctx, name, args...)
 	if err != nil {
 		return testNotRunnable, err.Error()
@@ -300,8 +249,7 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 		return testPass, out
 	}
 	if code == 127 || looksNotRunnable(out) {
-		// Distinguish "we couldn't even run the tests" from a genuine failure, and
-		// name a broken dependency install when that's the cause.
+
 		if strings.Contains(imsg, "failed") {
 			return testNotRunnable, "dependency install failed — tests could not run:\n" + imsg + "\n" + out
 		}
@@ -310,14 +258,8 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 	return testFail, out
 }
 
-// ensureInstalled installs project dependencies if a manifest is present and they
-// look missing, so the test runner actually resolves (the fix for the old
-// "vitest: command not found" false-positive). Best-effort + idempotent: returns
-// whether it ran and a short message. Bounded by an inner timeout so a wedged
-// install can't consume the whole node budget.
 func ensureInstalled(ctx context.Context, ws sandbox.Workspace) (bool, string) {
-	// Stub/dev mode ($0, no real agent) shouldn't run a real `npm install` — that
-	// contradicts "exercise the UI/graph for free" and surprises `make dev`.
+
 	if os.Getenv("REAL_CLAUDE") == "" {
 		return false, ""
 	}
@@ -373,8 +315,6 @@ func normSeverity(s string) string {
 	return "medium"
 }
 
-// --- module scan ---
-
 type module struct{ Name, Path string }
 
 var codeExt = map[string]bool{
@@ -393,10 +333,6 @@ var skipModuleDir = map[string]bool{
 	"tests": true, "test": true, "__tests__": true,
 }
 
-// scanModules picks the codebase's top-level source directories as modules,
-// descending one level into common container dirs (src/app/apps/packages) so a
-// Next.js or monorepo layout splits sensibly. Falls back to the whole repo as a
-// single "(root)" module. Capped so a huge repo doesn't explode the board.
 func scanModules(root string) (mods []module, dropped []string) {
 	seen := map[string]bool{}
 	add := func(name, rel string) {
@@ -415,7 +351,7 @@ func scanModules(root string) (mods []module, dropped []string) {
 		}
 		abs := filepath.Join(root, e.Name())
 		if containers[e.Name()] {
-			// descend one level; each child dir with code is a module
+
 			for _, sub := range readDirs(abs) {
 				if skipModuleDir[sub] {
 					continue
@@ -454,7 +390,6 @@ func readDirs(dir string) []string {
 	return out
 }
 
-// hasCode reports whether dir contains any source file (stops at the first one).
 func hasCode(dir string) bool {
 	found := false
 	_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
@@ -475,8 +410,6 @@ func hasCode(dir string) bool {
 	})
 	return found
 }
-
-// --- prompts ---
 
 const mapTask = "Read this codebase and write a concise product map as markdown: " +
 	"(1) what the product does and its scope, (2) its main modules/areas and what each is responsible for, " +
@@ -504,7 +437,7 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"5. Stop actively exploring once you've covered 1–4 once. Do not keep re-reading files.\n"+
 			"6. write your findings now, even if incomplete — a partial finding list beats a truncated response.\n\n"+
 			"WHILE the product is up and reachable (if you start a server), write `.myaudit/live.json` as "+
-			`{"url":"http://localhost:<port>","title":"<what is running>"}` +
+			`{"url":"http://localhost:<port>","title":"<what is running>"}`+
 			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
 			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
 			"watchable frame by frame. "+

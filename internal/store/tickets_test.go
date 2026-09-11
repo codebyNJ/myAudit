@@ -35,7 +35,6 @@ func TestCreateBugShowsOnBoardWithTags(t *testing.T) {
 		t.Fatalf("tags not surfaced: %v", c.Tags)
 	}
 
-	// A bug ticket must never be claimable by the worker queue.
 	var n int
 	s.db.QueryRowContext(ctx, `SELECT count(*) FROM nodes WHERE id=? AND status='ready'`, bid).Scan(&n)
 	if n != 0 {
@@ -43,8 +42,6 @@ func TestCreateBugShowsOnBoardWithTags(t *testing.T) {
 	}
 }
 
-// Filing the same finding twice (same title+file) collapses to one ticket;
-// a different file with the same title is kept as a distinct ticket.
 func TestCreateBugDedups(t *testing.T) {
 	ctx := context.Background()
 	s, _ := Open(ctx, testURL(t))
@@ -53,11 +50,11 @@ func TestCreateBugDedups(t *testing.T) {
 
 	b := Bug{Title: "Missing rel=noreferrer", File: "TopBar.tsx:34", Severity: "low"}
 	id1, _ := s.CreateBug(ctx, run, b)
-	id2, _ := s.CreateBug(ctx, run, b) // exact dup → same ticket
+	id2, _ := s.CreateBug(ctx, run, b)
 	if id1 != id2 {
 		t.Fatalf("duplicate finding should return the same ticket: %s vs %s", id1, id2)
 	}
-	// same title, different file → distinct ticket
+
 	id3, _ := s.CreateBug(ctx, run, Bug{Title: "Missing rel=noreferrer", File: "PoweredBy.tsx:5", Severity: "low"})
 	if id3 == id1 {
 		t.Fatal("different file should be a distinct ticket")

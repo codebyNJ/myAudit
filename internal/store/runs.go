@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Node is a task in the build graph.
 type Node struct {
 	ID     uuid.UUID   `json:"id"`
 	RunID  uuid.UUID   `json:"run_id"`
@@ -16,16 +15,12 @@ type Node struct {
 	Deps   []uuid.UUID `json:"deps"`
 }
 
-// CreateRun starts a new session and returns its id.
 func (s *Store) CreateRun(ctx context.Context, project string) (uuid.UUID, error) {
 	id := uuid.New()
 	_, err := s.db.ExecContext(ctx, `INSERT INTO runs(id, project) VALUES(?,?)`, id, project)
 	return id, err
 }
 
-// CancelRun stops a run: its queued nodes (pending/ready) become 'cancelled' so
-// no new work starts, and the run itself is marked 'cancelled'. The in-flight
-// node is interrupted separately via worker.CancelRun.
 func (s *Store) CancelRun(ctx context.Context, run uuid.UUID) error {
 	if _, err := s.db.ExecContext(ctx,
 		`UPDATE nodes SET status='cancelled' WHERE run_id=? AND status IN ('pending','ready')`, run); err != nil {
@@ -35,11 +30,6 @@ func (s *Store) CancelRun(ctx context.Context, run uuid.UUID) error {
 	return err
 }
 
-// FinalizeDrainedRuns flips any still-'running' run whose nodes are all terminal
-// (none pending/ready/running) to a real end state: 'failed' if a root node
-// (import/map) failed — the audit never really started, e.g. claude isn't logged
-// in — otherwise 'done'. Returns the runs it just finalized so the caller can
-// emit a completion event. Idempotent; safe to call every tick.
 func (s *Store) FinalizeDrainedRuns(ctx context.Context) ([]RunSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.project, r.created_at FROM runs r
@@ -80,7 +70,6 @@ func (s *Store) FinalizeDrainedRuns(ctx context.Context) ([]RunSummary, error) {
 	return drained, nil
 }
 
-// AddNode appends a node to a run's graph. deps may be nil.
 func (s *Store) AddNode(ctx context.Context, run uuid.UUID, typ string, deps []uuid.UUID) (uuid.UUID, error) {
 	id := uuid.New()
 	_, err := s.db.ExecContext(ctx,
@@ -89,9 +78,6 @@ func (s *Store) AddNode(ctx context.Context, run uuid.UUID, typ string, deps []u
 	return id, err
 }
 
-// AddNodeFull inserts a node with a spec payload and an explicit initial status.
-// The map step uses it to spawn per-module qa cards as 'pending', so they promote
-// to 'ready' once their deps (import→map) are done — the dynamic board fan-out.
 func (s *Store) AddNodeFull(ctx context.Context, run uuid.UUID, typ string, deps []uuid.UUID, spec any, status string) (uuid.UUID, error) {
 	snap := "{}"
 	if spec != nil {
@@ -111,7 +97,6 @@ func (s *Store) AddNodeFull(ctx context.Context, run uuid.UUID, typ string, deps
 	return id, err
 }
 
-// GetNode fetches a node by id.
 func (s *Store) GetNode(ctx context.Context, id uuid.UUID) (Node, error) {
 	var n Node
 	var deps string

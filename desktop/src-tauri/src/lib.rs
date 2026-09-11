@@ -7,10 +7,10 @@ use tauri_plugin_shell::ShellExt;
 
 const PORT: u16 = 7788;
 
-/// Holds the bundled Go server so it can be shut down with the app.
+
 struct Server(std::sync::Mutex<Option<CommandChild>>);
 
-/// Blocks until the server accepts a connection, or the deadline passes.
+
 fn wait_for_server(timeout: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
@@ -29,8 +29,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // Reuse an already-running server (developer machines) instead of
-            // starting a second one that would fail to bind the port.
+            
+            
             let already_up = TcpStream::connect(("127.0.0.1", PORT)).is_ok();
 
             if !already_up {
@@ -49,8 +49,7 @@ pub fn run() {
                 app.manage(Server(std::sync::Mutex::new(Some(child))));
             }
 
-            // The window is created hidden so a slow first boot never shows a
-            // connection-error page; reveal it once the server answers.
+            
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 wait_for_server(Duration::from_secs(30));

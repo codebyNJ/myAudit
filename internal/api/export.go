@@ -13,9 +13,6 @@ import (
 	"myaudit/internal/store"
 )
 
-// registerExport adds downloadable audit artifacts: a human report (report.md)
-// and machine-readable findings (findings.json), so results can leave the tool
-// into a tracker / PR / CI.
 func registerExport(mux *http.ServeMux, s *store.Store) {
 	mux.HandleFunc("GET /api/runs/{id}/findings.json", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
@@ -67,8 +64,6 @@ func registerExport(mux *http.ServeMux, s *store.Store) {
 		_, _ = w.Write([]byte(buildReport(run, cards, cost, notes)))
 	})
 
-	// Unified diff of everything the audit changed vs the import baseline — the
-	// actual code deliverable (fixes + any tests QA wrote).
 	mux.HandleFunc("GET /api/runs/{id}/patch.diff", func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
@@ -87,8 +82,6 @@ func registerExport(mux *http.ServeMux, s *store.Store) {
 	})
 }
 
-// buildReport renders a self-contained markdown audit report: header, a findings
-// table + details, and the running notes log.
 func buildReport(run store.RunSummary, cards []store.NodeDetail, cost float64, notes string) string {
 	var bugs []store.NodeDetail
 	counts := map[string]int{}
@@ -142,7 +135,6 @@ func dash(s string) string {
 	return s
 }
 
-// mdCell keeps a value safe inside a markdown table cell (no raw pipes/newlines).
 func mdCell(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	return strings.ReplaceAll(s, "|", "\\|")
