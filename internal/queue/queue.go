@@ -59,6 +59,26 @@ func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	return &c, nil
 }
 
+// ClaimN atomically takes up to n ready nodes and marks them running, same
+// priority ordering as Claim (import > map > qa > everything else, tie-broken
+// by created_at). Returns fewer than n if fewer are ready. Used by the
+// bounded-concurrency run loop; Claim (n=1 behavior) is kept as-is since
+// existing callers/tests depend on its exact single-node contract.
+func (q *Queue) ClaimN(ctx context.Context, n int) ([]*ClaimedNode, error) {
+	var out []*ClaimedNode
+	for i := 0; i < n; i++ {
+		c, err := q.Claim(ctx)
+		if err != nil {
+			return out, err
+		}
+		if c == nil {
+			break
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
 // Complete marks a node done and stores its output.
 func (q *Queue) Complete(ctx context.Context, id uuid.UUID, output []byte) error {
 	return q.Finish(ctx, id, output, "done")

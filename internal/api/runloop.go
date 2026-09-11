@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	"myaudit/internal/agent"
@@ -83,10 +85,14 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	if image == "" {
 		image = "myaudit-sandbox"
 	}
+	maxConcurrent := 1
+	if n, err := strconv.Atoi(os.Getenv("MAX_CONCURRENT_CLAUDE")); err == nil && n > 0 {
+		maxConcurrent = n
+	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image, bin: os.Getenv("CLAUDE_BIN")},
-		WorkspaceRoot: "runs", MaxRepairs: 2,
+		WorkspaceRoot: "runs", MaxRepairs: 2, MaxConcurrent: maxConcurrent,
 	}
 }
 
@@ -95,25 +101,53 @@ func NewStubDeps(s *store.Store) worker.Deps {
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         stubAgent{},
-		WorkspaceRoot: "runs", MaxRepairs: 0,
+		WorkspaceRoot: "runs", MaxRepairs: 0, MaxConcurrent: 1,
 	}
 }
 
-// TickAll promotes ready nodes then processes one across all runs. Returns the
-// number of nodes processed (0 or 1).
+// TickAll promotes ready nodes then claims and dispatches up to MaxConcurrent
+// of them across all runs, concurrently. Returns the number of nodes
+// processed.
 func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	if _, err := deps.Queue.PromoteReady(ctx); err != nil {
 		return 0, err
 	}
+
+	// Check budget BEFORE claiming, not after -- PauseOverBudget flips an
+	// over-budget run's ready qa/bug/flows nodes to 'paused', and Claim only
+	// selects 'ready' nodes, so this must run first or a whole concurrent
+	// batch can be claimed (and start billed calls) before the check bites.
 	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
 		for _, id := range paused {
 			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
 		}
 	}
-	did, err := worker.RunOnce(ctx, deps)
+
+	n := deps.MaxConcurrent
+	if n < 1 {
+		n = 1
+	}
+	claimed, err := deps.Queue.ClaimN(ctx, n)
 	if err != nil {
 		return 0, err
 	}
+
+	processed := 0
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, c := range claimed {
+		wg.Add(1)
+		go func(c *queue.ClaimedNode) {
+			defer wg.Done()
+			if procErr := deps.ProcessClaimed(ctx, c); procErr == nil {
+				mu.Lock()
+				processed++
+				mu.Unlock()
+			}
+		}(c)
+	}
+	wg.Wait()
+
 	// Mark any drained run finished and announce it (drives the runs list off the
 	// perpetual "running" and gives the UI a completion signal to toast).
 	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
@@ -129,10 +163,7 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 			}
 		}
 	}
-	if did {
-		return 1, nil
-	}
-	return 0, nil
+	return processed, nil
 }
 
 // StartRunLoop ticks the graph forward until ctx is cancelled. Ticks run

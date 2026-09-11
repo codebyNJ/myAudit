@@ -38,7 +38,7 @@ const mapTimeout = 5 * time.Minute
 // scan is deterministic and $0; the agent overview is best-effort (skipped/empty
 // under the stub) and never blocks the fan-out.
 func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
-	mods := scanModules(ws.Dir)
+	mods, dropped := scanModules(ws.Dir)
 
 	// map is on the critical path of every run and gates the whole fan-out; bound
 	// the read-only overview call so a hang can't wedge the (single) run loop.
@@ -57,6 +57,10 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	b.WriteString("## Modules under QA\n")
 	for _, m := range mods {
 		b.WriteString(fmt.Sprintf("- **%s** — `%s`\n", m.Name, m.Path))
+	}
+	if len(dropped) > 0 {
+		b.WriteString(fmt.Sprintf("\n_%d module(s) skipped (10-module cap reached): %s_\n",
+			len(dropped), strings.Join(dropped, ", ")))
 	}
 	_ = d.Store.PutNotes(ctx, c.RunID, b.String())
 
@@ -94,16 +98,26 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	if sp.Module == "" {
 		sp.Module, sp.Path = "(root)", "."
 	}
+	// Scope tool access + the Bash working directory to just this module's
+	// subtree, not the whole imported repo — otherwise every QA card can
+	// read/exercise modules it wasn't assigned (the "singleton understanding"
+	// gap from the audit).
+	moduleWS := sandbox.Workspace{Dir: filepath.Join(ws.Dir, sp.Path)}
 
 	ctx, cancel := context.WithTimeout(ctx, liveTimeout)
 	defer cancel()
 	// Install deps once up front so the QA agent spends its budget running the
 	// product, not on `npm install` (idempotent — skipped if already present).
-	if did, msg := ensureInstalled(ctx, ws); did {
+	if did, msg := ensureInstalled(ctx, moduleWS); did {
 		d.Log.Log(ctx, event(c, "qa.install", msg))
 	}
 
-	r, ok := d.runAgent(ctx, c, ws, qaTask(sp.Module, sp.Path), agent.Live)
+	notes, _ := d.Store.GetNotes(ctx, c.RunID)
+	testCmdHint := ""
+	if name, args, ok := detectTestCmd(moduleWS.Dir); ok {
+		testCmdHint = strings.TrimSpace(name + " " + strings.Join(args, " "))
+	}
+	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path, notes, testCmdHint), agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -113,13 +127,15 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	for _, f := range findings {
 		sev := normSeverity(f.Severity)
 		bug := store.Bug{
-			Title:    f.Title,
-			Name:     f.Title,
-			File:     f.File,
-			Severity: sev,
-			Priority: map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
-			Detail:   f.Detail,
-			Tags:     []string{"from:qa", "module:" + sp.Module, sev},
+			Title:      f.Title,
+			Name:       f.Title,
+			File:       f.File,
+			Severity:   sev,
+			Priority:   map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
+			Category:   f.Category,
+			Confidence: f.Confidence,
+			Detail:     f.Detail,
+			Tags:       []string{"from:qa", "module:" + sp.Module, sev},
 		}
 		var bid uuid.UUID
 		var err error
@@ -381,8 +397,7 @@ var skipModuleDir = map[string]bool{
 // descending one level into common container dirs (src/app/apps/packages) so a
 // Next.js or monorepo layout splits sensibly. Falls back to the whole repo as a
 // single "(root)" module. Capped so a huge repo doesn't explode the board.
-func scanModules(root string) []module {
-	var mods []module
+func scanModules(root string) (mods []module, dropped []string) {
 	seen := map[string]bool{}
 	add := func(name, rel string) {
 		if seen[rel] {
@@ -416,13 +431,16 @@ func scanModules(root string) []module {
 		}
 	}
 	if len(mods) == 0 {
-		return []module{{Name: "(root)", Path: "."}}
+		return []module{{Name: "(root)", Path: "."}}, nil
 	}
 	const cap = 10
 	if len(mods) > cap {
+		for _, m := range mods[cap:] {
+			dropped = append(dropped, m.Name)
+		}
 		mods = mods[:cap]
 	}
-	return mods
+	return mods, dropped
 }
 
 func readDirs(dir string) []string {
@@ -464,14 +482,28 @@ const mapTask = "Read this codebase and write a concise product map as markdown:
 	"(1) what the product does and its scope, (2) its main modules/areas and what each is responsible for, " +
 	"(3) the key user + backend flows a QA should exercise. Do NOT modify any files; your final message IS the map."
 
-func qaTask(module, path string) string {
-	return fmt.Sprintf(
+func qaTask(module, path, notes, testCmdHint string) string {
+	var sb strings.Builder
+	if strings.TrimSpace(notes) != "" {
+		sb.WriteString("Prior analysis + audit log for this codebase:\n\n" + notes + "\n\n")
+	}
+	if testCmdHint != "" {
+		sb.WriteString("Detected test command for this module: `" + testCmdHint + "` — run it rather than guessing.\n\n")
+	}
+	sb.WriteString(fmt.Sprintf(
 		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+
-			"(Bash) and the dependencies are installed. QA it like a real product: read the code, then "+
-			"actually EXERCISE it — run the existing test suite, run the linter/build, and where practical "+
-			"start the app or hit its backend to confirm real behavior. Prefer non-blocking commands; if you "+
-			"start a server, background it, probe it, then kill it — never leave a process running or block. "+
-			"WHILE the product is up and reachable, write `.myaudit/live.json` as "+
+			"(Bash) and the dependencies are installed. Work through these steps IN ORDER, once each — "+
+			"do not explore beyond this module's boundary and do not loop back to an earlier step:\n\n"+
+			"1. Identify this module's entry point(s) and manifest (package.json, go.mod, etc.).\n"+
+			"2. Check whether a test suite exists and what command runs it (a detected command may be "+
+			"given below). Run it if present; note the result.\n"+
+			"3. Read the module's main flow (routes/handlers/exported functions) — list what it does "+
+			"before judging anything.\n"+
+			"4. Now look for defects, in this order: broken/incorrect logic → missing error handling → "+
+			"security issues → missing tests → style/best-practice gaps.\n"+
+			"5. Stop actively exploring once you've covered 1–4 once. Do not keep re-reading files.\n"+
+			"6. write your findings now, even if incomplete — a partial finding list beats a truncated response.\n\n"+
+			"WHILE the product is up and reachable (if you start a server), write `.myaudit/live.json` as "+
 			`{"url":"http://localhost:<port>","title":"<what is running>"}` +
 			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
 			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
@@ -485,7 +517,8 @@ func qaTask(module, path string) string {
 			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
 			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
-		module, path)
+		module, path))
+	return sb.String()
 }
 
 func fixTask(b store.Bug, notes string) string {

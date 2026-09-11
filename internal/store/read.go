@@ -74,12 +74,14 @@ type NodeDetail struct {
 	CreatedAt time.Time  `json:"created_at"`
 	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
 	// Ticket fields (bug/feature cards) — read from input_snapshot JSON.
-	Title    string   `json:"title,omitempty"`
-	File     string   `json:"file,omitempty"`
-	Severity string   `json:"severity,omitempty"`
-	Priority string   `json:"priority,omitempty"`
-	Detail   string   `json:"detail,omitempty"`
-	Tags     []string `json:"tags"`
+	Title      string   `json:"title,omitempty"`
+	File       string   `json:"file,omitempty"`
+	Severity   string   `json:"severity,omitempty"`
+	Priority   string   `json:"priority,omitempty"`
+	Category   string   `json:"category,omitempty"`
+	Confidence string   `json:"confidence,omitempty"`
+	Detail     string   `json:"detail,omitempty"`
+	Tags       []string `json:"tags"`
 }
 
 // NodesForRun returns all nodes of a run (basic, for the graph view).
@@ -118,6 +120,8 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		       coalesce(json_extract(n.input_snapshot,'$.file'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.severity'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.priority'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.category'),''),
+		       coalesce(json_extract(n.input_snapshot,'$.confidence'),''),
 		       coalesce(json_extract(n.input_snapshot,'$.detail'),''),
 		       coalesce((SELECT json_group_array(value) FROM json_each(n.input_snapshot,'$.tags')),'[]')
 		FROM nodes n WHERE n.run_id=? ORDER BY n.created_at`, run)
@@ -130,7 +134,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		var d NodeDetail
 		var claimed sql.NullTime
 		var tags string
-		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.File, &d.Severity, &d.Priority, &d.Detail, &tags); err != nil {
+		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.File, &d.Severity, &d.Priority, &d.Category, &d.Confidence, &d.Detail, &tags); err != nil {
 			return nil, err
 		}
 		if claimed.Valid {

@@ -38,6 +38,7 @@ type Deps struct {
 	Agent         Agent
 	WorkspaceRoot string // runs live under <root>/<run-id>
 	MaxRepairs    int    // bounded agent retries before a checkpoint
+	MaxConcurrent int    // ready nodes claimed+dispatched per tick; 0 or 1 = serial (current behavior)
 }
 
 // nodeOutput is what we persist per node (shown in the UI, summed for cost).
@@ -50,19 +51,29 @@ type nodeOutput struct {
 	Flows   json.RawMessage `json:"flows,omitempty"`
 }
 
-// running maps a run id to the cancel func of its in-flight node, so a cancel
-// request can interrupt the agent mid-node (single-node-at-a-time loop ⇒ at most
-// one entry per run).
+// runningEntry pairs an in-flight node's cancel func with the run it belongs
+// to, so CancelRun can find every node for a run even when several run
+// concurrently (bounded-concurrency => possibly more than one node per run).
+type runningEntry struct {
+	runID  string
+	cancel context.CancelFunc
+}
+
+// running maps a node id to its runningEntry, so a cancel request can
+// interrupt every in-flight node belonging to that run.
 var running sync.Map
 
-// CancelRun interrupts the in-flight node of a run, if any. New nodes are stopped
+// CancelRun interrupts every in-flight node of a run, if any. New nodes are stopped
 // separately by marking the run's queued nodes cancelled in the store.
 func CancelRun(runID string) {
-	if v, ok := running.LoadAndDelete(runID); ok {
-		if cancel, ok := v.(context.CancelFunc); ok {
-			cancel()
+	running.Range(func(key, v any) bool {
+		e, ok := v.(runningEntry)
+		if ok && e.runID == runID {
+			running.Delete(key)
+			e.cancel()
 		}
-	}
+		return true
+	})
 }
 
 // RunOnce claims one ready node and processes it. Infra failures return an
@@ -75,6 +86,14 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	if c == nil {
 		return false, nil
 	}
+	return true, d.ProcessClaimed(ctx, c)
+}
+
+// ProcessClaimed dispatches an already-claimed node by type. Split out of
+// RunOnce so a batch-claiming caller (TickAll's bounded-concurrency path)
+// can claim N nodes up front via Queue.ClaimN and dispatch each one here,
+// concurrently, without re-implementing the claim step.
+func (d Deps) ProcessClaimed(ctx context.Context, c *queue.ClaimedNode) error {
 	nid := c.ID
 	d.Log.Log(ctx, events.Event{RunID: c.RunID, NodeID: &nid, Kind: "node.start", Msg: c.Type})
 	ws := sandbox.Workspace{Dir: filepath.Join(d.WorkspaceRoot, c.RunID.String())}
@@ -82,23 +101,29 @@ func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	// Make this node's work cancelable so CancelRun can kill the in-flight agent
 	// (and, via the agent's process-group Cancel, any dev server it spawned).
 	ctx, cancel := context.WithCancel(ctx)
-	running.Store(c.RunID.String(), cancel)
-	defer func() { running.Delete(c.RunID.String()); cancel() }()
+	nodeKey := c.ID.String()
+	running.Store(nodeKey, runningEntry{runID: c.RunID.String(), cancel: cancel})
+	defer func() { running.Delete(nodeKey); cancel() }()
 
 	switch c.Type {
 	case "import":
-		return d.doImport(ctx, c, ws)
+		_, err := d.doImport(ctx, c, ws)
+		return err
 	case "map":
-		return d.doMap(ctx, c, ws)
+		_, err := d.doMap(ctx, c, ws)
+		return err
 	case "flows":
-		return d.doFlows(ctx, c, ws)
+		_, err := d.doFlows(ctx, c, ws)
+		return err
 	case "qa":
-		return d.qa(ctx, c, ws)
+		_, err := d.qa(ctx, c, ws)
+		return err
 	case "bug":
-		return d.bug(ctx, c, ws)
+		_, err := d.bug(ctx, c, ws)
+		return err
 	default:
 		d.fail(ctx, c, "unknown node type: "+c.Type)
-		return true, nil
+		return nil
 	}
 }
 
@@ -206,10 +231,12 @@ func event(c *queue.ClaimedNode, kind, msg string) events.Event {
 // --- review findings parsing (shared with qa.go) ---
 
 type finding struct {
-	Title    string `json:"title"`
-	File     string `json:"file"`
-	Severity string `json:"severity"`
-	Detail   string `json:"detail"`
+	Title      string `json:"title"`
+	File       string `json:"file"`
+	Severity   string `json:"severity"`
+	Category   string `json:"category"`
+	Confidence string `json:"confidence"`
+	Detail     string `json:"detail"`
 }
 
 var jsonArrayRe = regexp.MustCompile(`(?s)\[.*\]`)

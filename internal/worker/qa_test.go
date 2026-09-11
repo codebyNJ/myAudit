@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,6 +95,41 @@ func TestQALedFlow(t *testing.T) {
 	}
 }
 
+// TestQAScopesWorkspaceToItsModule: a qa node for module "moduleA" (path
+// "moduleA") must invoke the agent with a workspace rooted at
+// <run-root>/moduleA, not the run root itself — otherwise every QA card can
+// read/exercise the whole repo regardless of which module it was assigned.
+func TestQAScopesWorkspaceToItsModule(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+
+	src := t.TempDir()
+	os.MkdirAll(filepath.Join(src, "moduleA"), 0o755)
+	os.WriteFile(filepath.Join(src, "moduleA", "x.go"), []byte("package a\n"), 0o644)
+	root := t.TempDir()
+	if _, err := sandbox.Import(ctx, root, run.String(), src); err != nil {
+		t.Fatal(err)
+	}
+
+	qaID, _ := s.AddNodeFull(ctx, run, "qa", nil,
+		map[string]any{"module": "moduleA", "path": "moduleA"}, "ready")
+
+	fake := &recordingAgent{result: agent.Result{OK: true, Summary: "[]"}}
+	deps := newDeps(s, fake, root)
+	if _, err := RunOnce(ctx, deps); err != nil {
+		t.Fatal(err)
+	}
+
+	wantDir := filepath.Join(root, run.String(), "moduleA")
+	wantAbs, _ := filepath.Abs(wantDir)
+	gotAbs, _ := filepath.Abs(fake.lastWSDir)
+	if gotAbs != wantAbs {
+		t.Fatalf("qa should scope the workspace to its module:\n got:  %s\n want: %s", gotAbs, wantAbs)
+	}
+	_ = qaID
+}
+
 func TestClassifyTestsDistinguishesNotRunnable(t *testing.T) {
 	// The core of the false-positive fix: "command not found" is not a defect.
 	if !looksNotRunnable("sh: vitest: command not found") {
@@ -146,7 +182,7 @@ func TestClassifyTests(t *testing.T) {
 func TestScanModules(t *testing.T) {
 	flat := t.TempDir()
 	mkFile(t, flat, "main.go")
-	if m := scanModules(flat); len(m) != 1 || m[0].Path != "." {
+	if m, _ := scanModules(flat); len(m) != 1 || m[0].Path != "." {
 		t.Fatalf("flat repo → single (root) module, got %+v", m)
 	}
 
@@ -155,7 +191,8 @@ func TestScanModules(t *testing.T) {
 	mkFile(t, multi, "web/app.ts")
 	mkFile(t, multi, "node_modules/dep/index.js") // skip-dir
 	mkFile(t, multi, "docs/readme.md")            // no code → excluded
-	got := modulePaths(scanModules(multi))
+	mods, _ := scanModules(multi)
+	got := modulePaths(mods)
 	if !got["internal"] || !got["web"] {
 		t.Fatalf("want internal+web modules, got %v", got)
 	}
@@ -166,9 +203,29 @@ func TestScanModules(t *testing.T) {
 	mono := t.TempDir()
 	mkFile(t, mono, "src/a/a.go")
 	mkFile(t, mono, "src/b/b.go")
-	got = modulePaths(scanModules(mono))
+	mods, _ = scanModules(mono)
+	got = modulePaths(mods)
 	if !got["src/a"] || !got["src/b"] {
 		t.Fatalf("src container should descend one level, got %v", got)
+	}
+}
+
+// TestScanModulesReportsDropped: with more than the 10-module cap worth of
+// top-level directories, scanModules must report which ones got dropped, not
+// just silently truncate.
+func TestScanModulesReportsDropped(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < 12; i++ {
+		name := fmt.Sprintf("svc-%02d", i)
+		os.MkdirAll(filepath.Join(root, name), 0o755)
+		os.WriteFile(filepath.Join(root, name, "main.go"), []byte("package main\n"), 0o644)
+	}
+	mods, dropped := scanModules(root)
+	if len(mods) != 10 {
+		t.Fatalf("expected 10 kept modules (the cap), got %d", len(mods))
+	}
+	if len(dropped) != 2 {
+		t.Fatalf("expected 2 dropped modules (12 - cap of 10), got %d: %v", len(dropped), dropped)
 	}
 }
 
@@ -182,6 +239,54 @@ func TestCountFailLines(t *testing.T) {
 	red := "✓ add works\n✕ subtracts by mistake\nFAIL src/math.test.js\n2 failed, 1 passed"
 	if countFailLines(red) < 2 {
 		t.Fatalf("red output should count multiple failures, got %d", countFailLines(red))
+	}
+}
+
+// TestQATaskIncludesNotesWhenPresent: qaTask must fold in prior map-step
+// context the same way fixTask already does, so QA doesn't redundantly
+// rediscover product structure the map step already paid for.
+func TestQATaskIncludesNotesWhenPresent(t *testing.T) {
+	got := qaTask("backend", "backend", "# Audit map\n\nThis product is a payment gateway.", "")
+	if !strings.Contains(got, "payment gateway") {
+		t.Fatalf("qaTask should include the notes content, got:\n%s", got)
+	}
+}
+
+func TestQATaskOmitsNotesSectionWhenEmpty(t *testing.T) {
+	got := qaTask("backend", "backend", "", "")
+	if strings.Contains(got, "Prior analysis") {
+		t.Fatalf("qaTask should not add an empty notes section, got:\n%s", got)
+	}
+}
+
+func TestQATaskIncludesDetectedTestCommand(t *testing.T) {
+	got := qaTask("backend", "backend", "", "go test ./...")
+	if !strings.Contains(got, "go test ./...") {
+		t.Fatalf("qaTask should surface the pre-detected test command, got:\n%s", got)
+	}
+}
+
+func TestQATaskOmitsTestCommandHintWhenNoneDetected(t *testing.T) {
+	got := qaTask("backend", "backend", "", "")
+	if strings.Contains(got, "detected test command") {
+		t.Fatalf("qaTask should not mention a test command hint when none was detected, got:\n%s", got)
+	}
+}
+
+// TestQATaskFollowsStagedProcedure: qaTask's main body must walk QA through a
+// staged procedure (module boundary → detect/run tests → read before judging →
+// priority-ordered defect search → stop-and-write) rather than an open-ended
+// "explore and find bugs" instruction, so QA runs converge instead of wandering.
+func TestQATaskFollowsStagedProcedure(t *testing.T) {
+	got := qaTask("backend", "backend", "", "go test ./...")
+	for _, want := range []string{
+		"do not explore beyond this module's boundary",
+		"Stop actively exploring",
+		"write your findings now, even if incomplete",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("qaTask missing staged-procedure instruction %q, got:\n%s", want, got)
+		}
 	}
 }
 
