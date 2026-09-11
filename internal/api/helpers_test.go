@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -19,13 +18,6 @@ func newStore(t *testing.T) *store.Store {
 	}
 	t.Cleanup(s.Close)
 	return s
-}
-
-func newServer(t *testing.T, s *store.Store) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(NewMux(s, nil))
-	t.Cleanup(srv.Close)
-	return srv
 }
 
 func postJSON(t *testing.T, url, body string, want int) {
