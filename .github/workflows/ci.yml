@@ -63,9 +63,7 @@ jobs:
         run: go test $(go list ./... | grep -v '/runs/') -count=1
 
       - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck $(go list ./... | grep -v '/runs/')
+        run: go tool govulncheck $(go list ./... | grep -v '/runs/')
 
       - name: Build server
         run: go build ./cmd/serve

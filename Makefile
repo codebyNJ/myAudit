@@ -23,8 +23,7 @@ ci:
 	golangci-lint run ./...
 	go vet $$(go list ./... | grep -v '/runs/')
 	go test $$(go list ./... | grep -v '/runs/') -count=1
-	go install golang.org/x/vuln/cmd/govulncheck@latest
-	govulncheck $$(go list ./... | grep -v '/runs/')
+	go tool govulncheck $$(go list ./... | grep -v '/runs/')
 	go build ./cmd/serve
 	GOOS=windows GOARCH=amd64 go build ./...
 	GOOS=linux   GOARCH=amd64 go build ./...

@@ -59,7 +59,7 @@ pre-commit run --all-files
 1. Web lint + build
 2. Embed UI into `internal/api/web/dist`
 3. `gofmt`, `golangci-lint`, `go vet`, `go test`
-4. `govulncheck`
+4. `go tool govulncheck` (pinned in `go.mod`)
 5. Cross-compile check (windows/linux/darwin)
 
 ## Local build prerequisite
