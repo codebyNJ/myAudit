@@ -131,3 +131,48 @@ func TestTickAllClaimsAndDispatchesUpToMaxConcurrent(t *testing.T) {
 		t.Fatalf("expected 2 nodes marked done after one tick, got %d", doneCount)
 	}
 }
+
+// TestTickAllChecksBudgetBeforeClaiming: a run whose spend already meets/exceeds
+// its budget must have its ready qa node parked as 'paused' by TickAll and must
+// NOT be dispatched — even though ClaimN's SQL only selects 'ready' nodes, the
+// budget check has to run BEFORE ClaimN or the node is claimed into 'running'
+// (and gets dispatched) before PauseOverBudget ever gets a chance to park it.
+func TestTickAllChecksBudgetBeforeClaiming(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+
+	_, ids, err := s.CreateGraph(ctx, "budgeted", []store.TaskSpec{
+		{Key: "import", Type: "import", Spec: map[string]any{
+			"repo_path": "/tmp/x", "budget_usd": 1.0,
+		}},
+		{Key: "map", Type: "map", DepKeys: []string{"import"}},
+		{Key: "qa", Type: "qa", DepKeys: []string{"map"}, Spec: map[string]any{"title": "QA"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Mark import/map done with spend already at/over the budget, leave qa ready.
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.6}`, ids["import"])
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='done', output=? WHERE id=?`, `{"cost_usd":0.5}`, ids["map"])
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id=?`, ids["qa"])
+
+	deps := NewStubDeps(s)
+	deps.MaxConcurrent = 2
+
+	n, err := TickAll(ctx, deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0 nodes processed (budget already exceeded), got %d", n)
+	}
+
+	qaNode, err := s.GetNode(ctx, ids["qa"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if qaNode.Status != "paused" {
+		t.Fatalf("expected qa node parked 'paused' by budget check before claiming, got %q", qaNode.Status)
+	}
+}

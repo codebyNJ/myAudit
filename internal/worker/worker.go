@@ -51,19 +51,29 @@ type nodeOutput struct {
 	Flows   json.RawMessage `json:"flows,omitempty"`
 }
 
-// running maps a run id to the cancel func of its in-flight node, so a cancel
-// request can interrupt the agent mid-node (single-node-at-a-time loop ⇒ at most
-// one entry per run).
+// runningEntry pairs an in-flight node's cancel func with the run it belongs
+// to, so CancelRun can find every node for a run even when several run
+// concurrently (bounded-concurrency => possibly more than one node per run).
+type runningEntry struct {
+	runID  string
+	cancel context.CancelFunc
+}
+
+// running maps a node id to its runningEntry, so a cancel request can
+// interrupt every in-flight node belonging to that run.
 var running sync.Map
 
-// CancelRun interrupts the in-flight node of a run, if any. New nodes are stopped
+// CancelRun interrupts every in-flight node of a run, if any. New nodes are stopped
 // separately by marking the run's queued nodes cancelled in the store.
 func CancelRun(runID string) {
-	if v, ok := running.LoadAndDelete(runID); ok {
-		if cancel, ok := v.(context.CancelFunc); ok {
-			cancel()
+	running.Range(func(key, v any) bool {
+		e, ok := v.(runningEntry)
+		if ok && e.runID == runID {
+			running.Delete(key)
+			e.cancel()
 		}
-	}
+		return true
+	})
 }
 
 // RunOnce claims one ready node and processes it. Infra failures return an
@@ -91,8 +101,9 @@ func (d Deps) ProcessClaimed(ctx context.Context, c *queue.ClaimedNode) error {
 	// Make this node's work cancelable so CancelRun can kill the in-flight agent
 	// (and, via the agent's process-group Cancel, any dev server it spawned).
 	ctx, cancel := context.WithCancel(ctx)
-	running.Store(c.RunID.String(), cancel)
-	defer func() { running.Delete(c.RunID.String()); cancel() }()
+	nodeKey := c.ID.String()
+	running.Store(nodeKey, runningEntry{runID: c.RunID.String(), cancel: cancel})
+	defer func() { running.Delete(nodeKey); cancel() }()
 
 	switch c.Type {
 	case "import":

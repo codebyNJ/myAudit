@@ -113,6 +113,16 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 		return 0, err
 	}
 
+	// Check budget BEFORE claiming, not after -- PauseOverBudget flips an
+	// over-budget run's ready qa/bug/flows nodes to 'paused', and Claim only
+	// selects 'ready' nodes, so this must run first or a whole concurrent
+	// batch can be claimed (and start billed calls) before the check bites.
+	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
+		for _, id := range paused {
+			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
+		}
+	}
+
 	n := deps.MaxConcurrent
 	if n < 1 {
 		n = 1
@@ -126,14 +136,6 @@ func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for _, c := range claimed {
-		// Budget check before EACH dispatch in the batch, not once per tick —
-		// a burst of concurrent claims must not all start real, billed calls
-		// before any of them finishes and gets its cost recorded.
-		if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
-			for _, id := range paused {
-				deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
-			}
-		}
 		wg.Add(1)
 		go func(c *queue.ClaimedNode) {
 			defer wg.Done()
