@@ -77,8 +77,8 @@ export function Explorer() {
   const files = s.visibleFiles
   const toggle = (p: string) => setCollapsed((c) => { const n = new Set(c); n.has(p) ? n.delete(p) : n.add(p); return n })
   const key = files.map((f) => (f.changed ? '*' : '') + f.path).join(',')
-  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key]) 
-  const changed = useMemo(() => new Set(files.filter((f) => f.changed && !f.path.startsWith('.myaudit/')).map((f) => f.path)), [key]) 
+  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key])
+  const changed = useMemo(() => new Set(files.filter((f) => f.changed && !f.path.startsWith('.myaudit/')).map((f) => f.path)), [key])
 
   const primedChanged = useRef(false)
   useEffect(() => {

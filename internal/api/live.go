@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/preview"
+	"github.com/codebyNJ/myAudit/internal/preview"
 )
 
 var Previews = preview.New("runs")
@@ -57,7 +57,7 @@ func newestFrame(root string) (string, time.Time) {
 	var bestAt time.Time
 	for _, sub := range []string{".myaudit/live", ".myaudit/preview"} {
 		dir := filepath.Join(root, sub)
-		filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return nil
 			}
@@ -108,7 +108,7 @@ func previewStart(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		if _, serr := Previews.Start(id.String()); serr != nil {
-			os.WriteFile(filepath.Join("runs", id.String(), ".myaudit", "preview.err"), []byte(serr.Error()), 0o644)
+			_ = os.WriteFile(filepath.Join("runs", id.String(), ".myaudit", "preview.err"), []byte(serr.Error()), 0o644)
 		}
 	}()
 	w.WriteHeader(202)

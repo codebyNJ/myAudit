@@ -19,13 +19,19 @@ repos:
     hooks:
       - id: go-vet
         name: go vet
-        entry: bash -c 'go vet ./...'
+        entry: bash -c 'go vet $(go list ./... | grep -v "/runs/")'
         language: system
         pass_filenames: false
         always_run: true
       - id: go-test
         name: go test (fast)
-        entry: bash -c 'go test ./... -count=1'
+        entry: bash -c 'go test $(go list ./... | grep -v "/runs/") -count=1'
         language: system
         pass_filenames: false
         always_run: true
+      - id: oxlint
+        name: oxlint
+        entry: bash -c 'cd web && npm run lint'
+        language: system
+        files: ^web/src/
+        pass_filenames: false

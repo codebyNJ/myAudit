@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestLogWritesRow(t *testing.T) {

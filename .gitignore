@@ -10,6 +10,11 @@ runs/
 web/node_modules/
 web/dist/
 
+# embedded UI — built by make ui-build / CI; only placeholder committed
+internal/api/web/dist/*
+!internal/api/web/dist/.gitkeep
+!internal/api/web/dist/index.html
+
 # local sqlite db
 myaudit.db*
 *.db

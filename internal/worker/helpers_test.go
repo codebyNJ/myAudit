@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"myaudit/internal/agent"
-	"myaudit/internal/events"
-	"myaudit/internal/queue"
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/events"
+	"github.com/codebyNJ/myAudit/internal/queue"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 type recordingAgent struct {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"myaudit/internal/agent"
-	"myaudit/internal/queue"
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/queue"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 const flowsTimeout = 12 * time.Minute

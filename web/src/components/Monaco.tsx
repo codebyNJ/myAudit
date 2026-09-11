@@ -30,7 +30,7 @@ const THEME: MonacoNS.editor.IStandaloneThemeData = {
     { token: 'tag', foreground: '569cd6' },
     { token: 'attribute.name', foreground: '9cdcfe' },
     { token: 'attribute.value', foreground: 'ce9178' },
-    
+
     { token: 'tag.css', foreground: 'd7ba7d' },
     { token: 'attribute.name.css', foreground: '9cdcfe' },
     { token: 'attribute.value.css', foreground: 'ce9178' },
@@ -74,8 +74,8 @@ let themeReady = false
 function ensureTheme(m: typeof MonacoNS) {
   if (themeReady) return
   m.editor.defineTheme('cursor-dark', THEME)
-  
-  
+
+
   type Defaults = { setDiagnosticsOptions?: (o: object) => void }
   const ts = (m.languages as unknown as {
     typescript?: { typescriptDefaults?: Defaults; javascriptDefaults?: Defaults }
@@ -131,7 +131,7 @@ export function Mono({
     })
     const model = editor.getModel()
     if (model) {
-      
+
       model.detectIndentation(true, 2)
     }
     editor.focus()

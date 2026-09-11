@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/agent"
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestQALedFlow(t *testing.T) {

@@ -23,9 +23,9 @@ export function Chat() {
     setDraft(''); setBusy(true)
     try {
       await api.chat(s.runId, msg)
-      s.reloadDetail() 
+      s.reloadDetail()
     } catch (e) {
-      setDraft(msg) 
+      setDraft(msg)
       s.toast('error', 'Chat failed', (e as Error).message)
     } finally { setBusy(false) }
   }

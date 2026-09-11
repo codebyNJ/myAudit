@@ -17,8 +17,8 @@ export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const r = await fetch(path, opts)
-  
-  
+
+
   const body = await r.text()
   if (!r.ok) throw new Error(body.trim() || `HTTP ${r.status}`)
   if (!body.trim()) return undefined as T

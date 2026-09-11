@@ -22,6 +22,8 @@ make test
 
 Each test uses a temporary SQLite database — no services or `claude` CLI required.
 
+The suite excludes packages under local `runs/` workspaces (created during live audits). If `go test ./...` picks up stray packages from `runs/*/node_modules/`, use `make test` instead.
+
 ### Package coverage
 
 | Package | What it tests |
@@ -52,18 +54,33 @@ Skip message when unset: `TEMPLATE_PATH required (real template, no mocks)`.
 
 CI: [`.github/workflows/integration.yml`](../.github/workflows/integration.yml) runs on **manual dispatch** only (needs `claude` CLI + `TEMPLATE_PATH`). Default `TEMPLATE_PATH` is the bundled `demo/` repo.
 
+## Frontend tests
+
+```bash
+cd web && npm test
+```
+
+Vitest smoke tests cover pure utility functions. UI component tests are not yet in scope.
+
 ## Linting
 
 ```bash
+make lint-go              # golangci-lint
 cd web && npm run lint    # oxlint
 pre-commit run --all-files
 ```
 
-Pre-commit runs fast checks only: format, `go vet`, `go test` (unit suite). Integration tests are **not** in pre-commit.
+Pre-commit runs fast checks only: format, `go vet`, `go test` (unit suite), oxlint. Integration tests are **not** in pre-commit.
 
 ## CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push/PR.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push/PR:
+
+1. Web lint + build
+2. Embed UI into `internal/api/web/dist`
+3. `gofmt`, `golangci-lint`, `go vet`, `go test`
+4. `go tool govulncheck` (pinned in `go.mod`)
+5. Cross-compile check (windows/linux/darwin)
 
 ## Local build prerequisite
 
@@ -73,4 +90,4 @@ The Go server embeds the web UI via `go:embed`. Before `go build` or `make test`
 make ui-build
 ```
 
-A minimal placeholder `index.html` may be committed so bare clones compile; run `make ui-build` for the full React app.
+CI and `scripts/build-sidecar.sh` do this automatically. A minimal placeholder `index.html` is committed so bare clones compile; run `make ui-build` for the full React app.

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestListRunsEndpoint(t *testing.T) {

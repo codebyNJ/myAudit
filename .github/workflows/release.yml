@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: web/package-lock.json
 
@@ -124,7 +124,7 @@ jobs:
         run: ./scripts/build-sidecar.sh
 
       - name: Run Go tests
-        run: go test ./... -count=1
+        run: go test $(go list ./... | grep -v '/runs/') -count=1
 
       # CI=true makes Tauri's bundle_dmg.sh skip the Finder/AppleScript window
       # styling, which needs a GUI session and fails on a headless runner.
@@ -164,6 +164,12 @@ jobs:
           mkdir -p dist
           find artifacts -type f -exec cp {} dist/ \;
           ls -la dist
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - uses: softprops/action-gh-release@v2
         with:

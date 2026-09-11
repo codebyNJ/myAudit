@@ -1,5 +1,7 @@
 # myAudit — an autonomous, QA-led code-audit IDE
 
+[![CI](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml)
+
 Point it at a codebase. myAudit drives headless **Claude Code** through the real
 workflow of a software org: a **QA** pass explores the product module-by-module
 and files bug tickets with reproduce steps, then an autonomous **dev** loop picks
@@ -70,8 +72,23 @@ make test     # full Go suite (temp SQLite per test; no services)
 make desktop  # native Tauri shell (needs Rust; auto-starts the server on :7788)
 ```
 
+Or install the server binary directly:
+
+```bash
+go install github.com/codebyNJ/myAudit/cmd/serve@latest
+```
+
 `PORT=7799 make run` if 7788 is taken. Set `CLAUDE_MODEL=claude-sonnet-5` (or pick
 in Settings) for deeper QA + fixes than the Haiku default.
+
+**First audit?** Point at the bundled sample app (intentional bugs, no tokens for
+`make dev`):
+
+```bash
+make seed                    # optional — see the UI with a pre-filled board
+curl -s localhost:7788/api/demo   # → absolute path to demo/
+# then Import codebase in the UI, or POST /api/runs with that path
+```
 
 Start an audit from the UI (**Import codebase**), or over the API:
 
@@ -100,7 +117,11 @@ enqueues the open tickets for the autonomous dev loop.
 | `internal/api` | JSON API + run loop + embedded web UI |
 | `web` / `desktop` | React UI and its Tauri desktop shell |
 
-See [`docs/architecture.md`](docs/architecture.md) for the deep dive.
+| Doc | Contents |
+|-----|----------|
+| [`docs/architecture.md`](docs/architecture.md) | Graph model, packages, safety |
+| [`docs/api.md`](docs/api.md) | REST endpoint reference |
+| [`docs/testing.md`](docs/testing.md) | Unit, integration, and CI testing |
 
 ## Configuration
 
@@ -109,8 +130,11 @@ All optional — see [`.env.example`](.env.example).
 | var | default | purpose |
 |---|---|---|
 | `MYAUDIT_DB` | `./myaudit.db` | SQLite path |
+| `PORT` | `7788` | HTTP listen port |
 | `CLAUDE_MODEL` | Haiku | agent model — set `claude-sonnet-5` (or Opus) for senior-grade depth |
 | `REAL_CLAUDE` | unset | `1` = real agent; unset = $0 stub |
+| `CLAUDE_BIN` | `claude` | path to the Claude Code CLI binary |
+| `MAX_CONCURRENT_CLAUDE` | `1` | max parallel agent processes |
 | `AGENT_ISOLATE` | unset | `1` = run each agent inside a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
 | `RUN_PACE_MS` | — | pace the run loop |
 
@@ -157,6 +181,17 @@ workflow**) with a version string to produce installers without creating a tag.
   unless `AGENT_ISOLATE=1`. Use trusted repos.
 - **UI-preview screenshots are best-effort** — captured only if the QA agent can
   render the app headlessly.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
+Security issues: [SECURITY.md](SECURITY.md). Community standards: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Third-party notice
+
+myAudit is **not affiliated with Anthropic**. It shells out to the **Claude Code CLI**, which requires a separate login and is subject to [Anthropic's terms](https://www.anthropic.com/legal/consumer-terms). Claude and Claude Code are trademarks of Anthropic.
+
+Bundled third-party licenses (Monaco Editor, React, etc.) are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

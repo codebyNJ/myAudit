@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"myaudit/internal/proc"
+	"github.com/codebyNJ/myAudit/internal/proc"
 )
 
 const (
@@ -109,7 +109,7 @@ func (m *Manager) Start(runID string) (*Server, error) {
 	}
 
 	logPath := filepath.Join(dir, ".myaudit", "preview.log")
-	os.MkdirAll(filepath.Dir(logPath), 0o755)
+	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
 	lf, _ := os.Create(logPath)
 
 	c := exec.Command(name, args...)
@@ -177,7 +177,7 @@ func (m *Manager) StopAll() {
 
 func writeLive(dir, url string) {
 	b, _ := json.Marshal(map[string]string{"url": url, "title": "dev server (auto-started)"})
-	os.WriteFile(filepath.Join(dir, ".myaudit", "live.json"), b, 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".myaudit", "live.json"), b, 0o644)
 }
 
 func clearLive(dir string) {

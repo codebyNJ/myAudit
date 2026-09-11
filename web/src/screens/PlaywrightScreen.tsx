@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { 
+import {
   ShieldCheck, AlertTriangle, Cpu, Terminal, Layers, CheckCircle2, XCircle, Clock, ArrowUpRight,
   Sparkles, RefreshCw, Eye
 } from 'lucide-react'
@@ -75,14 +75,14 @@ export function PlaywrightScreen() {
           <div>
             <div className="vercel-title-row">
               <h1 className="vercel-title">{curProject}</h1>
-              <span className="vercel-badge" style={{ 
+              <span className="vercel-badge" style={{
                 borderColor: runStatus === 'done' ? 'rgba(63,185,80,0.3)' : runStatus === 'running' ? 'rgba(56,189,248,0.3)' : 'var(--border-subtle)',
                 color: runStatus === 'done' ? '#4ade80' : runStatus === 'running' ? '#38bdf8' : 'var(--text-secondary)',
                 background: runStatus === 'done' ? 'rgba(63,185,80,0.08)' : runStatus === 'running' ? 'rgba(56,189,248,0.08)' : 'var(--bg-panel)'
               }}>
-                <span style={{ 
-                  width: 6, height: 6, borderRadius: '50%', 
-                  background: runStatus === 'done' ? '#4ade80' : runStatus === 'running' ? '#38bdf8' : 'var(--text-muted)' 
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: runStatus === 'done' ? '#4ade80' : runStatus === 'running' ? '#38bdf8' : 'var(--text-muted)'
                 }} />
                 {runStatus.toUpperCase()}
               </span>
@@ -195,9 +195,9 @@ export function PlaywrightScreen() {
                   const fCount = findingsFor(modTag)
                   const isDone = m.status === 'done'
                   return (
-                    <div 
-                      key={m.id} 
-                      className="vercel-row interactive" 
+                    <div
+                      key={m.id}
+                      className="vercel-row interactive"
                       onClick={() => s.openCard(m.id)}
                       title="Inspect module card"
                     >
@@ -252,9 +252,9 @@ export function PlaywrightScreen() {
                   const isFailed = b.status === 'failed'
                   const isReview = b.status === 'in_review'
                   return (
-                    <div 
-                      key={b.id} 
-                      className="vercel-row interactive" 
+                    <div
+                      key={b.id}
+                      className="vercel-row interactive"
                       onClick={() => s.openCard(b.id)}
                       title="Inspect fix ticket"
                     >
@@ -316,8 +316,8 @@ export function PlaywrightScreen() {
             </span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {['all', 'finding', 'qa', 'step'].map((f) => (
-                <button 
-                  key={f} 
+                <button
+                  key={f}
                   className={`btn-sm ${actFilter === f ? 'primary' : ''}`}
                   style={{ padding: '2px 8px', fontSize: 11 }}
                   onClick={() => setActFilter(f)}
