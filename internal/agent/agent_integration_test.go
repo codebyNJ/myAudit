@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 func TestRealFeatureAddProject(t *testing.T) {

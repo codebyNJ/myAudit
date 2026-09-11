@@ -12,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/events"
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
-	"myaudit/internal/worker"
+	"github.com/codebyNJ/myAudit/internal/events"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/worker"
 )
 
 type RunDetail struct {
@@ -134,7 +134,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		}
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(201)
-		json.NewEncoder(w).Encode(map[string]string{"id": run.String()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": run.String()})
 	})
 
 	mux.HandleFunc("GET /api/demo", func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,10 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		var b struct {
 			Answer string `json:"answer"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		if err := s.ResolveCheckpoint(r.Context(), id, b.Answer); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -251,7 +254,10 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			Path    string `json:"path"`
 			Content string `json:"content"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		clean := filepath.Clean(b.Path)
 		if b.Path == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
 			http.Error(w, "bad path", 400)
@@ -277,7 +283,10 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			Path   string `json:"path"`
 			Status string `json:"status"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		if b.Path == "" || (b.Status != "accepted" && b.Status != "rejected") {
 			http.Error(w, "path and status (accepted|rejected) required", 400)
 			return
@@ -338,7 +347,10 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		var b struct {
 			Content string `json:"content"`
 		}
-		json.NewDecoder(r.Body).Decode(&b)
+		if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+			http.Error(w, "bad json", 400)
+			return
+		}
 		if err := s.PutNotes(r.Context(), id, b.Content); err != nil {
 			http.Error(w, err.Error(), 500)
 			return

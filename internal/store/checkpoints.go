@@ -23,7 +23,7 @@ func (s *Store) RaiseCheckpoint(ctx context.Context, run, node uuid.UUID, questi
 	if err != nil {
 		return uuid.Nil, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	opts, _ := json.Marshal(options)
 	id := uuid.New()
@@ -43,7 +43,7 @@ func (s *Store) ResolveCheckpoint(ctx context.Context, checkpoint uuid.UUID, ans
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var node uuid.UUID
 	if err := tx.QueryRowContext(ctx,

@@ -74,7 +74,7 @@ export function DevScreen() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [diff, setDiff] = useState('')
-  const [showDiff, setShowDiff] = useState(false) 
+  const [showDiff, setShowDiff] = useState(false)
   const [wrap, setWrap] = useState(true)
   const [minimap, setMinimap] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -114,7 +114,7 @@ export function DevScreen() {
     else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
   }, [files.map((f) => f.path).join(',') + '|' + changedKey])
 
-  
+
   useEffect(() => {
     setShowDiff(false)
     if (!sel || !s.runId) { setContent(''); setSaved(''); return }
@@ -134,7 +134,7 @@ export function DevScreen() {
       .finally(() => { if (loadGen.current === gen) setLoading(false) })
   }, [sel?.path, s.runId])
 
-  
+
   useEffect(() => {
     if (!sel || !s.runId || dirty) return
     let alive = true
@@ -195,7 +195,7 @@ export function DevScreen() {
 
   const breadcrumbParts = sel?.path ? sel.path.split('/') : []
 
-  
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {

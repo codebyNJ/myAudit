@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"sort"
 
-	"myaudit/internal/sandbox"
-	"myaudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func listWorkspaceFiles(runID string, changed map[string]bool, reviews map[string]string) []store.FileEntry {
 	root := filepath.Join("runs", runID)
 	out := []store.FileEntry{}
-	filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

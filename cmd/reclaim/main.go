@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 func main() {

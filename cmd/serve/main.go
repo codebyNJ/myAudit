@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"myaudit/internal/api"
-	"myaudit/internal/config"
-	"myaudit/internal/store"
-	"myaudit/internal/worker"
+	"github.com/codebyNJ/myAudit/internal/api"
+	"github.com/codebyNJ/myAudit/internal/config"
+	"github.com/codebyNJ/myAudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/worker"
 )
 
 func main() {

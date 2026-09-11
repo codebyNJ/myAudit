@@ -1,0 +1,83 @@
+name: Bug Report
+description: Report something broken in myAudit itself
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please search [existing issues](https://github.com/codebyNJ/myAudit/issues) first.
+        For security vulnerabilities, use [Security Advisories](https://github.com/codebyNJ/myAudit/security/advisories/new) instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Git tag, commit SHA, or "main"
+      placeholder: v0.1.0 or abc1234
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Agent mode
+      description: Were you using the real Claude agent or the stub?
+      options:
+        - REAL_CLAUDE=1 (make run)
+        - Stub agent (make dev)
+        - Desktop app
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. make run
+        2. Import repo at /path/to/repo
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Server output, browser console, or screenshots
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Target repo type, CLAUDE_MODEL, AGENT_ISOLATE, etc.

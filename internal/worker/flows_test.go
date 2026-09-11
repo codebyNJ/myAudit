@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"myaudit/internal/agent"
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 func TestDoFlowsRoutesThroughRunAgentRetry(t *testing.T) {

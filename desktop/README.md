@@ -1,7 +1,35 @@
-# Tauri + Vanilla
+# myAudit desktop shell
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Javascript.
+Tauri 2 wrapper around the myAudit Go server. The server is bundled as a **sidecar**
+binary so installers run standalone — no separate `make run` step for end users.
 
-## Recommended IDE Setup
+## Prerequisites
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- Rust (see `src-tauri/rust-toolchain.toml` — stable channel)
+- Node.js 22+ (see repo root `.nvmrc`)
+- Platform deps for Tauri: [tauri.app/start](https://tauri.app/start/)
+
+```bash
+cargo install tauri-cli
+```
+
+## Development
+
+```bash
+# terminal 1 — API + embedded UI
+make run
+
+# terminal 2 — Tauri dev window
+make desktop
+```
+
+## Production build
+
+```bash
+./scripts/build-sidecar.sh          # web UI → Go server → binaries/myaudit-serve-*
+cd desktop && CI=true npx tauri build
+```
+
+Release builds are automated via [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+
+See [README.md](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md).

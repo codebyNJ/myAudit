@@ -52,7 +52,7 @@ func Reclaim(dir string) (int64, error) {
 
 func dirSize(dir string) int64 {
 	var n int64
-	filepath.WalkDir(dir, func(_ string, d os.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(_ string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}

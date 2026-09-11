@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"myaudit/internal/proc"
-	"myaudit/internal/sandbox"
+	"github.com/codebyNJ/myAudit/internal/proc"
+	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
 type Result struct {

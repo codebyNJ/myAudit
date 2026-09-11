@@ -37,13 +37,6 @@ func scanTags(s string) []string {
 	return v
 }
 
-func uuidArg(p *uuid.UUID) any {
-	if p == nil {
-		return nil
-	}
-	return p.String()
-}
-
 func nullUUID(ns sql.NullString) *uuid.UUID {
 	if !ns.Valid || ns.String == "" {
 		return nil
