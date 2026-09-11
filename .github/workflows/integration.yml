@@ -1,0 +1,33 @@
+name: Integration tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      template_path:
+        description: Absolute path to a real template repo (checked out in this job if empty, uses demo/)
+        required: false
+        type: string
+
+jobs:
+  agent-integration:
+    name: Agent integration (claude CLI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Install claude CLI
+        run: |
+          if ! command -v claude >/dev/null 2>&1; then
+            echo "claude CLI not available on runner — set up auth or skip this workflow"
+            exit 1
+          fi
+
+      - name: Run integration tests
+        env:
+          TEMPLATE_PATH: ${{ inputs.template_path != '' && inputs.template_path || format('{0}/demo', github.workspace) }}
+        run: make test-integration

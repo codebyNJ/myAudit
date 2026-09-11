@@ -1,0 +1,6 @@
+diff --git a/src/x.js b/src/x.js
+@@
++a
+diff --git a/src/y.js b/src/y.js
+@@
++b

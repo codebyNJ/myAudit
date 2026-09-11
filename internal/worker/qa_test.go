@@ -208,13 +208,19 @@ func TestScanModulesReportsDropped(t *testing.T) {
 }
 
 func TestCountFailLines(t *testing.T) {
-	green := "PASS ok  3 passed"
-	if countFailLines(green) != 0 {
-		t.Fatalf("clean output should count 0 failures, got %d", countFailLines(green))
+	green, err := os.ReadFile("testdata/test_output_green.txt")
+	if err != nil {
+		t.Fatal(err)
 	}
-	red := "✓ add works\n✕ subtracts by mistake\nFAIL src/math.test.js\n2 failed, 1 passed"
-	if countFailLines(red) < 2 {
-		t.Fatalf("red output should count multiple failures, got %d", countFailLines(red))
+	if countFailLines(string(green)) != 0 {
+		t.Fatalf("clean output should count 0 failures, got %d", countFailLines(string(green)))
+	}
+	red, err := os.ReadFile("testdata/test_output_red.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if countFailLines(string(red)) < 2 {
+		t.Fatalf("red output should count multiple failures, got %d", countFailLines(string(red)))
 	}
 }
 

@@ -1,0 +1,31 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^internal/api/web/dist/
+      - id: end-of-file-fixer
+        exclude: ^internal/api/web/dist/
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.1
+    hooks:
+      - id: go-fmt
+
+  - repo: local
+    hooks:
+      - id: go-vet
+        name: go vet
+        entry: bash -c 'go vet ./...'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: go-test
+        name: go test (fast)
+        entry: bash -c 'go test ./... -count=1'
+        language: system
+        pass_filenames: false
+        always_run: true
