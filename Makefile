@@ -5,15 +5,30 @@
 MYAUDIT_DB ?= myaudit.db
 export
 
-.PHONY: test run dev seed ui-build ui-dev desktop tidy lint-go
+.PHONY: test run dev seed ui-build ui-dev desktop tidy lint-go ci
 
 ## test: run the full Go suite (each test uses its own temp SQLite; no services)
 test:
 	go test $$(go list ./... | grep -v '/runs/')
 
-## lint-go: run golangci-lint (install: https://golangci-lint.run/welcome/install/)
+## lint-go: run golangci-lint v2 (install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.0)
 lint-go:
 	golangci-lint run ./...
+
+## ci: mirror the GitHub Actions CI job locally
+ci:
+	cd web && npm ci --no-audit --no-fund && npm run lint && npm test && npm run build
+	rm -rf internal/api/web/dist && cp -r web/dist internal/api/web/dist
+	test -z "$$(gofmt -l .)"
+	golangci-lint run ./...
+	go vet $$(go list ./... | grep -v '/runs/')
+	go test $$(go list ./... | grep -v '/runs/') -count=1
+	go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck $$(go list ./... | grep -v '/runs/')
+	go build ./cmd/serve
+	GOOS=windows GOARCH=amd64 go build ./...
+	GOOS=linux   GOARCH=amd64 go build ./...
+	GOOS=darwin  GOARCH=arm64 go build ./...
 
 ## run: serve UI + API at http://localhost:7788 with the REAL Claude Code agent
 run:

@@ -40,11 +40,11 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	}
 	b.WriteString("## Modules under QA\n")
 	for _, m := range mods {
-		b.WriteString(fmt.Sprintf("- **%s** — `%s`\n", m.Name, m.Path))
+		fmt.Fprintf(&b, "- **%s** — `%s`\n", m.Name, m.Path)
 	}
 	if len(dropped) > 0 {
-		b.WriteString(fmt.Sprintf("\n_%d module(s) skipped (10-module cap reached): %s_\n",
-			len(dropped), strings.Join(dropped, ", ")))
+		fmt.Fprintf(&b, "\n_%d module(s) skipped (10-module cap reached): %s_\n",
+			len(dropped), strings.Join(dropped, ", "))
 	}
 	_ = d.Store.PutNotes(ctx, c.RunID, b.String())
 
@@ -423,7 +423,7 @@ func qaTask(module, path, notes, testCmdHint string) string {
 	if testCmdHint != "" {
 		sb.WriteString("Detected test command for this module: `" + testCmdHint + "` — run it rather than guessing.\n\n")
 	}
-	sb.WriteString(fmt.Sprintf(
+	fmt.Fprintf(&sb,
 		"You are the QA engineer for the module %q (path `%s`) of this codebase. You have a shell "+
 			"(Bash) and the dependencies are installed. Work through these steps IN ORDER, once each — "+
 			"do not explore beyond this module's boundary and do not loop back to an earlier step:\n\n"+
@@ -450,7 +450,7 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
 			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
-		module, path))
+		module, path)
 	return sb.String()
 }
 

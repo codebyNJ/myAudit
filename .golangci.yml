@@ -1,21 +1,33 @@
+version: "2"
 run:
-  timeout: 5m
   tests: true
-
 linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - runs
+      - internal/api/web/dist
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
   enable:
-    - govet
-    - errcheck
-    - staticcheck
-    - unused
     - gofmt
     - goimports
-
-issues:
-  exclude-dirs:
-    - runs
-    - internal/api/web/dist
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
+  exclusions:
+    generated: lax
+    paths:
+      - runs
+      - internal/api/web/dist
+      - third_party$
+      - builtin$
+      - examples$

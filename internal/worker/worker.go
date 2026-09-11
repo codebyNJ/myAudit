@@ -222,7 +222,7 @@ func findingsMarkdown(fs []finding, raw string) string {
 	}
 	var b strings.Builder
 	for _, f := range fs {
-		b.WriteString(fmt.Sprintf("- **[%s]** %s", strings.ToUpper(f.Severity), f.Title))
+		fmt.Fprintf(&b, "- **[%s]** %s", strings.ToUpper(f.Severity), f.Title)
 		if f.File != "" {
 			b.WriteString(" — `" + f.File + "`")
 		}

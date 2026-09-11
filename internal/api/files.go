@@ -57,7 +57,7 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 			return
 		}
 		if _, err := os.Stat(full); err == nil {
-			http.Error(w, "already exists", 409)
+			http.Error(w, "already exists", http.StatusConflict)
 			return
 		}
 		if b.Dir {
@@ -98,7 +98,7 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 		}
 		to := filepath.Join("runs", id.String(), toClean)
 		if _, err := os.Stat(to); err == nil {
-			http.Error(w, "target exists", 409)
+			http.Error(w, "target exists", http.StatusConflict)
 			return
 		}
 		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {

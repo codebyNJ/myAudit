@@ -7,7 +7,7 @@ Thanks for your interest in contributing! This document covers local setup, test
 | Tool | Version | Required for |
 |------|---------|--------------|
 | Go | 1.23+ (see `go.mod`) | server, tests |
-| Node.js | 22 (see `.nvmrc`) | web UI |
+| Node.js | 24 (see `.nvmrc`) | web UI |
 | npm | comes with Node | web UI |
 | git | any recent | import/sandbox |
 | `claude` CLI | logged in | live agent runs (`make run`) |
@@ -64,7 +64,8 @@ To skip a hook for a single commit: `SKIP=oxlint git commit -m "..."`.
 make test                     # all Go packages (excludes local runs/ workspaces)
 cd web && npm test            # vitest smoke tests
 cd web && npm run lint        # oxlint on frontend
-make lint-go                  # golangci-lint (requires golangci-lint installed)
+make lint-go                  # golangci-lint v2
+make ci                       # full CI mirror (web + Go + cross-compile)
 ```
 
 ### Integration tests

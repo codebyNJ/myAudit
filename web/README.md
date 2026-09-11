@@ -4,6 +4,8 @@ React + TypeScript + Vite frontend for myAudit. Served in production as static f
 
 ## Commands
 
+Requires Node 24 (see repo root `.nvmrc`).
+
 ```bash
 npm install
 npm run dev      # Vite dev server (run make run or make dev in repo root too)
