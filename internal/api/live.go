@@ -21,7 +21,8 @@ var Previews = preview.New("runs")
 // LiveView is what the agent-screen viewer renders: a live URL when the agent
 // currently has the product running, otherwise the most recent captured frame.
 type LiveView struct {
-	Status string `json:"status"` // "live" | "frames" | "idle"
+	Status string `json:"status"`           // "live" | "frames" | "idle"
+	Kind   string `json:"kind,omitempty"`   // "web" | "desktop" | "none"
 	URL    string `json:"url,omitempty"`
 	Frame  string `json:"frame,omitempty"`
 	At     string `json:"at,omitempty"`
@@ -112,7 +113,8 @@ func previewStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, _, ok := preview.Command(filepath.Join("runs", id.String())); !ok {
-		writeJSON(w, map[string]string{"status": "unsupported"})
+		kind := string(preview.Detect(filepath.Join("runs", id.String())))
+		writeJSON(w, map[string]string{"status": "unsupported", "kind": kind})
 		return
 	}
 	go func() {
@@ -142,24 +144,25 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	root := filepath.Join("runs", id.String())
+	kind := string(preview.Detect(root))
 
 	if s, ok := Previews.Get(id.String()); ok && reachable(s.URL) {
-		writeJSON(w, LiveView{Status: "live", URL: s.URL, Title: "dev server (auto-started)"})
+		writeJSON(w, LiveView{Status: "live", Kind: kind, URL: s.URL, Title: "dev server (auto-started)"})
 		return
 	}
 
 	if b, rerr := os.ReadFile(filepath.Join(root, ".myaudit", "live.json")); rerr == nil {
 		var t liveTarget
 		if json.Unmarshal(b, &t) == nil && t.URL != "" && reachable(t.URL) {
-			writeJSON(w, LiveView{Status: "live", URL: t.URL, Title: t.Title})
+			writeJSON(w, LiveView{Status: "live", Kind: kind, URL: t.URL, Title: t.Title})
 			return
 		}
 	}
 
 	if frame, at := newestFrame(root); frame != "" {
-		writeJSON(w, LiveView{Status: "frames", Frame: frame, At: at.UTC().Format(time.RFC3339)})
+		writeJSON(w, LiveView{Status: "frames", Kind: kind, Frame: frame, At: at.UTC().Format(time.RFC3339)})
 		return
 	}
 
-	writeJSON(w, LiveView{Status: "idle"})
+	writeJSON(w, LiveView{Status: "idle", Kind: kind})
 }

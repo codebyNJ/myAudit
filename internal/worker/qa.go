@@ -374,6 +374,7 @@ var skipModuleDir = map[string]bool{
 	".svelte-kit": true, "coverage": true, ".gradle": true, ".vercel": true, ".turbo": true,
 	".output": true, ".cache": true, "public": true, "static": true, "assets": true,
 	"docs": true, ".github": true, ".idea": true, ".vscode": true,
+	"tests": true, "test": true, "__tests__": true,
 }
 
 // scanModules picks the codebase's top-level source directories as modules,
@@ -477,6 +478,8 @@ func qaTask(module, path string) string {
 			"watchable frame by frame. "+
 			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
 			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
+			"Put new tests in a dedicated folder (`tests/` at repo root, or `__tests__/` for JS/TS) — not "+
+			"alongside source files. "+
 			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+
 			"`.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
 			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+

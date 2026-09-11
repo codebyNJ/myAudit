@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { greet, total } from './index.js'
+import { greet, total } from '../index.js'
 
 test('greet', () => {
   assert.equal(greet('a'), 'hello a')
