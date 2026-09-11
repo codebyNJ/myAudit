@@ -390,6 +390,7 @@ var skipModuleDir = map[string]bool{
 	".svelte-kit": true, "coverage": true, ".gradle": true, ".vercel": true, ".turbo": true,
 	".output": true, ".cache": true, "public": true, "static": true, "assets": true,
 	"docs": true, ".github": true, ".idea": true, ".vscode": true,
+	"tests": true, "test": true, "__tests__": true,
 }
 
 // scanModules picks the codebase's top-level source directories as modules,
@@ -505,15 +506,16 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"WHILE the product is up and reachable (if you start a server), write `.myaudit/live.json` as "+
 			`{"url":"http://localhost:<port>","title":"<what is running>"}` +
 			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
-			"Prefer non-blocking commands; if you start a server, background it, probe it, then kill it — "+
-			"never leave a process running or block. As you exercise the UI, save successive screenshots to "+
-			"`.myaudit/live/<step>.png` so the run is watchable frame by frame. You may write NEW test files "+
-			"to prove a bug, but do not fix the code. If this module has a visible UI and you can render it, "+
-			"save a screenshot as evidence to `.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
-			"Your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
-			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low",`+
-			`"category":"bug|correctness|best-practice|test-gap|security","confidence":"high|medium|low",`+
-			`"detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
+			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
+			"watchable frame by frame. "+
+			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
+			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
+			"Put new tests in a dedicated folder (`tests/` at repo root, or `__tests__/` for JS/TS) — not "+
+			"alongside source files. "+
+			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+
+			"`.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
+			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
+			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
 			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path))
 	return sb.String()

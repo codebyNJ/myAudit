@@ -40,8 +40,11 @@ func New(workspaceRoot string) *Manager {
 }
 
 // Command describes how to boot a project. Returns ok=false when the workspace
-// has no recognisable dev server, in which case nothing is started.
+// has no recognisable UI dev server, in which case nothing is started.
 func Command(dir string) (name string, args []string, ok bool) {
+	if Detect(dir) == KindNone {
+		return "", nil, false
+	}
 	pkg := filepath.Join(dir, "package.json")
 	b, err := os.ReadFile(pkg)
 	if err != nil {
@@ -59,7 +62,7 @@ func Command(dir string) (name string, args []string, ok bool) {
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err != nil {
 		return "", nil, false
 	}
-	for _, s := range []string{"dev", "start", "serve"} {
+	for _, s := range []string{"dev", "start", "serve", "tauri"} {
 		if _, has := m.Scripts[s]; has {
 			return "npm", []string{"run", s}, true
 		}

@@ -12,7 +12,7 @@ export type FlowStep = { label: string; file?: string; kind?: string }
 export type DataFlow = { name: string; entity?: string; store?: string; steps?: FlowStep[]; note?: string; concern?: string }
 export type ProductFlow = { name: string; trigger?: string; steps?: FlowStep[]; outcome?: string; concern?: string }
 export type FlowsDoc = { persistence?: string; data_flows?: DataFlow[]; product_flows?: ProductFlow[] }
-export type LiveView = { status: 'live' | 'frames' | 'idle'; url?: string; frame?: string; At?: string; Title?: string }
+export type LiveView = { status: 'live' | 'frames' | 'idle'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; At?: string; Title?: string }
 export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {

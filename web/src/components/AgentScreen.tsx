@@ -22,6 +22,18 @@ function Connecting({ label }: { label: string }) {
   )
 }
 
+function Idle({ kind }: { kind?: LiveView['kind'] }) {
+  const msg = kind === 'none'
+    ? 'No UI in this project — agent screen stays idle for CLI/library codebases.'
+    : 'Waiting for the app to start…'
+  return (
+    <div className="as-idle">
+      <MonitorPlay size={28} strokeWidth={1.25} color="var(--text-dim)" />
+      <span>{msg}</span>
+    </div>
+  )
+}
+
 function Surface({ view, runId, expanded }: { view: LiveView; runId: string; expanded: boolean }) {
   if (view.status === 'live' && view.url) {
     return (
@@ -36,6 +48,9 @@ function Surface({ view, runId, expanded }: { view: LiveView; runId: string; exp
   }
   if (view.status === 'frames' && view.frame) {
     return <img className="as-shot" src={api.rawUrl(runId, view.frame)} alt="Latest captured frame" />
+  }
+  if (view.status === 'idle' && view.kind === 'none') {
+    return <Idle kind={view.kind} />
   }
   return <Connecting label="Starting the app under test…" />
 }
@@ -64,11 +79,14 @@ export function AgentScreen() {
   if (!s.runId || !view) return null
 
   const isLive = view.status === 'live'
+  const isIdleNoUI = view.status === 'idle' && view.kind === 'none'
   const badge = isLive
     ? <span className="as-badge live"><span className="as-dot" /> LIVE</span>
     : view.status === 'frames'
       ? <span className="as-badge"><Camera size={11} /> {fmtAgo(view.At)}</span>
-      : <span className="as-badge">idle</span>
+      : isIdleNoUI
+        ? <span className="as-badge">idle</span>
+        : <span className="as-badge">booting</span>
 
   return (
     <div className="vercel-card as-card">
@@ -91,7 +109,11 @@ export function AgentScreen() {
               <a className="as-link" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                 {view.url} <ExternalLink size={11} />
               </a></>
-          : <span>{view.status === 'frames' ? 'Latest capture from the QA agent' : 'Booting this project’s dev server'}</span>}
+          : view.status === 'frames'
+            ? <span>Latest capture from the QA agent</span>
+            : isIdleNoUI
+              ? <span>No web or desktop UI detected — nothing to run</span>
+              : <span>Booting this project’s dev server</span>}
       </div>
 
       {open && createPortal(
