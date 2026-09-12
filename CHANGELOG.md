@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Direct download installers (macOS, Windows, Linux) with predictable release asset names
+- Install scripts (`scripts/install.sh`, `scripts/install.ps1`) and standalone CLI archives in releases
+- [docs/downloads.md](docs/downloads.md) download guide
 - Open-source community files: CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, CHANGELOG
 - GitHub issue/PR templates and Dependabot configuration
 - Pre-commit hooks, golangci-lint, and CI lint enforcement

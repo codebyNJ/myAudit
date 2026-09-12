@@ -6,6 +6,7 @@ Welcome to the myAudit wiki. Use this hub to navigate setup, architecture, API, 
 
 | Page | What you'll learn |
 |------|-------------------|
+| [**Downloads**](downloads.md) | macOS / Windows / Linux installers, install scripts |
 | [Getting started](getting-started.md) | Install, first audit, demo repo, stub vs real agent |
 | [Configuration](configuration.md) | Environment variables, in-app settings, model tiers |
 | [Agent providers](agent-providers.md) | Claude Code vs OpenCode, auth, mode mapping |
