@@ -187,7 +187,7 @@ export function AgentScreen() {
                 {badge}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button className="icon-btn" title="Restart" onClick={restart} disabled={restarting}><RotateCw size={14} className={restarting ? 'spin' : undefined} /></button>
+                <button className="icon-btn" title="Restart" onClick={restart} disabled={restarting}><RotateCw size={14} className={restarting ? 'icon-spin' : undefined} /></button>
                 {isLive && view.url && (
                   <a className="btn-sm" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openExternal(view.url!) }}>Open in browser <ExternalLink size={12} /></a>
                 )}
