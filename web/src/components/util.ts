@@ -12,3 +12,15 @@ export const evColor = (k: string) =>
     : /steer/.test(k) ? '#d2a8ff'
     : 'var(--method-post)'
 export const fmtTime = (ts: string) => new Date(ts).toLocaleTimeString()
+
+export type ViewportSize = 'desktop' | 'tablet' | 'mobile'
+
+export const viewportWidth = (size: ViewportSize): number | undefined =>
+  size === 'tablet' ? 768 : size === 'mobile' ? 390 : undefined
+
+export const withPath = (url: string, path: string): string => {
+  if (!path || path === '/') return url
+  const base = url.replace(/\/$/, '')
+  const p = path.startsWith('/') ? path : '/' + path
+  return base + p
+}

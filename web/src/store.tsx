@@ -4,6 +4,10 @@ import { api, type Run, type RunDetail, type CreateRunBody, type FileEntry } fro
 export type Tab = 'dev' | 'activity' | 'playwright' | 'kanban' | 'notes' | 'settings'
 export type Toast = { id: number; type: 'success' | 'error' | 'info'; title: string; msg?: string }
 
+export function shouldRetryPreview(prevDoneCount: number, doneCount: number): boolean {
+  return doneCount > prevDoneCount
+}
+
 type Store = {
   runs: Run[] | null
   runId: string | null
@@ -104,12 +108,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [toast])
 
 
-  const bootedPreview = useRef<string | null>(null)
+  const previewDoneCounts = useRef<Record<string, number>>({})
   useEffect(() => {
-    if (!runId || bootedPreview.current === runId) return
-    bootedPreview.current = runId
-    api.startPreview(runId).catch(() => {})
-  }, [runId])
+    if (!runId || !detail) return
+    const doneCount = detail.nodes.filter((n) => n.status === 'done').length
+    const prev = previewDoneCounts.current[runId] ?? -1
+    if (shouldRetryPreview(prev, doneCount)) {
+      previewDoneCounts.current[runId] = doneCount
+      api.startPreview(runId).catch(() => {})
+    }
+  }, [runId, detail])
 
   const loadRuns = useCallback(async () => {
     try {

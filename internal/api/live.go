@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,12 +19,14 @@ import (
 var Previews = preview.New("runs")
 
 type LiveView struct {
-	Status string `json:"status"`
-	Kind   string `json:"kind,omitempty"`
-	URL    string `json:"url,omitempty"`
-	Frame  string `json:"frame,omitempty"`
-	At     string `json:"at,omitempty"`
-	Title  string `json:"title,omitempty"`
+	Status    string `json:"status"`
+	Kind      string `json:"kind,omitempty"`
+	URL       string `json:"url,omitempty"`
+	Frame     string `json:"frame,omitempty"`
+	At        string `json:"at,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+	LatencyMS int64  `json:"latency_ms,omitempty"`
 }
 
 type liveTarget struct {
@@ -101,7 +104,7 @@ func previewStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"status": "live", "url": s.URL})
 		return
 	}
-	if _, _, ok := preview.Command(filepath.Join("runs", id.String())); !ok {
+	if _, ok := preview.Command(filepath.Join("runs", id.String())); !ok {
 		kind := string(preview.Detect(filepath.Join("runs", id.String())))
 		writeJSON(w, map[string]string{"status": "unsupported", "kind": kind})
 		return
@@ -133,17 +136,28 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 	root := filepath.Join("runs", id.String())
 	kind := string(preview.Detect(root))
 
-	if s, ok := Previews.Get(id.String()); ok && reachable(s.URL) {
-		writeJSON(w, LiveView{Status: "live", Kind: kind, URL: s.URL, Title: "dev server (auto-started)"})
-		return
+	if s, ok := Previews.Get(id.String()); ok {
+		start := time.Now()
+		if reachable(s.URL) {
+			writeJSON(w, LiveView{Status: "live", Kind: kind, URL: s.URL, Title: "dev server (auto-started)", LatencyMS: time.Since(start).Milliseconds()})
+			return
+		}
 	}
 
 	if b, rerr := os.ReadFile(filepath.Join(root, ".myaudit", "live.json")); rerr == nil {
 		var t liveTarget
-		if json.Unmarshal(b, &t) == nil && t.URL != "" && reachable(t.URL) {
-			writeJSON(w, LiveView{Status: "live", Kind: kind, URL: t.URL, Title: t.Title})
-			return
+		if json.Unmarshal(b, &t) == nil && t.URL != "" {
+			start := time.Now()
+			if reachable(t.URL) {
+				writeJSON(w, LiveView{Status: "live", Kind: kind, URL: t.URL, Title: t.Title, LatencyMS: time.Since(start).Milliseconds()})
+				return
+			}
 		}
+	}
+
+	if reason, ok := Previews.LastCrash(id.String()); ok {
+		writeJSON(w, LiveView{Status: "crashed", Kind: kind, Reason: reason})
+		return
 	}
 
 	if frame, at := newestFrame(root); frame != "" {
@@ -152,4 +166,51 @@ func liveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, LiveView{Status: "idle", Kind: kind})
+}
+
+const previewLogMaxBytes = 64 * 1024
+
+func previewLog(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	f, ferr := os.Open(filepath.Join("runs", id.String(), ".myaudit", "preview.log"))
+	if ferr != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(200)
+		return
+	}
+	defer f.Close()
+
+	info, serr := f.Stat()
+	if serr != nil {
+		http.Error(w, serr.Error(), 500)
+		return
+	}
+	var offset int64
+	if info.Size() > previewLogMaxBytes {
+		offset = info.Size() - previewLogMaxBytes
+	}
+	if _, serr := f.Seek(offset, 0); serr != nil {
+		http.Error(w, serr.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = io.Copy(w, f)
+}
+
+func previewRestart(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	go func() {
+		if _, serr := Previews.Restart(id.String()); serr != nil {
+			_ = os.WriteFile(filepath.Join("runs", id.String(), ".myaudit", "preview.err"), []byte(serr.Error()), 0o644)
+		}
+	}()
+	w.WriteHeader(202)
 }

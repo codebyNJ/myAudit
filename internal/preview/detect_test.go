@@ -55,7 +55,7 @@ func TestCommandSkipsNonUI(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "package.json", `{"scripts":{"dev":"vite"}}`)
 	write(t, dir, "node_modules/.keep", "")
-	if _, _, ok := Command(dir); ok {
+	if _, ok := Command(dir); ok {
 		t.Fatal("Command should refuse when Detect is none")
 	}
 }
@@ -64,8 +64,8 @@ func TestCommandFindsWebDev(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "package.json", `{"scripts":{"dev":"vite"},"dependencies":{"react":"^19"}}`)
 	write(t, dir, "node_modules/.keep", "")
-	name, args, ok := Command(dir)
-	if !ok || name != "npm" || len(args) != 2 || args[1] != "dev" {
-		t.Fatalf("Command() = %q %v ok=%v, want npm run dev", name, args, ok)
+	l, ok := Command(dir)
+	if !ok || l.Name != "npm" || len(l.Args) != 2 || l.Args[1] != "dev" {
+		t.Fatalf("Command() = %+v ok=%v, want npm run dev", l, ok)
 	}
 }
