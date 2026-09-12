@@ -6,25 +6,49 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/codebyNJ/myAudit/internal/agent"
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
-func registerHealth(mux *http.ServeMux) {
+type providerStatus struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
+}
+
+func registerHealth(mux *http.ServeMux, s *store.Store) {
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		claudeOK, claudeVer := probe("claude", "--version")
+		opencodeOK, opencodeVer := probe("opencode", "--version")
 		gitOK, _ := probe("git", "--version")
-		ready := claudeOK && gitOK
+
+		active := resolveProvider(r.Context(), s)
+		agentOK := claudeOK
+		if active == agent.ProviderOpenCode {
+			agentOK = opencodeOK
+		}
+		ready := gitOK && agentOK
+
 		msg := ""
 		switch {
-		case !claudeOK:
-			msg = "Claude Code CLI not found. Install it and run `claude login`, then reload."
 		case !gitOK:
 			msg = "git not found on PATH — myAudit needs it to snapshot the workspace."
+		case active == agent.ProviderOpenCode && !opencodeOK:
+			msg = "OpenCode CLI not found. Install it and run `opencode auth login`, then reload."
+		case active == agent.ProviderClaude && !claudeOK:
+			msg = "Claude Code CLI not found. Install it and run `claude login`, then reload."
 		}
+
 		writeJSON(w, map[string]any{
 			"ready":         ready,
+			"git":           gitOK,
+			"agentProvider": active,
+			"providers": map[string]providerStatus{
+				agent.ProviderClaude:   {Installed: claudeOK, Version: claudeVer},
+				agent.ProviderOpenCode: {Installed: opencodeOK, Version: opencodeVer},
+			},
 			"claude":        claudeOK,
 			"claudeVersion": claudeVer,
-			"git":           gitOK,
 			"message":       msg,
 		})
 	})

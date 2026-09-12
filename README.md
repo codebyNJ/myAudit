@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml)
 
-Point it at a codebase. myAudit drives headless **Claude Code** through the real
+Point it at a codebase. myAudit drives a local agent CLI (**Claude Code** or
+**OpenCode**) through the real
 workflow of a software org: a **QA** pass explores the product module-by-module
 and files bug tickets with reproduce steps, then an autonomous **dev** loop picks
 up each ticket, fixes the root cause, runs a regression, and closes it — every
@@ -41,8 +42,9 @@ per-module QA + every fix's what & why).
 
 - **One binary + one SQLite file.** No Docker, no Postgres, no migration tool —
   the schema is embedded and applied on open.
-- **Your Claude Code auth.** Agent nodes shell out to the `claude` CLI. No API
-  keys, no OpenRouter. If it's not Claude Code, it's nothing.
+- **Your local CLI auth.** Agent nodes shell out to **Claude Code** (`claude`)
+  or **OpenCode** (`opencode`) — pick on first launch or in Settings. No API
+  keys stored in myAudit. See [docs/agent-providers.md](docs/agent-providers.md).
 - **The board is the source of truth.** Every task is a row; the whole run is
   queryable at any instant over the JSON API.
 
@@ -59,10 +61,11 @@ per-module QA + every fix's what & why).
 
 ## Run it
 
-Prereqs: **Go 1.23+**, **Node 18+**, the **`claude` CLI** (logged in), and **git**.
+Prereqs: **Go 1.23+**, **Node 18+**, **`claude`** or **`opencode`** CLI (logged in), and **git**.
 Live QA also uses whatever the target repo needs on `PATH` (e.g. `npm`). The
-desktop shell additionally needs **Rust + `cargo install tauri-cli`**. On boot the
-UI shows a banner if `claude`/`git` aren't found.
+desktop shell additionally needs **Rust + `cargo install tauri-cli`**. On first
+launch you pick Claude Code or OpenCode; the UI shows a banner if the active
+provider or `git` isn't found.
 
 ```bash
 make run      # UI + API at http://localhost:7788, REAL Claude Code agent

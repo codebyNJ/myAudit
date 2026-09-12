@@ -8,7 +8,7 @@ All JSON responses use `Content-Type: application/json` unless noted. The UI is 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/health` | Server readiness, `claude`/`git` availability |
+| `GET` | `/api/health` | Server readiness — `ready`, `git`, `agentProvider`, `providers.{claude,opencode}` |
 
 ## Runs
 
@@ -79,7 +79,7 @@ All JSON responses use `Content-Type: application/json` unless noted. The UI is 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/settings` | App settings (model tier, etc.) |
+| `GET` | `/api/settings` | App settings (`agent_provider`, `model_tier`, `opencode_model`, …) |
 | `PUT` | `/api/settings` | Patch settings — arbitrary JSON object |
 
 ## Example: start an audit

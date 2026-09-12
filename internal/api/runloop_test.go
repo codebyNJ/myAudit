@@ -38,8 +38,8 @@ func TestNewRealDepsReadsClaudeBinFromEnv(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected realAgent, got %T", deps.Agent)
 	}
-	if ra.bin != "" {
-		t.Fatalf("unset CLAUDE_BIN should leave bin empty (agent.Options defaults it to \"claude\"), got %q", ra.bin)
+	if ra.claudeBin != "" {
+		t.Fatalf("unset CLAUDE_BIN should leave claudeBin empty, got %q", ra.claudeBin)
 	}
 
 	t.Setenv("CLAUDE_BIN", "/opt/claude/bin/claude")
@@ -48,8 +48,8 @@ func TestNewRealDepsReadsClaudeBinFromEnv(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected realAgent, got %T", deps.Agent)
 	}
-	if ra.bin != "/opt/claude/bin/claude" {
-		t.Fatalf("CLAUDE_BIN should be read into realAgent.bin, got %q", ra.bin)
+	if ra.claudeBin != "/opt/claude/bin/claude" {
+		t.Fatalf("CLAUDE_BIN should be read into realAgent.claudeBin, got %q", ra.claudeBin)
 	}
 }
 

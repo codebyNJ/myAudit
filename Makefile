@@ -5,7 +5,7 @@
 MYAUDIT_DB ?= myaudit.db
 export
 
-.PHONY: test test-integration run dev seed ui-build ui-dev desktop tidy lint-go ci
+.PHONY: test test-integration run dev seed ui-build ui-check serve-restart ui-dev desktop tidy lint-go ci
 
 ## test: run the full Go suite (each test uses its own temp SQLite; no services)
 test:
@@ -33,12 +33,27 @@ ci:
 	GOOS=linux   GOARCH=amd64 go build ./...
 	GOOS=darwin  GOARCH=arm64 go build ./...
 
+## ui-check: build the embedded UI if assets/ is missing (avoids a blank white window)
+ui-check:
+	@if [ ! -d internal/api/web/dist/assets ] && [ ! -d web/dist/assets ]; then \
+	  echo "UI assets missing — running make ui-build..."; \
+	  $(MAKE) ui-build; \
+	fi
+
+## serve-restart: stop a stale myAudit server on :7788 (embed snapshot without UI assets)
+serve-restart:
+	@for pid in $$(lsof -ti :7788 2>/dev/null); do \
+	  case "$$(basename "$$(ps -p $$pid -o comm= 2>/dev/null || echo x)")" in \
+	    serve|myaudit-serve) kill $$pid 2>/dev/null ;; \
+	  esac; \
+	done
+
 ## run: serve UI + API at http://localhost:7788 with the REAL Claude Code agent
-run:
+run: ui-check serve-restart
 	REAL_CLAUDE=1 go run ./cmd/serve
 
 ## dev: serve with the $0 stub agent (no tokens — exercises the UI/graph only)
-dev:
+dev: ui-check serve-restart
 	go run ./cmd/serve
 
 ## seed: insert a demo run so the UI has something to show
@@ -54,8 +69,8 @@ ui-build:
 ui-dev:
 	cd web && npm run dev
 
-## desktop: run the Tauri desktop app (start `make run` in another shell first)
-desktop:
+## desktop: run the Tauri desktop app (builds UI if needed; server auto-starts via Tauri)
+desktop: ui-check
 	cd desktop/src-tauri && cargo tauri dev
 
 ## tidy: sync go.mod

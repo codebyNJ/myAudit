@@ -19,47 +19,15 @@ import (
 )
 
 type realAgent struct {
-	store   *store.Store
-	isolate bool
-	image   string
-	bin     string
+	store       *store.Store
+	isolate     bool
+	image       string
+	claudeBin   string
+	opencodeBin string
 }
 
 func (a realAgent) Run(ctx context.Context, ws sandbox.Workspace, task string, mode agent.Mode, onStep func(string)) (agent.Result, error) {
-	allow, deny := agent.PolicyFor(mode)
-	return agent.Run(ctx, ws, task, agent.Options{
-		Model:   resolveModel(ctx, a.store),
-		Allow:   allow,
-		Deny:    deny,
-		Isolate: a.isolate,
-		Image:   a.image,
-		Bin:     a.bin,
-		OnStep:  onStep,
-	})
-}
-
-var tierToModel = map[string]string{
-	"opus-4.8":  "claude-opus-4-8",
-	"sonnet-5":  "claude-sonnet-5",
-	"haiku-4.5": "claude-haiku-4-5-20251001",
-}
-
-const defaultModel = "claude-haiku-4-5-20251001"
-
-func resolveModel(ctx context.Context, s *store.Store) string {
-	if m := os.Getenv("CLAUDE_MODEL"); m != "" {
-		return m
-	}
-	if s != nil {
-		if st, err := s.GetSettings(ctx); err == nil {
-			if tier, _ := st["model_tier"].(string); tier != "" {
-				if id := tierToModel[tier]; id != "" {
-					return id
-				}
-			}
-		}
-	}
-	return defaultModel
+	return runAgent(ctx, a.store, ws, task, mode, a.isolate, a.image, a.claudeBin, a.opencodeBin, onStep)
 }
 
 type stubAgent struct{}
@@ -79,7 +47,10 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	}
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
-		Agent:         realAgent{store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image, bin: os.Getenv("CLAUDE_BIN")},
+		Agent: realAgent{
+			store: s, isolate: os.Getenv("AGENT_ISOLATE") != "", image: image,
+			claudeBin: os.Getenv("CLAUDE_BIN"), opencodeBin: os.Getenv("OPENCODE_BIN"),
+		},
 		WorkspaceRoot: "runs", MaxRepairs: 2, MaxConcurrent: maxConcurrent,
 	}
 }

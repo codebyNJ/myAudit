@@ -169,13 +169,7 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 	if image == "" {
 		image = "myaudit-sandbox"
 	}
-	res, err := agent.Run(ctx, ws, task, agent.Options{
-		Model:   resolveModel(ctx, s),
-		Allow:   agent.LiveAllow,
-		Deny:    agent.LiveDeny,
-		Isolate: os.Getenv("AGENT_ISOLATE") != "",
-		Image:   image,
-	})
+	res, err := runAgent(ctx, s, ws, task, agent.Live, os.Getenv("AGENT_ISOLATE") != "", image, os.Getenv("CLAUDE_BIN"), os.Getenv("OPENCODE_BIN"), nil)
 	if err != nil {
 		return "chat failed: " + err.Error()
 	}
