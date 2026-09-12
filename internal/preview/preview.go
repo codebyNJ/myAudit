@@ -44,15 +44,20 @@ type startWait struct {
 	err    error
 }
 
+type crashInfo struct {
+	reason string
+}
+
 type Manager struct {
 	mu       sync.Mutex
 	live     map[string]*Server
 	starting map[string]*startWait
+	crashes  map[string]crashInfo
 	root     string
 }
 
 func New(workspaceRoot string) *Manager {
-	return &Manager{live: map[string]*Server{}, starting: map[string]*startWait{}, root: workspaceRoot}
+	return &Manager{live: map[string]*Server{}, starting: map[string]*startWait{}, crashes: map[string]crashInfo{}, root: workspaceRoot}
 }
 
 // launcherFor resolves the Launcher for a run's directory. It is a variable
@@ -150,6 +155,10 @@ func (m *Manager) Start(runID string) (*Server, error) {
 }
 
 func (m *Manager) start(runID string) (*Server, error) {
+	m.mu.Lock()
+	delete(m.crashes, runID)
+	m.mu.Unlock()
+
 	dir := filepath.Join(m.root, runID)
 	port, err := freePort()
 	if err != nil {
@@ -200,6 +209,7 @@ func (m *Manager) start(runID string) (*Server, error) {
 			m.live[runID] = s
 			m.mu.Unlock()
 			writeLive(dir, s.URL)
+			go m.watch(runID, s)
 			return s, nil
 		}
 		if c.ProcessState != nil && c.ProcessState.Exited() {
@@ -228,6 +238,37 @@ func (m *Manager) startStatic(runID, dir string, port int) (*Server, error) {
 	return s, nil
 }
 
+// watch reaps the subprocess and, if it exits without Stop having already
+// removed it, records the exit as a crash. Comparing m.live[runID] == s (not
+// just presence) means a Stop or a newer boot racing this exit is not
+// mistaken for a crash.
+func (m *Manager) watch(runID string, s *Server) {
+	err := s.Cmd.Wait()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.live[runID] != s {
+		return
+	}
+	delete(m.live, runID)
+	reason := "dev server exited"
+	if err != nil {
+		reason = err.Error()
+	}
+	m.crashes[runID] = crashInfo{reason: reason}
+}
+
+func (m *Manager) LastCrash(runID string) (reason string, ok bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.crashes[runID]
+	return c.reason, ok
+}
+
+func (m *Manager) Restart(runID string) (*Server, error) {
+	m.Stop(runID)
+	return m.Start(runID)
+}
+
 func (m *Manager) Stop(runID string) {
 	m.mu.Lock()
 	s, ok := m.live[runID]
@@ -240,7 +281,6 @@ func (m *Manager) Stop(runID string) {
 		_ = s.HTTPServer.Close()
 	} else {
 		_ = proc.KillTree(s.Cmd)
-		go func() { _ = s.Cmd.Wait() }()
 	}
 	clearLive(filepath.Join(m.root, runID))
 }
