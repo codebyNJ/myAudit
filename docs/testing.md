@@ -1,18 +1,17 @@
-# Testing guide
+# Testing
+
+[← Documentation home](README.md)
 
 ## Layout
 
-Go tests follow standard `go test` conventions:
+Go tests follow standard `go test` conventions — co-located with source, no top-level `tests/` tree.
 
 | Pattern | Location | Purpose |
 |---------|----------|---------|
-| `foo_test.go` | Next to `foo.go` in the same package | Unit / white-box tests (`package store`, `package api`, …) |
-| One file per domain | e.g. `internal/store/runs_test.go`, `internal/api/files_test.go` | Keeps large packages readable |
-| `helpers_test.go` | Per package (`internal/api`, `internal/worker`, `internal/store`) | Shared setup: temp DB, HTTP helpers, fake agents |
-| `*_integration_test.go` | Co-located with the package under test | Slow or external-deps tests behind `//go:build integration` |
-| `testdata/` | Under the package that reads fixtures | Golden files, sample diffs, CLI JSON (ignored by `go build`) |
-
-There is no top-level `tests/` tree — co-location keeps `go test ./...` simple.
+| `foo_test.go` | Next to `foo.go` | Unit tests |
+| `helpers_test.go` | `internal/api`, `worker`, `store` | Shared temp DB, HTTP helpers |
+| `*_integration_test.go` | Same package | Behind `//go:build integration` |
+| `testdata/` | Under the package | Fixtures (golden JSON, streams) |
 
 ## Go unit tests
 
@@ -20,24 +19,25 @@ There is no top-level `tests/` tree — co-location keeps `go test ./...` simple
 make test
 ```
 
-Each test uses a temporary SQLite database — no services or `claude` CLI required.
+Each test uses a temporary SQLite database — no services or CLI required.
 
-The suite excludes packages under local `runs/` workspaces (created during live audits). If `go test ./...` picks up stray packages from `runs/*/node_modules/`, use `make test` instead.
+Excludes packages under local `runs/` workspaces. Prefer `make test` over bare `go test ./...` if stray `runs/*/node_modules` packages appear.
 
 ### Package coverage
 
 | Package | What it tests |
 |---------|---------------|
-| `internal/store` | SQLite schema, runs, nodes, tickets, graph |
-| `internal/queue` | Node claim, dependency gating |
+| `internal/store` | Schema, runs, nodes, tickets, graph |
+| `internal/queue` | Claim, dependency gating |
 | `internal/worker` | import/map/qa/bug dispatch (stub agent) |
-| `internal/api` | HTTP handlers, persistence |
-| `internal/agent` | Claude runner parsing (unit) |
+| `internal/api` | HTTP handlers, static serving, provider resolution |
+| `internal/agent/claude` | Claude envelope parsing |
+| `internal/agent/opencode` | OpenCode JSONL stream parsing |
 | `internal/sandbox` | Workspace copy, diff, reclaim |
 
 ## Go integration tests
 
-Agent integration tests call the real `claude` CLI and are gated behind a build tag:
+Agent integration tests call the real `claude` CLI:
 
 ```bash
 make test-integration
@@ -50,9 +50,7 @@ TEMPLATE_PATH=/path/to/template-repo \
 |----------|----------|---------|
 | `TEMPLATE_PATH` | yes | Real template repo for scaffold tests |
 
-Skip message when unset: `TEMPLATE_PATH required (real template, no mocks)`.
-
-CI: [`.github/workflows/integration.yml`](../.github/workflows/integration.yml) runs on **manual dispatch** only (needs `claude` CLI + `TEMPLATE_PATH`). Default `TEMPLATE_PATH` is the bundled `demo/` repo.
+CI: [`.github/workflows/integration.yml`](../.github/workflows/integration.yml) — manual dispatch only.
 
 ## Frontend tests
 
@@ -60,7 +58,7 @@ CI: [`.github/workflows/integration.yml`](../.github/workflows/integration.yml) 
 cd web && npm test
 ```
 
-Vitest smoke tests cover pure utility functions. UI component tests are not yet in scope.
+Vitest smoke tests cover pure utilities. Component tests are not yet in scope.
 
 ## Linting
 
@@ -70,24 +68,34 @@ cd web && npm run lint    # oxlint
 pre-commit run --all-files
 ```
 
-Pre-commit runs fast checks only: format, `go vet`, `go test` (unit suite), oxlint. Integration tests are **not** in pre-commit.
+Pre-commit runs format, `go vet`, fast `go test`, and oxlint — not integration tests.
 
 ## CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every push/PR:
+```bash
+make ci
+```
 
-1. Web lint + build
+Mirrors [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+
+1. Web lint + test + build
 2. Embed UI into `internal/api/web/dist`
 3. `gofmt`, `golangci-lint`, `go vet`, `go test`
-4. `go tool govulncheck` (pinned in `go.mod`)
-5. Cross-compile check (windows/linux/darwin)
+4. `govulncheck`
+5. Cross-compile (windows/linux/darwin)
 
 ## Local build prerequisite
 
-The Go server embeds the web UI via `go:embed`. Before `go build` or `make test`, embed the UI once:
+The Go server embeds the web UI via `go:embed`. Before `go build`:
 
 ```bash
 make ui-build
 ```
 
-CI and `scripts/build-sidecar.sh` do this automatically. A minimal placeholder `index.html` is committed so bare clones compile; run `make ui-build` for the full React app. `make dev`, `make run`, and `make desktop` run `ui-check` first (auto-build when assets are missing). During development the server also serves from `web/dist` on disk when the embed is only the placeholder.
+A minimal placeholder `index.html` is committed; full assets are gitignored. `make dev`, `make run`, and `make desktop` run `ui-check` first (auto-build when assets missing). The server also serves from `web/dist` on disk during development.
+
+## See also
+
+- [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [Getting started](getting-started.md)
+- [Desktop app](desktop.md)

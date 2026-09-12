@@ -101,7 +101,9 @@ TEMPLATE_PATH=/path/to/template go test -tags=integration ./internal/agent/...
 | `internal/` | Core Go packages |
 | `web/` | React + Vite frontend |
 | `desktop/` | Tauri desktop shell |
-| `docs/architecture.md` | Deep architecture reference |
+| [`docs/README.md`](docs/README.md) | Documentation wiki (start here) |
+| `docs/architecture.md` | Graph model and packages |
+| `docs/testing.md` | Test layout and CI |
 
 ## Questions?
 
