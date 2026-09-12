@@ -19,16 +19,7 @@ cargo install tauri-cli
 make desktop
 ```
 
-This builds the UI if needed (`ui-check`), starts the Go server on `:7788`, and opens the Tauri window.
-
-Alternatively, use two terminals:
-
-```bash
-make run       # terminal 1 — API + UI at http://localhost:7788
-make desktop   # terminal 2 — only if the server is not already running
-```
-
-`make dev`, `make run`, and `make desktop` auto-run `ui-build` when UI assets are missing. Without a built bundle, a bare clone used to show a **blank white window**; the server now also serves from `web/dist` on disk when available.
+See [docs/desktop.md](../docs/desktop.md) for the full desktop guide (dev workflow, production builds, releases).
 
 ## Production build
 
@@ -39,4 +30,4 @@ cd desktop && CI=true npx tauri build
 
 Release builds are automated via [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
-See [README.md](../README.md) and [CONTRIBUTING.md](../CONTRIBUTING.md).
+See the [documentation wiki](../docs/README.md), [README.md](../README.md), and [CONTRIBUTING.md](../CONTRIBUTING.md).

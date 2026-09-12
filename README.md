@@ -115,16 +115,20 @@ enqueues the open tickets for the autonomous dev loop.
 | `internal/events` | typed, correlated event logger |
 | `internal/queue` | atomic node claim + dependency gating (QA-over-dev ordering) |
 | `internal/sandbox` | per-run working copy of the imported repo (git baseline, diff, run) |
-| `internal/agent` | `claude -p` runner + tool policies (read-only / write / live) |
+| `internal/agent` | CLI agent runners (`claude`, `opencode`) + tool policies |
 | `internal/worker` | one node of the audit graph — `import`/`map`/`qa`/`bug` dispatch |
 | `internal/api` | JSON API + run loop + embedded web UI |
 | `web` / `desktop` | React UI and its Tauri desktop shell |
 
 | Doc | Contents |
 |-----|----------|
-| [`docs/architecture.md`](docs/architecture.md) | Graph model, packages, safety |
+| [**Documentation wiki**](docs/README.md) | Full docs hub — start here |
+| [`docs/getting-started.md`](docs/getting-started.md) | Install, first audit, demo |
+| [`docs/architecture.md`](docs/architecture.md) | Graph model, packages, providers |
 | [`docs/api.md`](docs/api.md) | REST endpoint reference |
-| [`docs/testing.md`](docs/testing.md) | Unit, integration, and CI testing |
+| [`docs/agent-providers.md`](docs/agent-providers.md) | Claude Code vs OpenCode |
+| [`docs/configuration.md`](docs/configuration.md) | Env vars and settings |
+| [`docs/testing.md`](docs/testing.md) | Unit, integration, and CI |
 
 ## Configuration
 
