@@ -90,4 +90,4 @@ The Go server embeds the web UI via `go:embed`. Before `go build` or `make test`
 make ui-build
 ```
 
-CI and `scripts/build-sidecar.sh` do this automatically. A minimal placeholder `index.html` is committed so bare clones compile; run `make ui-build` for the full React app.
+CI and `scripts/build-sidecar.sh` do this automatically. A minimal placeholder `index.html` is committed so bare clones compile; run `make ui-build` for the full React app. `make dev`, `make run`, and `make desktop` run `ui-check` first (auto-build when assets are missing). During development the server also serves from `web/dist` on disk when the embed is only the placeholder.
