@@ -399,6 +399,8 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/live", liveHandler)
 	mux.HandleFunc("POST /api/runs/{id}/preview", previewStart)
 	mux.HandleFunc("DELETE /api/runs/{id}/preview", previewStop)
+	mux.HandleFunc("POST /api/runs/{id}/preview/restart", previewRestart)
+	mux.HandleFunc("GET /api/runs/{id}/preview/log", previewLog)
 
 	mux.HandleFunc("GET /api/settings", func(w http.ResponseWriter, r *http.Request) {
 		st, err := s.GetSettings(r.Context())
