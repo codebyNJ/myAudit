@@ -16,12 +16,19 @@ cargo install tauri-cli
 ## Development
 
 ```bash
-# terminal 1 — API + embedded UI
-make run
-
-# terminal 2 — Tauri dev window
 make desktop
 ```
+
+This builds the UI if needed (`ui-check`), starts the Go server on `:7788`, and opens the Tauri window.
+
+Alternatively, use two terminals:
+
+```bash
+make run       # terminal 1 — API + UI at http://localhost:7788
+make desktop   # terminal 2 — only if the server is not already running
+```
+
+`make dev`, `make run`, and `make desktop` auto-run `ui-build` when UI assets are missing. Without a built bundle, a bare clone used to show a **blank white window**; the server now also serves from `web/dist` on disk when available.
 
 ## Production build
 

@@ -1,0 +1,3 @@
+{"type":"step_start","timestamp":1767036059338,"sessionID":"ses_test","part":{"type":"step-start"}}
+{"type":"text","timestamp":1767036064268,"sessionID":"ses_test","part":{"type":"text","text":"[{\"title\":\"SQL injection\",\"file\":\"db.go:10\",\"severity\":\"high\",\"detail\":\"unsanitized\"}]"}}
+{"type":"step_finish","timestamp":1767036064273,"sessionID":"ses_test","part":{"type":"step-finish","reason":"stop","cost":0.001,"tokens":{"input":671,"output":8}}}

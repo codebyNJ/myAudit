@@ -1,4 +1,4 @@
-package agent
+package claude
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codebyNJ/myAudit/internal/agent"
 	"github.com/codebyNJ/myAudit/internal/sandbox"
 )
 
@@ -145,7 +146,7 @@ func TestParseSuccess(t *testing.T) {
 
 func TestPoliciesRenderAndAreSafe(t *testing.T) {
 
-	la, ld := PolicyFor(Live)
+	la, ld := agent.PolicyFor(agent.Live)
 	live := strings.Join(Options{Allow: la, Deny: ld}.Args("/ws"), " ")
 	for _, want := range []string{"Read", "Write", "Bash"} {
 		if !strings.Contains(live, want) {
@@ -158,7 +159,7 @@ func TestPoliciesRenderAndAreSafe(t *testing.T) {
 		}
 	}
 
-	ra, _ := PolicyFor(ReadOnly)
+	ra, _ := agent.PolicyFor(agent.ReadOnly)
 	for _, a := range ra {
 		if a == "Write" || a == "Edit" || a == "MultiEdit" || strings.HasPrefix(a, "Bash") {
 			t.Fatalf("ReadOnlyAllow must be read-only: %v", ra)

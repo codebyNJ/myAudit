@@ -15,6 +15,8 @@ import { PlaywrightScreen } from './screens/PlaywrightScreen'
 import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
+import { ProviderPicker } from './components/ProviderPicker'
+import { api } from './api'
 
 const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
   { tab: 'kanban', el: <KanbanScreen /> },
@@ -92,9 +94,21 @@ function AppInner() {
 
 export default function App() {
   const [booting, setBooting] = useState(() => !sessionStorage.getItem('seen-splash'))
+  const [pickProvider, setPickProvider] = useState(false)
+
+  const finishBoot = () => {
+    sessionStorage.setItem('seen-splash', '1')
+    setBooting(false)
+    api.getSettings().then((st) => {
+      const p = st.agent_provider as string
+      if (!p) setPickProvider(true)
+    }).catch(() => {})
+  }
+
   return (
     <StoreProvider>
-      {booting && <Splash onDone={() => { sessionStorage.setItem('seen-splash', '1'); setBooting(false) }} />}
+      {booting && <Splash onDone={finishBoot} />}
+      {pickProvider && <ProviderPicker onDone={() => setPickProvider(false)} />}
       <AppInner />
       <Palette />
       <Toasts />

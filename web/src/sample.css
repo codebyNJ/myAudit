@@ -1150,6 +1150,15 @@ aside .row.file > span { overflow: hidden; text-overflow: ellipsis; white-space:
 
 .as-portal { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 24px; }
 .as-scrim { position: absolute; inset: 0; background: rgba(0,0,0,0.75); }
+.provider-picker { position: relative; width: min(560px, 94vw); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 28px; box-shadow: var(--shadow-float); }
+.provider-picker h2 { margin: 0 0 8px; font-size: 20px; }
+.provider-picker .sub { margin: 0 0 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.provider-cards { display: grid; gap: 12px; margin-bottom: 20px; }
+.provider-card { text-align: left; background: #0b0b0e; border: 1px solid var(--border-dim); border-radius: 12px; padding: 16px; cursor: pointer; color: inherit; font: inherit; }
+.provider-card.on { border-color: var(--method-post); background: rgba(96, 165, 250, 0.06); }
+.provider-card .provider-name { font-weight: 600; margin-bottom: 6px; }
+.provider-card p { margin: 0; font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.provider-actions { display: flex; justify-content: flex-end; }
 .as-window { position: relative; display: flex; flex-direction: column; width: min(1280px, 94vw); height: min(84vh, 900px); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 16px; box-shadow: var(--shadow-float); overflow: hidden; }
 .as-titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border-dim); background: var(--bg-panel); flex: none; }
 .as-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
