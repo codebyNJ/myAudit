@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,11 +20,18 @@ const (
 	portHigh    = 41200
 )
 
+type Launcher struct {
+	Name   string
+	Args   []string
+	Static bool
+}
+
 type Server struct {
-	RunID string
-	URL   string
-	Cmd   *exec.Cmd
-	Log   string
+	RunID      string
+	URL        string
+	Cmd        *exec.Cmd
+	HTTPServer *http.Server
+	Log        string
 }
 
 type Manager struct {
@@ -36,31 +44,40 @@ func New(workspaceRoot string) *Manager {
 	return &Manager{live: map[string]*Server{}, root: workspaceRoot}
 }
 
-func Command(dir string) (name string, args []string, ok bool) {
+func Command(dir string, port int) (Launcher, bool) {
 	if Detect(dir) == KindNone {
-		return "", nil, false
+		return Launcher{}, false
 	}
+	if l, ok := nodeLauncher(dir); ok {
+		return l, true
+	}
+	if fileExists(filepath.Join(dir, "index.html")) {
+		return Launcher{Static: true}, true
+	}
+	return Launcher{}, false
+}
+
+func nodeLauncher(dir string) (Launcher, bool) {
 	pkg := filepath.Join(dir, "package.json")
 	b, err := os.ReadFile(pkg)
 	if err != nil {
-		return "", nil, false
+		return Launcher{}, false
 	}
 	var m struct {
 		Scripts map[string]string `json:"scripts"`
 	}
 	if json.Unmarshal(b, &m) != nil {
-		return "", nil, false
+		return Launcher{}, false
 	}
-
 	if _, err := os.Stat(filepath.Join(dir, "node_modules")); err != nil {
-		return "", nil, false
+		return Launcher{}, false
 	}
 	for _, s := range []string{"dev", "start", "serve", "tauri"} {
 		if _, has := m.Scripts[s]; has {
-			return "npm", []string{"run", s}, true
+			return Launcher{Name: "npm", Args: []string{"run", s}}, true
 		}
 	}
-	return "", nil, false
+	return Launcher{}, false
 }
 
 func freePort() (int, error) {
@@ -99,20 +116,23 @@ func (m *Manager) Start(runID string) (*Server, error) {
 	m.mu.Unlock()
 
 	dir := filepath.Join(m.root, runID)
-	name, args, ok := Command(dir)
-	if !ok {
-		return nil, fmt.Errorf("no dev server detected for this project")
-	}
 	port, err := freePort()
 	if err != nil {
 		return nil, err
+	}
+	l, ok := Command(dir, port)
+	if !ok {
+		return nil, fmt.Errorf("no dev server detected for this project")
+	}
+	if l.Static {
+		return m.startStatic(runID, dir, port)
 	}
 
 	logPath := filepath.Join(dir, ".myaudit", "preview.log")
 	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
 	lf, _ := os.Create(logPath)
 
-	c := exec.Command(name, args...)
+	c := exec.Command(l.Name, l.Args...)
 	c.Dir = dir
 	c.Env = append(os.Environ(),
 		"PORT="+fmt.Sprint(port),
@@ -150,6 +170,23 @@ func (m *Manager) Start(runID string) (*Server, error) {
 	return nil, fmt.Errorf("dev server did not answer on port %d within %s", port, bootTimeout)
 }
 
+func (m *Manager) startStatic(runID, dir string, port int) (*Server, error) {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	srv := &http.Server{Addr: addr, Handler: http.FileServer(http.Dir(dir))}
+	go func() { _ = srv.Serve(ln) }()
+
+	s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), HTTPServer: srv}
+	m.mu.Lock()
+	m.live[runID] = s
+	m.mu.Unlock()
+	writeLive(dir, s.URL)
+	return s, nil
+}
+
 func (m *Manager) Stop(runID string) {
 	m.mu.Lock()
 	s, ok := m.live[runID]
@@ -158,8 +195,12 @@ func (m *Manager) Stop(runID string) {
 	if !ok {
 		return
 	}
-	_ = proc.KillTree(s.Cmd)
-	go func() { _ = s.Cmd.Wait() }()
+	if s.HTTPServer != nil {
+		_ = s.HTTPServer.Close()
+	} else {
+		_ = proc.KillTree(s.Cmd)
+		go func() { _ = s.Cmd.Wait() }()
+	}
 	clearLive(filepath.Join(m.root, runID))
 }
 
