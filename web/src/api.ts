@@ -12,7 +12,7 @@ export type FlowStep = { label: string; file?: string; kind?: string }
 export type DataFlow = { name: string; entity?: string; store?: string; steps?: FlowStep[]; note?: string; concern?: string }
 export type ProductFlow = { name: string; trigger?: string; steps?: FlowStep[]; outcome?: string; concern?: string }
 export type FlowsDoc = { persistence?: string; data_flows?: DataFlow[]; product_flows?: ProductFlow[] }
-export type LiveView = { status: 'live' | 'frames' | 'idle'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; At?: string; Title?: string }
+export type LiveView = { status: 'live' | 'frames' | 'idle' | 'crashed'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; At?: string; Title?: string; reason?: string; latency_ms?: number }
 export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -71,6 +71,11 @@ export const api = {
   startPreview: (id: string) => req<{ status?: string; url?: string }>('/api/runs/' + id + '/preview', { method: 'POST' }),
   stopPreview: (id: string) => req<void>('/api/runs/' + id + '/preview', { method: 'DELETE' }),
   live: (id: string) => req<LiveView>('/api/runs/' + id + '/live'),
+  previewRestart: (id: string) => req<void>('/api/runs/' + id + '/preview/restart', { method: 'POST' }),
+  previewLog: async (id: string): Promise<string> => {
+    const r = await fetch('/api/runs/' + id + '/preview/log')
+    return r.ok ? r.text() : ''
+  },
   flows: (id: string) => req<FlowsResp>('/api/runs/' + id + '/flows'),
   runFlows: (id: string) => req<void>('/api/runs/' + id + '/flows', { method: 'POST' }),
   getSettings: () => req<Record<string, unknown>>('/api/settings'),
