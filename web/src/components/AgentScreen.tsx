@@ -4,6 +4,15 @@ import { Maximize2, Minimize2, Radio, Camera, MonitorPlay, ExternalLink } from '
 import { useStore } from '../store'
 import { api, type LiveView } from '../api'
 
+const tauriOpener = (): { openUrl: (url: string) => Promise<void> } | undefined =>
+  (window as unknown as { __TAURI__?: { opener?: { openUrl: (url: string) => Promise<void> } } }).__TAURI__?.opener
+
+function openExternal(url: string) {
+  const opener = tauriOpener()
+  if (opener) { opener.openUrl(url).catch(() => {}); return }
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 function fmtAgo(iso?: string) {
   if (!iso) return ''
   const d = Math.max(0, Date.now() - new Date(iso).getTime())
@@ -106,7 +115,7 @@ export function AgentScreen() {
       <div className="as-meta">
         {isLive
           ? <><Radio size={12} /> <span>{view.Title || 'Application under test'}</span>
-              <a className="as-link" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+              <a className="as-link" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); e.preventDefault(); openExternal(view.url!) }}>
                 {view.url} <ExternalLink size={11} />
               </a></>
           : view.status === 'frames'
@@ -127,7 +136,7 @@ export function AgentScreen() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {isLive && view.url && (
-                  <a className="btn-sm" href={view.url} target="_blank" rel="noreferrer">Open in browser <ExternalLink size={12} /></a>
+                  <a className="btn-sm" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); openExternal(view.url!) }}>Open in browser <ExternalLink size={12} /></a>
                 )}
                 <button className="icon-btn" title="Collapse" onClick={() => setOpen(false)}><Minimize2 size={15} /></button>
               </div>
