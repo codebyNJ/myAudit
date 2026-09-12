@@ -21,6 +21,9 @@ myaudit.db*
 *.db-shm
 *.db-wal
 
+# local planning docs — not part of the shipped repo
+docs/
+
 # stray build artifacts
 /serve
 
