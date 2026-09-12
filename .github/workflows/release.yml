@@ -8,6 +8,10 @@ on:
       version:
         description: 'Version to build (e.g. 0.2.0) — no tag is created'
         required: true
+      publish:
+        description: 'Publish to GitHub Releases (pre-release when not triggered by a tag)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -18,19 +22,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      is_tag: ${{ steps.v.outputs.is_tag }}
     steps:
       - id: v
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             V="${{ github.event.inputs.version }}"
+            echo "is_tag=false" >> "$GITHUB_OUTPUT"
           else
             V="${GITHUB_REF_NAME#v}"
+            echo "is_tag=true" >> "$GITHUB_OUTPUT"
           fi
           echo "version=${V}" >> "$GITHUB_OUTPUT"
           echo "Building version ${V}"
 
-  build:
-    name: ${{ matrix.label }}
+  build-desktop:
+    name: Desktop · ${{ matrix.label }}
     needs: version
     runs-on: ${{ matrix.os }}
     strategy:
@@ -40,9 +47,6 @@ jobs:
           - label: macOS (Apple Silicon)
             os: macos-14
             triple: aarch64-apple-darwin
-          # Built on the Apple Silicon runner: GitHub retired the macos-13
-          # (Intel) images, so that label now queues forever. Rust cross-compiles
-          # to x86_64 with the target installed, and Go cross-compiles natively.
           - label: macOS (Intel)
             os: macos-14
             triple: x86_64-apple-darwin
@@ -76,7 +80,6 @@ jobs:
           workspaces: desktop/src-tauri -> target
           key: ${{ matrix.triple }}
 
-      # Tauri's Linux bundler needs webkit2gtk and friends.
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
@@ -84,10 +87,12 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf
+            librsvg2-dev patchelf zip
 
-      # Keep the installer version in step with the git tag, so what ships is
-      # traceable to a commit rather than the checked-in scaffold version.
+      - name: Install zip (macOS)
+        if: runner.os == 'macOS'
+        run: command -v zip >/dev/null || brew install zip
+
       - name: Stamp version ${{ needs.version.outputs.version }}
         shell: bash
         run: |
@@ -115,8 +120,6 @@ jobs:
         working-directory: desktop
         run: npm install --no-audit --no-fund
 
-      # Builds the web UI, embeds it in the Go server, and drops that server in
-      # desktop/src-tauri/binaries as the Tauri sidecar for this triple.
       - name: Build Go sidecar
         shell: bash
         env:
@@ -126,38 +129,84 @@ jobs:
       - name: Run Go tests
         run: go test $(go list ./... | grep -v '/runs/') -count=1
 
-      # CI=true makes Tauri's bundle_dmg.sh skip the Finder/AppleScript window
-      # styling, which needs a GUI session and fails on a headless runner.
       - name: Build desktop bundle
         working-directory: desktop
         env:
           CI: true
         run: npx tauri build --target ${{ matrix.triple }}
 
-      - name: Collect installers
+      - name: Package installers
         shell: bash
         run: |
-          mkdir -p dist
+          chmod +x scripts/package-release.sh
           B="desktop/src-tauri/target/${{ matrix.triple }}/release/bundle"
-          find "$B" -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' \
-            -o -name '*.rpm' -o -name '*.msi' -o -name '*.exe' \) -exec cp {} dist/ \; || true
-          ls -la dist
+          ./scripts/package-release.sh "${{ needs.version.outputs.version }}" "$B" "${{ matrix.triple }}" dist
 
       - uses: actions/upload-artifact@v7
         with:
-          name: myAudit-${{ needs.version.outputs.version }}-${{ matrix.triple }}
+          name: desktop-${{ matrix.triple }}
+          path: dist/*
+          if-no-files-found: error
+
+  build-cli:
+    name: CLI · ${{ matrix.label }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS (Apple Silicon)
+            os: macos-14
+            triple: aarch64-apple-darwin
+          - label: macOS (Intel)
+            os: macos-14
+            triple: x86_64-apple-darwin
+          - label: Linux (x86_64)
+            os: ubuntu-22.04
+            triple: x86_64-unknown-linux-gnu
+          - label: Windows (x86_64)
+            os: windows-latest
+            triple: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Package CLI archive
+        shell: bash
+        run: |
+          chmod +x scripts/package-cli.sh
+          ./scripts/package-cli.sh "${{ needs.version.outputs.version }}" "${{ matrix.triple }}" dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cli-${{ matrix.triple }}
           path: dist/*
           if-no-files-found: error
 
   release:
     name: Publish release
-    needs: [version, build]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, build-desktop, build-cli]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
+          merge-multiple: true
 
       - name: Flatten
         run: |
@@ -173,6 +222,8 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ needs.version.outputs.version }}
           name: myAudit v${{ needs.version.outputs.version }}
+          prerelease: ${{ needs.version.outputs.is_tag != 'true' }}
           generate_release_notes: true
           files: dist/*

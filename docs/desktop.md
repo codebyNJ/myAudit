@@ -39,12 +39,18 @@ cd desktop && CI=true npx tauri build     # installer for your platform
 
 ## Releases
 
-Tagged pushes trigger [`.github/workflows/release.yml`](../.github/workflows/release.yml) — macOS (arm64 + x64), Linux x86_64, Windows x86_64.
+End users download installers from [GitHub Releases](https://github.com/codebyNJ/myAudit/releases/latest). See [Downloads](downloads.md) for platform files and install scripts.
+
+Maintainers cut a release:
 
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
+
+This triggers [`.github/workflows/release.yml`](../.github/workflows/release.yml) — desktop installers plus standalone CLI archives for macOS (arm64 + Intel), Linux x86_64, and Windows x86_64.
+
+Preview build without tagging: **Actions → Release desktop app → Run workflow** (check **Publish** for a pre-release).
 
 ## See also
 

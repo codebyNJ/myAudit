@@ -2,6 +2,8 @@
 
 [← Documentation home](README.md)
 
+> **Just want the app?** Download a pre-built installer for [macOS, Windows, or Linux](downloads.md) — no Go or Node required.
+
 ## Prerequisites
 
 | Tool | Version | Required for |
