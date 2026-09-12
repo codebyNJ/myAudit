@@ -34,17 +34,33 @@ type Server struct {
 	Log        string
 }
 
+// startWait lets concurrent Start(runID) callers for the same run share one
+// boot attempt: result fields are written by the booting goroutine only
+// before it closes ch, so readers that received from the closed channel may
+// read them without holding m.mu.
+type startWait struct {
+	ch     chan struct{}
+	server *Server
+	err    error
+}
+
 type Manager struct {
-	mu   sync.Mutex
-	live map[string]*Server
-	root string
+	mu       sync.Mutex
+	live     map[string]*Server
+	starting map[string]*startWait
+	root     string
 }
 
 func New(workspaceRoot string) *Manager {
-	return &Manager{live: map[string]*Server{}, root: workspaceRoot}
+	return &Manager{live: map[string]*Server{}, starting: map[string]*startWait{}, root: workspaceRoot}
 }
 
-func Command(dir string, port int) (Launcher, bool) {
+// launcherFor resolves the Launcher for a run's directory. It is a variable
+// (rather than a direct call to Command) so tests can substitute a fake,
+// slow-to-become-reachable launcher to exercise the in-flight start guard.
+var launcherFor = Command
+
+func Command(dir string) (Launcher, bool) {
 	if Detect(dir) == KindNone {
 		return Launcher{}, false
 	}
@@ -113,14 +129,33 @@ func (m *Manager) Start(runID string) (*Server, error) {
 		m.mu.Unlock()
 		return s, nil
 	}
+	if w, ok := m.starting[runID]; ok {
+		m.mu.Unlock()
+		<-w.ch
+		return w.server, w.err
+	}
+	w := &startWait{ch: make(chan struct{})}
+	m.starting[runID] = w
 	m.mu.Unlock()
 
+	server, err := m.start(runID)
+
+	m.mu.Lock()
+	delete(m.starting, runID)
+	m.mu.Unlock()
+	w.server, w.err = server, err
+	close(w.ch)
+
+	return server, err
+}
+
+func (m *Manager) start(runID string) (*Server, error) {
 	dir := filepath.Join(m.root, runID)
 	port, err := freePort()
 	if err != nil {
 		return nil, err
 	}
-	l, ok := Command(dir, port)
+	l, ok := launcherFor(dir)
 	if !ok {
 		return nil, fmt.Errorf("no dev server detected for this project")
 	}
@@ -149,6 +184,12 @@ func (m *Manager) Start(runID string) (*Server, error) {
 			lf.Close()
 		}
 		return nil, err
+	}
+	// The child has its own handle to the log file once started; close ours
+	// so the parent process doesn't hold the file open for the run's
+	// lifetime (Windows locks the file for as long as any handle is open).
+	if lf != nil {
+		lf.Close()
 	}
 
 	deadline := time.Now().Add(bootTimeout)

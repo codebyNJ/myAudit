@@ -101,7 +101,7 @@ func previewStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"status": "live", "url": s.URL})
 		return
 	}
-	if _, ok := preview.Command(filepath.Join("runs", id.String()), 0); !ok {
+	if _, ok := preview.Command(filepath.Join("runs", id.String())); !ok {
 		kind := string(preview.Detect(filepath.Join("runs", id.String())))
 		writeJSON(w, map[string]string{"status": "unsupported", "kind": kind})
 		return
