@@ -4,7 +4,13 @@
 curl -fsSL https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.sh | bash
 ```
 
-If you installed manually and see **“app is damaged”**, run:
+**Windows (x86_64):** download `myAudit-*-Windows-x86_64-setup.exe` or run in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.ps1 | iex
+```
+
+If you installed manually on macOS and see **“app is damaged”**, run:
 
 ```bash
 codesign --force --sign - /Applications/myAudit.app/Contents/MacOS/myaudit-serve

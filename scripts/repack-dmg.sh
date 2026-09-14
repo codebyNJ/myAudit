@@ -18,8 +18,9 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BG="$ROOT/desktop/dmg-background.png"
+VOLICON="$ROOT/desktop/src-tauri/icons/icon.icns"
 if [ ! -f "$BG" ]; then
-  echo "missing DMG background: $BG" >&2
+  echo "missing DMG background: $BG (run: python3 scripts/gen-dmg-background.py)" >&2
   exit 1
 fi
 
@@ -32,18 +33,24 @@ cp -R "$APP" "$STAGING/$(basename "$APP")"
 DMG="$OUT_DIR/myAudit-${VERSION}-macOS.dmg"
 rm -f "$DMG"
 
-create-dmg \
-  --volname "myAudit" \
-  --background "$BG" \
-  --window-pos 200 120 \
-  --window-size 660 400 \
-  --icon-size 128 \
-  --icon "myAudit.app" 180 220 \
-  --hide-extension "myAudit.app" \
-  --app-drop-link 480 220 \
-  --no-internet-enable \
-  "$DMG" \
-  "$STAGING" >/dev/null
+ARGS=(
+  --volname "myAudit"
+  --background "$BG"
+  --window-pos 200 120
+  --window-size 660 400
+  --icon-size 128
+  --text-size 13
+  --icon "myAudit.app" 170 210
+  --hide-extension "myAudit.app"
+  --app-drop-link 490 210
+  --format UDZO
+  --no-internet-enable
+)
+if [ -f "$VOLICON" ]; then
+  ARGS+=(--volicon "$VOLICON")
+fi
+
+create-dmg "${ARGS[@]}" "$DMG" "$STAGING" >/dev/null
 
 echo "  $(basename "$DMG")"
 ls -la "$OUT_DIR"

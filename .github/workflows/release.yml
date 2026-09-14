@@ -36,7 +36,7 @@ jobs:
           echo "version=${V}" >> "$GITHUB_OUTPUT"
           echo "Building version ${V}"
 
-  build-desktop:
+  build-macos:
     name: Desktop · macOS (Apple Silicon)
     needs: version
     runs-on: macos-14
@@ -114,9 +114,88 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  build-windows:
+    name: Desktop · Windows (x86_64)
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+          key: x86_64-pc-windows-msvc
+
+      - name: Stamp version ${{ needs.version.outputs.version }}
+        shell: bash
+        run: |
+          V="${{ needs.version.outputs.version }}"
+          node -e "
+            const fs=require('fs'), p='desktop/src-tauri/tauri.conf.json';
+            const c=JSON.parse(fs.readFileSync(p,'utf8'));
+            c.version='$V';
+            fs.writeFileSync(p, JSON.stringify(c,null,2)+'\n');
+          "
+          node -e "
+            const fs=require('fs'), p='desktop/src-tauri/Cargo.toml';
+            let c=fs.readFileSync(p,'utf8');
+            c=c.replace(/^version = \".*\"/m, 'version = \"$V\"');
+            fs.writeFileSync(p,c);
+          "
+          node -e "
+            const fs=require('fs'), p='desktop/package.json';
+            const c=JSON.parse(fs.readFileSync(p,'utf8'));
+            c.version='$V';
+            fs.writeFileSync(p, JSON.stringify(c,null,2)+'\n');
+          "
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Build Go sidecar
+        shell: bash
+        env:
+          TARGET_TRIPLE: x86_64-pc-windows-msvc
+        run: ./scripts/build-sidecar.sh
+
+      - name: Build Windows installer
+        working-directory: desktop
+        env:
+          CI: true
+        run: npx tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Package installers
+        shell: bash
+        run: |
+          chmod +x scripts/package-release.sh
+          B="desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          ./scripts/package-release.sh "${{ needs.version.outputs.version }}" "$B" x86_64-pc-windows-msvc dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: dist/*
+          if-no-files-found: error
+
   release:
     name: Publish release
-    needs: [version, build-desktop]
+    needs: [version, build-macos, build-windows]
     if: |
       startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true')

@@ -19,11 +19,14 @@ copy_one() {
 }
 
 case "$TRIPLE" in
-  aarch64-apple-darwin)
-    copy_one "$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name '*.dmg' 2>/dev/null | head -1)" "myAudit-${V}-macOS.dmg"
+  x86_64-pc-windows-msvc)
+    WIN_EXE="$(find "$BUNDLE_DIR/nsis" -maxdepth 1 -name '*-setup.exe' 2>/dev/null | head -1)"
+    [ -z "$WIN_EXE" ] && WIN_EXE="$(find "$BUNDLE_DIR/nsis" -maxdepth 1 -name '*.exe' 2>/dev/null | head -1)"
+    copy_one "$WIN_EXE" "myAudit-${V}-Windows-x86_64-setup.exe"
+    copy_one "$(find "$BUNDLE_DIR/msi" -maxdepth 1 -name '*.msi' 2>/dev/null | head -1)" "myAudit-${V}-Windows-x86_64.msi"
     ;;
   *)
-    echo "unknown triple: $TRIPLE (releases are macOS Apple Silicon only)" >&2
+    echo "unknown triple: $TRIPLE" >&2
     exit 1
     ;;
 esac

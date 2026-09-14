@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Windows desktop installer (`myAudit-*-Windows-x86_64-setup.exe`) restored in releases
 - Direct download installers (macOS, Windows, Linux) with predictable release asset names
 - Install scripts (`scripts/install.sh`, `scripts/install.ps1`) and standalone CLI archives in releases
 - [docs/downloads.md](docs/downloads.md) download guide
@@ -21,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.nvmrc`, `rust-toolchain.toml`, Vitest smoke tests, `govulncheck` in CI
 - CI-only embed strategy for `internal/api/web/dist` (placeholder committed)
 - SHA256 checksums on release artifacts
+
+### Changed
+
+- macOS DMG installer: retina background, volume icon, clearer drag-to-Applications layout
 
 ### Changed
 

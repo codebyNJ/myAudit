@@ -4,13 +4,14 @@
 
 ## Download
 
-**macOS (Apple Silicon)** — one `.dmg` per [release](https://github.com/codebyNJ/myAudit/releases/latest) (`myAudit-*-macOS.dmg`).
+Desktop installers per [release](https://github.com/codebyNJ/myAudit/releases/latest):
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.sh | bash
-```
+| Platform | File | One-line install |
+|----------|------|------------------|
+| **macOS** (Apple Silicon) | `myAudit-*-macOS.dmg` | `curl -fsSL https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.sh \| bash` |
+| **Windows** (x86_64) | `myAudit-*-Windows-x86_64-setup.exe` | `irm https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.ps1 \| iex` |
 
-Manual install blocked with **“app is damaged”**? See [docs/downloads.md](docs/downloads.md) — or run `bash scripts/install.sh` to install and fix signing automatically.
+Manual macOS install blocked with **“app is damaged”**? See [docs/downloads.md](docs/downloads.md) — or run `bash scripts/install.sh` to install and fix signing automatically.
 
 ---
 
@@ -178,8 +179,8 @@ styling; without a GUI session that step fails and you get an `.app` but no
 
 CI does the same on every tagged push. `.github/workflows/ci.yml` runs `go vet`,
 the Go test suite and the web typecheck/build on pushes and PRs to `main`.
-`.github/workflows/release.yml` builds a single macOS Apple Silicon `.dmg` and
-attaches it to a GitHub Release.
+`.github/workflows/release.yml` builds a styled macOS Apple Silicon `.dmg` and a
+Windows `.exe` installer, then attaches both to a GitHub Release.
 
 Cut a release by tagging — the tag is the single source of truth for the version,
 and it is stamped into `tauri.conf.json`, `Cargo.toml` and `desktop/package.json`
