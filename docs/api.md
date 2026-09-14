@@ -106,6 +106,7 @@ Chat respects the active agent provider. Messages starting with `fix` enqueue op
 | `GET` | `/api/runs/{id}/findings.json` | Bug tickets as JSON |
 | `GET` | `/api/runs/{id}/report.md` | Markdown audit report |
 | `GET` | `/api/runs/{id}/patch.diff` | Full workspace patch |
+| `POST` | `/api/runs/{id}/nodes/{nid}/push-pr` | Cherry-pick one fix commit to GitHub PR (requires `gh` + git remote) |
 
 ## Settings
 

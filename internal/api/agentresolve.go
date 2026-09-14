@@ -86,6 +86,11 @@ func runAgent(
 	opencodeBin string,
 	onStep func(string),
 ) (agent.Result, error) {
+	if err := acquireAgent(ctx); err != nil {
+		return agent.Result{Err: err.Error()}, err
+	}
+	defer releaseAgent()
+
 	switch resolveProvider(ctx, s) {
 	case agent.ProviderOpenCode:
 		return opencode.Run(ctx, ws, task, mode, opencode.Options{

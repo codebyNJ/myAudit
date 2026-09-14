@@ -161,7 +161,17 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "no change: " + b.Title, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
 		return true, nil
 	}
-	_ = ws.Commit(ctx, "fix: "+b.Title)
+	if err := ws.Commit(ctx, "fix: "+b.Title); err != nil {
+		d.appendFix(ctx, c.RunID, b, "❌ Fix applied but git commit failed: "+err.Error(), changed)
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "commit failed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
+		return true, nil
+	}
+	commitSHA, err := ws.HeadSHA(ctx)
+	if err != nil {
+		d.appendFix(ctx, c.RunID, b, "❌ Fix committed but could not read commit SHA: "+err.Error(), changed)
+		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "commit sha failed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
+		return true, nil
+	}
 
 	state, out := classifyTests(ctx, ws)
 	fixMsg := strings.TrimSpace(r.Summary)
@@ -169,28 +179,36 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 		fixMsg = "Applied a fix."
 	}
 	out = firstN(out, 1200)
+	baseOut := nodeOutput{Kind: "bug", Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens, CommitSHA: commitSHA}
 
 	switch state {
 	case testPass:
 		d.appendFix(ctx, c.RunID, b, "✅ Fixed & verified (regression green).\n\n"+fixMsg, changed)
-		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fixed: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "done")
+		baseOut.Summary = "fixed: " + b.Title
+		d.finish(ctx, c, baseOut, "done")
 	case testFail:
 
 		if countFailLines(out) <= baseFails {
 			d.appendFix(ctx, c.RunID, b, "🟡 Fix applied — the suite has pre-existing failures unrelated to this change (no new failures introduced). Needs manual verify.\n\n"+fixMsg, changed)
-			d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix applied (suite already red): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
+			baseOut.Summary = "fix applied (suite already red): " + b.Title
+			d.finish(ctx, c, baseOut, "in_review")
 			break
 		}
 		d.appendFix(ctx, c.RunID, b, "❌ Fix introduced new test failures:\n\n```\n"+out+"\n```", changed)
-		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix failed regression: " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "failed")
+		baseOut.Summary = "fix failed regression: " + b.Title
+		d.finish(ctx, c, baseOut, "failed")
 	default:
 		d.appendFix(ctx, c.RunID, b, "🟡 Fix ready — tests not runnable here, needs manual verify.\n\n"+fixMsg, changed)
-		d.finish(ctx, c, nodeOutput{Kind: "bug", Summary: "fix ready (unverified): " + b.Title, Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens}, "in_review")
+		baseOut.Summary = "fix ready (unverified): " + b.Title
+		d.finish(ctx, c, baseOut, "in_review")
 	}
 	return true, nil
 }
 
 func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg string, changed []string) {
+	mu := notesLock(run)
+	mu.Lock()
+	defer mu.Unlock()
 	cur, _ := d.Store.GetNotes(ctx, run)
 	var sb strings.Builder
 	sb.WriteString(cur)
@@ -202,17 +220,26 @@ func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg str
 	_ = d.Store.PutNotes(ctx, run, sb.String())
 }
 
-var baselineFails sync.Map
+var baselineFails sync.Map // runID -> int
+var baselineLocks sync.Map // runID -> *sync.Mutex
 
 func (d Deps) regressionBaseline(ctx context.Context, ws sandbox.Workspace, run uuid.UUID) int {
-	if v, ok := baselineFails.Load(run.String()); ok {
+	key := run.String()
+	if v, ok := baselineFails.Load(key); ok {
+		return v.(int)
+	}
+	v, _ := baselineLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+	if v, ok := baselineFails.Load(key); ok {
 		return v.(int)
 	}
 	n := 0
 	if state, out := classifyTests(ctx, ws); state == testFail {
 		n = countFailLines(out)
 	}
-	baselineFails.Store(run.String(), n)
+	baselineFails.Store(key, n)
 	return n
 }
 

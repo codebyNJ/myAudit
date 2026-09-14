@@ -64,6 +64,19 @@ func New(workspaceRoot string) *Manager {
 // (rather than a direct call to Command) so tests can substitute a fake,
 // slow-to-become-reachable launcher to exercise the in-flight start guard.
 var launcherFor = Command
+var launcherForMu sync.Mutex
+
+func swapLauncherFor(fn func(string) (Launcher, bool)) func() {
+	launcherForMu.Lock()
+	prev := launcherFor
+	launcherFor = fn
+	launcherForMu.Unlock()
+	return func() {
+		launcherForMu.Lock()
+		launcherFor = prev
+		launcherForMu.Unlock()
+	}
+}
 
 func Command(dir string) (Launcher, bool) {
 	if Detect(dir) == KindNone {
@@ -164,7 +177,10 @@ func (m *Manager) start(runID string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	l, ok := launcherFor(dir)
+	launcherForMu.Lock()
+	pick := launcherFor
+	launcherForMu.Unlock()
+	l, ok := pick(dir)
 	if !ok {
 		return nil, fmt.Errorf("no dev server detected for this project")
 	}

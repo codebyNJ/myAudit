@@ -15,11 +15,10 @@ func TestWatchRecordsCrashAfterUnexpectedExit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origLauncher := launcherFor
-	launcherFor = func(dir string) (Launcher, bool) {
-		return Launcher{Name: os.Args[0], Args: []string{"-test.run=TestCrashHelperProcess", "--"}}, true
-	}
-	t.Cleanup(func() { launcherFor = origLauncher })
+	restore := swapLauncherFor(func(dir string) (Launcher, bool) {
+		return Launcher{Name: os.Args[0], Args: []string{"-test.run=^TestCrashHelperProcess$", "--"}}, true
+	})
+	t.Cleanup(restore)
 
 	if err := os.Setenv("GO_WANT_CRASH_HELPER", "1"); err != nil {
 		t.Fatal(err)
@@ -59,12 +58,11 @@ func TestRestartClearsCrashAndBootsFresh(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origLauncher := launcherFor
 	invocations := filepath.Join(root, "invocations.log")
-	launcherFor = func(dir string) (Launcher, bool) {
-		return Launcher{Name: os.Args[0], Args: []string{"-test.run=TestHelperProcess", "--", invocations}}, true
-	}
-	t.Cleanup(func() { launcherFor = origLauncher })
+	restore := swapLauncherFor(func(dir string) (Launcher, bool) {
+		return Launcher{Name: os.Args[0], Args: []string{"-test.run=^TestHelperProcess$", "--", invocations}}, true
+	})
+	t.Cleanup(restore)
 
 	if err := os.Setenv("GO_WANT_HELPER_PROCESS", "1"); err != nil {
 		t.Fatal(err)

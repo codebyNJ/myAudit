@@ -7,10 +7,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type GitInfo struct {
+	HasGit        bool   `json:"has_git"`
+	RemoteURL     string `json:"remote_url,omitempty"`
+	DefaultBranch string `json:"default_branch,omitempty"`
+	HeadSHA       string `json:"head_sha,omitempty"`
+}
+
 type RunOpts struct {
-	RepoPath  string  `json:"repo_path"`
-	AuditOnly bool    `json:"audit_only"`
-	BudgetUSD float64 `json:"budget_usd"`
+	RepoPath  string   `json:"repo_path"`
+	AuditOnly bool     `json:"audit_only"`
+	BudgetUSD float64  `json:"budget_usd"`
+	Git       *GitInfo `json:"git,omitempty"`
 }
 
 func (s *Store) RunOptsFor(ctx context.Context, run uuid.UUID) RunOpts {
