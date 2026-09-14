@@ -205,6 +205,11 @@ export function KanbanScreen() {
   }
   const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); s.toast('info', 'Ticket dismissed'); setSel(null) }
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
+  const canMarkDone = (c: NodeCard) => c.type === 'bug' && c.status === 'in_review'
+  const markDone = async (card: NodeCard) => {
+    await patch(card, { status: 'done' })
+    s.toast('success', 'Marked done', card.title || card.name)
+  }
 
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
   const hasGit = !!s.detail?.git?.has_git && !!s.detail?.git?.remote_url
@@ -281,6 +286,7 @@ export function KanbanScreen() {
         <div className="kcard-actions">
           <button className="ka-btn" title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
           {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
+          {canMarkDone(n) && <button className="ka-btn" title="Mark done" onClick={(e) => { e.stopPropagation(); markDone(n) }}>✓</button>}
           {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
         </div>
       )}
@@ -438,8 +444,11 @@ export function KanbanScreen() {
                 <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
                   <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
                 </span>
+                {canMarkDone(sel) && (
+                  <button className={`btn-sm${canPushPR(sel) ? '' : ' primary'}`} onClick={() => markDone(sel)}>Mark done</button>
+                )}
                 {canRefix(sel) && (
-                  <button className="btn-sm primary" onClick={() => runFix(sel)}>
+                  <button className={`btn-sm${sel.status === 'open' ? ' primary' : ''}`} onClick={() => runFix(sel)}>
                     {sel.status === 'open' ? '▶ Fix this' : sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}
                   </button>
                 )}
