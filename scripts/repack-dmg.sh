@@ -91,5 +91,14 @@ fi
 # window bounds (same flow as Tauri's bundle_dmg.sh). No post-lock needed.
 create-dmg "${ARGS[@]}" "$DMG" "$STAGING"
 
+IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
+if [ -n "$IDENTITY" ] && [ "$IDENTITY" != "-" ]; then
+  echo "==> signing DMG with $IDENTITY"
+  codesign --force --sign "$IDENTITY" --timestamp "$DMG"
+  codesign --verify --verbose=2 "$DMG"
+fi
+
+"$ROOT/scripts/notarize-dmg.sh" "$DMG"
+
 echo "  $(basename "$DMG") (${WIN_W}×${WIN_H}, icons ${ICON_SIZE}pt)"
 ls -la "$OUT_DIR"

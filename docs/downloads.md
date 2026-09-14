@@ -17,7 +17,9 @@
 curl -fsSL https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.sh | bash
 ```
 
-This downloads `myAudit-*-macOS.dmg`, copies the app to `/Applications`, re-signs it, and clears quarantine so you do not get **“app is damaged”**.
+Current releases are **signed and notarized** — open the `.dmg`, drag to Applications, and launch normally.
+
+`install.sh` downloads `myAudit-*-macOS.dmg`, copies the app to `/Applications`, and clears quarantine (helpful for older unsigned builds or manual installs).
 
 **Manual:** open the `.dmg`, drag **myAudit** to the Applications folder, then run:
 

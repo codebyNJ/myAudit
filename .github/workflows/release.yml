@@ -101,11 +101,37 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      - name: Import Apple signing certificate
+        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          keychain-password: ${{ github.run_id }}
+
+      - name: Resolve signing identity
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
+            IDENTITY="$(security find-identity -v -p codesigning | grep 'Developer ID Application' | head -1 | sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+"([^"]+)".*/\1/')"
+            if [ -z "$IDENTITY" ]; then
+              echo "::error::Developer ID Application certificate not found in keychain"
+              exit 1
+            fi
+            echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+            echo "Using signing identity: $IDENTITY"
+          else
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::APPLE_CERTIFICATE_BASE64 not configured — ad-hoc signing only (users will see Gatekeeper warnings)"
+          fi
+
       - name: Sign and package DMG
         env:
           VERSION: ${{ needs.version.outputs.version }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          chmod +x scripts/codesign-macos-app.sh scripts/repack-dmg.sh scripts/ensure-pillow.sh
+          chmod +x scripts/codesign-macos-app.sh scripts/repack-dmg.sh scripts/ensure-pillow.sh scripts/notarize-dmg.sh
           APP="desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/myAudit.app"
           ./scripts/codesign-macos-app.sh "$APP"
           ./scripts/repack-dmg.sh "$VERSION" "$APP" dist

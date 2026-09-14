@@ -1,22 +1,41 @@
-**macOS (Apple Silicon):** download `myAudit-*-macOS.dmg` or run:
+## Install
+
+**macOS (Apple Silicon)** — download `myAudit-*-macOS.dmg`, open it, drag **myAudit** to **Applications**, then launch from Applications or Spotlight.
+
+Releases are **signed and notarized** by Apple when repository secrets are configured — you should not see “Apple could not verify…” on current builds.
+
+One-line install (also works):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.sh | bash
 ```
 
-**Windows (x86_64):** download `myAudit-*-Windows-x86_64-setup.exe` or run in PowerShell:
+**Windows (x86_64)** — download `myAudit-*-Windows-x86_64-setup.exe` or run in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/codebyNJ/myAudit/main/scripts/install.ps1 | iex
 ```
 
-If you installed manually on macOS and see **“app is damaged”**, run:
+## Verify downloads
+
+Each release includes `SHA256SUMS.txt`:
 
 ```bash
-codesign --force --sign - /Applications/myAudit.app/Contents/MacOS/myaudit-serve
-codesign --force --sign - /Applications/myAudit.app/Contents/MacOS/desktop
-codesign --force --sign - /Applications/myAudit.app
+sha256sum -c SHA256SUMS.txt
+```
+
+## macOS troubleshooting (older unsigned builds)
+
+If you installed an **older** release and macOS blocks launch:
+
+1. **System Settings → Privacy & Security → Open Anyway**, or  
+2. Right-click **myAudit** in Applications → **Open** (first launch only), or  
+3. Re-run `install.sh` (re-signs and clears quarantine).
+
+Manual fix:
+
+```bash
 xattr -cr /Applications/myAudit.app
 ```
 
-Verify with `SHA256SUMS.txt`. Details: [docs/downloads.md](https://github.com/codebyNJ/myAudit/blob/main/docs/downloads.md)
+Full details: [docs/downloads.md](https://github.com/codebyNJ/myAudit/blob/main/docs/downloads.md)
