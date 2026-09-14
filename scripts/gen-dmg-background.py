@@ -1,122 +1,177 @@
 #!/usr/bin/env python3
-"""Regenerate desktop/dmg-background.png (@2x) for the macOS installer DMG.
+"""Regenerate desktop/dmg-background.png — Docker-style DMG art.
 
-Window size in repack-dmg.sh is 660×400; this image is 1320×800 so create-dmg
-renders a retina background. Finder draws icon labels — only paint the arrow
-and install hint here.
+Pure white 1080×760 @ 144 DPI. Finder draws the icons; we only paint the
+centred "drag and drop" label and the U-curve scribble arrow between them.
 """
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
-OUT = Path(__file__).resolve().parents[1] / "desktop" / "dmg-background.png"
-W, H = 1320, 800  # @2x for 660×400 Finder window
+ROOT = Path(__file__).resolve().parents[1]
+LAYOUT_PATH = ROOT / "scripts" / "dmg-layout.json"
+OUT = ROOT / "desktop" / "dmg-background.png"
+SCALE = 2
 
 
-def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    candidates = [
+def load_layout() -> dict:
+    with open(LAYOUT_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def icon_box(icons: dict, side: str) -> tuple[float, float, float, float]:
+    cx, cy = icons[side]
+    half = icons["size"] / 2
+    return cx - half, cy - half, cx + half, cy + half
+
+
+def validate_layout(layout: dict) -> None:
+    icons = layout["icons"]
+    art = layout["art"]
+    arrow = layout["arrow"]
+
+    left_box = icon_box(icons, "left")
+    right_box = icon_box(icons, "right")
+    gap_left, gap_right = left_box[2], right_box[0]
+    if gap_right <= gap_left:
+        raise ValueError("icons overlap — no gap for label/arrow")
+
+    text_y = art["textY"]
+    icon_cy = icons["left"][1]
+    if abs(text_y - icon_cy) > icons["size"] / 2:
+        raise ValueError("textY should align with the icon row (Docker style)")
+
+    label_bottom = icon_cy + icons["size"] / 2 + icons.get("textSize", 12) + 2
+    if arrow["control"][1] < label_bottom:
+        raise ValueError("arrow curve must dip below icon labels (Docker U-shape)")
+
+    for pt in [arrow["start"], arrow["control"], arrow["end"]]:
+        x, y = pt
+        if not (gap_left <= x <= gap_right):
+            raise ValueError(f"arrow ({x},{y}) must stay in the centre gap")
+
+
+def hex_rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def s(n: float) -> int:
+    return int(n * SCALE)
+
+
+def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for path in (
+        "/System/Library/Fonts/SFNSRounded.ttf",
+        "/System/Library/Fonts/Supplemental/SF-Pro-Rounded-Medium.otf",
+        "/System/Library/Fonts/Supplemental/SF-Pro-Text-Medium.otf",
         "/System/Library/Fonts/SFNS.ttf",
-        "/System/Library/Fonts/Supplemental/SF-Pro-Text-Bold.otf"
-        if bold
-        else "/System/Library/Fonts/Supplemental/SF-Pro-Text-Regular.otf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial.ttf",
-    ]
-    for path in candidates:
+    ):
         try:
-            return ImageFont.truetype(path, size)
+            return ImageFont.truetype(path, s(size))
         except OSError:
             continue
     return ImageFont.load_default()
 
 
-def lerp(a: int, b: int, t: float) -> int:
-    return int(a + (b - a) * t)
+def quad_bezier(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    n: int = 100,
+) -> list[tuple[float, float]]:
+    pts: list[tuple[float, float]] = []
+    for i in range(n + 1):
+        t = i / n
+        u = 1 - t
+        x = u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0]
+        y = u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]
+        pts.append((x, y))
+    return pts
 
 
-def vertical_gradient(size: tuple[int, int], top: tuple[int, int, int], bottom: tuple[int, int, int]) -> Image.Image:
-    w, h = size
-    img = Image.new("RGB", size)
-    px = img.load()
-    for y in range(h):
-        t = y / max(h - 1, 1)
-        row = (lerp(top[0], bottom[0], t), lerp(top[1], bottom[1], t), lerp(top[2], bottom[2], t))
-        for x in range(w):
-            px[x, y] = row
-    return img
+def stamp_stroke(
+    d: ImageDraw.ImageDraw,
+    path: list[tuple[float, float]],
+    radius: int,
+    fill: tuple[int, int, int],
+) -> None:
+    for x, y in path:
+        r = radius
+        d.ellipse((s(x) - r, s(y) - r, s(x) + r, s(y) + r), fill=fill)
+    for i in range(len(path) - 1):
+        d.line(
+            [(s(path[i][0]), s(path[i][1])), (s(path[i + 1][0]), s(path[i + 1][1]))],
+            fill=fill,
+            width=radius * 2,
+        )
 
 
-def rounded_panel(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], radius: int, fill: str, outline: str | None = None) -> None:
-    draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=2 if outline else 0)
+def draw_arrow(d: ImageDraw.ImageDraw, layout: dict, navy: tuple[int, int, int]) -> None:
+    a = layout["arrow"]
+    stroke = s(a.get("strokePt", 3.5) / 2)
+    path = quad_bezier(tuple(a["start"]), tuple(a["control"]), tuple(a["end"]))
+    stamp_stroke(d, path, max(stroke, 2), navy)
+    d.polygon([(s(x), s(y)) for x, y in a["head"]], fill=navy)
+
+
+def draw_label(d: ImageDraw.ImageDraw, layout: dict, win_w: int) -> None:
+    art = layout["art"]
+    navy = hex_rgb(art["navy"])
+    font = load_font(art["fontPt"])
+    d.text(
+        (s(win_w / 2), s(art["textY"])),
+        "Drag and Drop",
+        font=font,
+        fill=navy,
+        anchor="mm",
+    )
+
+
+def set_dpi_144(path: Path) -> None:
+    subprocess.run(
+        ["sips", "-s", "dpiWidth", "144", "-s", "dpiHeight", "144", str(path)],
+        check=True,
+        capture_output=True,
+    )
+
+
+def generate(layout: dict) -> Path:
+    validate_layout(layout)
+    win_w = layout["window"]["width"]
+    win_h = layout["window"]["height"]
+    navy = hex_rgb(layout["art"]["navy"])
+
+    img = Image.new("RGB", (win_w * SCALE, win_h * SCALE), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    draw_label(d, layout, win_w)
+    draw_arrow(d, layout, navy)
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    img.save(OUT, optimize=True)
+    set_dpi_144(OUT)
+    return OUT
 
 
 def main() -> None:
-    # Dark, macOS-adjacent palette aligned with the app chrome.
-    base = vertical_gradient((W, H), (18, 18, 24), (10, 10, 14))
-    d = ImageDraw.Draw(base)
-
-    margin = 56
-    panel = (margin, margin, W - margin, H - margin)
-    rounded_panel(d, panel, 36, "#1a1a22", "#2d2d3a")
-
-    # Soft inner glow along the top edge of the panel.
-    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    gd.rounded_rectangle((margin + 4, margin + 4, W - margin - 4, margin + 140), radius=32, fill=(255, 255, 255, 10))
-    base = Image.alpha_composite(base.convert("RGBA"), glow).convert("RGB")
-    d = ImageDraw.Draw(base)
-
-    # Icon drop zones (subtle rings — Finder icons sit on top).
-    for cx in (340, 980):
-        d.ellipse((cx - 118, 302, cx + 118, 538), outline="#2a2a36", width=2)
-
-    # Arrow: myAudit (left) → Applications (right), @2x coords.
-    ax, ay = W // 2, 430
-    shaft_left, shaft_right = ax - 200, ax + 200
-    d.rounded_rectangle((shaft_left, ay - 14, shaft_right, ay + 14), radius=12, fill="#3b3b4d")
-
-    arrow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ad = ImageDraw.Draw(arrow)
-    tip = (ax + 210, ay)
-    head = [
-        tip,
-        (ax + 70, ay - 52),
-        (ax + 70, ay - 18),
-        (ax - 30, ay - 18),
-        (ax - 30, ay + 18),
-        (ax + 70, ay + 18),
-        (ax + 70, ay + 52),
-    ]
-    shadow = [(x + 6, y + 10) for x, y in head]
-    ad.polygon(shadow, fill=(0, 0, 0, 70))
-    ad.polygon(head, fill="#a78bfa")
-    ad.polygon(head, outline="#c4b5fd", width=2)
-    arrow = arrow.filter(ImageFilter.GaussianBlur(radius=1))
-    base = Image.alpha_composite(base.convert("RGBA"), arrow).convert("RGB")
-    d = ImageDraw.Draw(base)
-
-    title_font = load_font(34, bold=True)
-    hint_font = load_font(26)
-    sub_font = load_font(22)
-
-    title = "Install myAudit"
-    hint = "Drag to the Applications folder"
-    sub = "Then open from Launchpad or Spotlight"
-
-    def center_text(text: str, y: int, font: ImageFont.ImageFont, fill: str) -> None:
-        bbox = d.textbbox((0, 0), text, font=font)
-        tw = bbox[2] - bbox[0]
-        d.text(((W - tw) // 2, y), text, font=font, fill=fill)
-
-    center_text(title, 108, title_font, "#f4f4f5")
-    center_text(hint, 620, hint_font, "#e4e4e7")
-    center_text(sub, 666, sub_font, "#a1a1aa")
-
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    base.save(OUT, optimize=True)
-    print(f"wrote {OUT} ({W}×{H})")
+    layout = load_layout()
+    out = generate(layout)
+    dpi = subprocess.run(
+        ["sips", "-g", "dpiWidth", "-g", "pixelWidth", "-g", "pixelHeight", str(out)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    win = layout["window"]
+    left, right = layout["icons"]["left"], layout["icons"]["right"]
+    print(f"wrote {out} ({win['width'] * SCALE}×{win['height'] * SCALE} @ 144dpi)")
+    print(dpi.stdout.strip())
+    print(f"icons {layout['icons']['size']}pt @ ({left[0]},{left[1]}) ({right[0]},{right[1]})")
 
 
 if __name__ == "__main__":

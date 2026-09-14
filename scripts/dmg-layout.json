@@ -1,0 +1,22 @@
+{
+  "window": { "width": 540, "height": 380, "pos": [200, 120] },
+  "icons": {
+    "size": 100,
+    "left": [135, 168],
+    "right": [405, 168],
+    "textSize": 12
+  },
+  "art": {
+    "textY": 164,
+    "fontPt": 16,
+    "navy": "#0e153a",
+    "blue": "#4092ff"
+  },
+  "arrow": {
+    "start": [198, 198],
+    "control": [270, 282],
+    "end": [342, 198],
+    "head": [[336, 188], [352, 198], [336, 208]],
+    "strokePt": 3.5
+  }
+}

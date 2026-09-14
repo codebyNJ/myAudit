@@ -27,6 +27,15 @@
   "bundle": {
     "active": true,
     "targets": ["app"],
+    "macOS": {
+      "dmg": {
+        "background": "../dmg-background.png",
+        "windowSize": { "width": 540, "height": 380 },
+        "windowPosition": { "x": 200, "y": 120 },
+        "appPosition": { "x": 135, "y": 168 },
+        "applicationFolderPosition": { "x": 405, "y": 168 }
+      }
+    },
     "externalBin": ["binaries/myaudit-serve"],
     "icon": [
       "icons/32x32.png",
