@@ -18,7 +18,8 @@ Copy [`.env.example`](../.env.example) to `.env` and uncomment what you need.
 | `CLAUDE_BIN` | `claude` | Path to Claude Code CLI |
 | `OPENCODE_MODEL` | — | Overrides in-app OpenCode model (`provider/model`) |
 | `OPENCODE_BIN` | `opencode` | Path to OpenCode CLI |
-| `MAX_CONCURRENT_CLAUDE` | `1` | Max parallel agent processes |
+| `MAX_CONCURRENT_AGENTS` | `max(4, CPU cores)` | Max parallel agent processes (active provider; minimum 4) |
+| `MAX_CONCURRENT_CLAUDE` | — | Legacy alias for `MAX_CONCURRENT_AGENTS` |
 | `RUN_PACE_MS` | — | Milliseconds between run-loop ticks |
 | `AGENT_ISOLATE` | unset | `1` = run Claude agents in a container |
 | `AGENT_IMAGE` | `myaudit-sandbox` | Docker image when isolating |

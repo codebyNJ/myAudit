@@ -16,8 +16,8 @@ export function Header() {
   const nodes = s.detail?.nodes || []
   const running = nodes.find((n) => n.status === 'running')
   const queued = nodes.filter((n) => n.status === 'ready' || n.status === 'pending').length
-  const active = !!running || queued > 0
   const runStatus = s.detail?.run?.status
+  const active = runStatus !== 'cancelled' && (!!running || queued > 0)
   const stop = async () => {
     if (!s.runId) return
     try { await api.cancelRun(s.runId); s.toast('info', 'Audit stopped'); s.reloadDetail() }
@@ -29,13 +29,18 @@ export function Header() {
         <div className="logo" style={{ cursor: 'pointer' }} title="Back to dashboard" onClick={s.goHome}><AgentAvatar size={22} radius={6} /></div>
         <button className="back-btn" title="Back to dashboard" onClick={s.goHome}><ArrowLeft size={13} /> Dashboard</button>
         <WorkspaceSwitcher />
-        <div className="branch-tag"><IcBranch /> main</div>
+        {s.detail?.git?.has_git ? (
+          <div className="branch-tag" title={s.detail.git.remote_url || 'git repo'}>
+            <IcBranch /> {s.detail.git.default_branch || 'main'}
+          </div>
+        ) : (
+          <div className="branch-tag" title="No git remote detected at import"><IcBranch /> no git</div>
+        )}
         {cost > 0 && <div className="branch-tag" title="Total model cost for this run">${cost.toFixed(2)}</div>}
-        {running
-          ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{RUN_VERB[running.type] || running.type}{queued > 0 ? ` · ${queued} queued` : ''}</div>
+        {runStatus === 'cancelled' ? <div className="run-pill idle" title="Audit cancelled">■ cancelled</div>
+          : running ? <div className="run-pill" title="The audit is working"><span className="run-dot" />{RUN_VERB[running.type] || running.type}{queued > 0 ? ` · ${queued} queued` : ''}</div>
           : queued > 0 ? <div className="run-pill idle" title="Queued work"><span className="run-dot" />{queued} queued</div>
           : runStatus === 'failed' ? <div className="run-pill failed" title="The audit failed">✗ failed</div>
-          : runStatus === 'cancelled' ? <div className="run-pill idle" title="Audit cancelled">■ cancelled</div>
           : runStatus === 'done' ? <div className="run-pill done" title="Audit complete">✓ done</div>
           : null}
         {active && <button className="btn-sm stop-btn" onClick={stop} title="Stop this audit">■ Stop</button>}

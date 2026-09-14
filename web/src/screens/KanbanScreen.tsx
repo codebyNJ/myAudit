@@ -172,6 +172,7 @@ export function KanbanScreen() {
 
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [prBusy, setPrBusy] = useState(false)
   const onDrop = (colKey: string) => {
     const status = COL_DROP[colKey]
     const card = (cards || []).find((c) => c.id === dragId)
@@ -206,6 +207,25 @@ export function KanbanScreen() {
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
 
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
+  const hasGit = !!s.detail?.git?.has_git && !!s.detail?.git?.remote_url
+  const canPushPR = (c: NodeCard) =>
+    c.type === 'bug' && hasGit && !!c.commit_sha && !c.pr_url &&
+    ['done', 'in_review'].includes(c.status)
+
+  const pushPR = async (card: NodeCard) => {
+    if (!s.runId || prBusy) return
+    setPrBusy(true)
+    try {
+      const res = await api.pushPR(s.runId, card.id)
+      s.toast('success', 'PR created', res.pr_url)
+      setSel({ ...card, pr_url: res.pr_url, pr_status: 'pushed' })
+      api.board(s.runId).then(setCards)
+    } catch (e) {
+      s.toast('error', 'Push PR failed', (e as Error).message)
+    } finally {
+      setPrBusy(false)
+    }
+  }
 
   const previewsFor = (c: NodeCard) => {
     if (c.type !== 'qa') return []
@@ -422,6 +442,14 @@ export function KanbanScreen() {
                   <button className="btn-sm primary" onClick={() => runFix(sel)}>
                     {sel.status === 'open' ? '▶ Fix this' : sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}
                   </button>
+                )}
+                {canPushPR(sel) && (
+                  <button className="btn-sm primary" disabled={prBusy} onClick={() => pushPR(sel)}>
+                    {prBusy ? 'Pushing…' : 'Push PR'}
+                  </button>
+                )}
+                {sel.pr_url && (
+                  <a className="btn-sm" href={sel.pr_url} target="_blank" rel="noreferrer">View PR</a>
                 )}
                 {sel.type === 'bug' && sel.status === 'dismissed' && <button className="btn-sm" onClick={() => restore(sel)}>Restore</button>}
                 {sel.type === 'bug' && sel.status !== 'dismissed' && <button className="btn-sm" onClick={() => dismiss(sel)}>Dismiss</button>}

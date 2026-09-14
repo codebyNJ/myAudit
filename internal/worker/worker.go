@@ -15,6 +15,7 @@ import (
 	"github.com/codebyNJ/myAudit/internal/queue"
 	"github.com/codebyNJ/myAudit/internal/sandbox"
 	"github.com/codebyNJ/myAudit/internal/store"
+	"github.com/google/uuid"
 )
 
 type Agent interface {
@@ -31,13 +32,23 @@ type Deps struct {
 	MaxConcurrent int
 }
 
+var notesLocks sync.Map // runID -> *sync.Mutex
+
+func notesLock(runID uuid.UUID) *sync.Mutex {
+	v, _ := notesLocks.LoadOrStore(runID.String(), &sync.Mutex{})
+	return v.(*sync.Mutex)
+}
+
 type nodeOutput struct {
-	Kind    string          `json:"kind"`
-	Summary string          `json:"summary,omitempty"`
-	CostUSD float64         `json:"cost_usd,omitempty"`
-	Tokens  int             `json:"tokens,omitempty"`
-	Changed []string        `json:"changed,omitempty"`
-	Flows   json.RawMessage `json:"flows,omitempty"`
+	Kind      string          `json:"kind"`
+	Summary   string          `json:"summary,omitempty"`
+	CostUSD   float64         `json:"cost_usd,omitempty"`
+	Tokens    int             `json:"tokens,omitempty"`
+	Changed   []string        `json:"changed,omitempty"`
+	Flows     json.RawMessage `json:"flows,omitempty"`
+	CommitSHA string          `json:"commit_sha,omitempty"`
+	PRURL     string          `json:"pr_url,omitempty"`
+	PRStatus  string          `json:"pr_status,omitempty"`
 }
 
 type runningEntry struct {
@@ -51,8 +62,8 @@ func CancelRun(runID string) {
 	running.Range(func(key, v any) bool {
 		e, ok := v.(runningEntry)
 		if ok && e.runID == runID {
-			running.Delete(key)
 			e.cancel()
+			running.Delete(key)
 		}
 		return true
 	})
@@ -79,26 +90,27 @@ func (d Deps) ProcessClaimed(ctx context.Context, c *queue.ClaimedNode) error {
 	running.Store(nodeKey, runningEntry{runID: c.RunID.String(), cancel: cancel})
 	defer func() { running.Delete(nodeKey); cancel() }()
 
+	var err error
 	switch c.Type {
 	case "import":
-		_, err := d.doImport(ctx, c, ws)
-		return err
+		_, err = d.doImport(ctx, c, ws)
 	case "map":
-		_, err := d.doMap(ctx, c, ws)
-		return err
+		_, err = d.doMap(ctx, c, ws)
 	case "flows":
-		_, err := d.doFlows(ctx, c, ws)
-		return err
+		_, err = d.doFlows(ctx, c, ws)
 	case "qa":
-		_, err := d.qa(ctx, c, ws)
-		return err
+		_, err = d.qa(ctx, c, ws)
 	case "bug":
-		_, err := d.bug(ctx, c, ws)
-		return err
+		_, err = d.bug(ctx, c, ws)
 	default:
 		d.fail(ctx, c, "unknown node type: "+c.Type)
 		return nil
 	}
+	if ctx.Err() != nil {
+		d.cancelled(ctx, c)
+		return nil
+	}
+	return err
 }
 
 func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
@@ -117,6 +129,14 @@ func (d Deps) doImport(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 	if !hasCode(ws.Dir) {
 		d.fail(ctx, c, "No source files found to audit in "+filepath.Base(sp.RepoPath))
 		return true, nil
+	}
+	git := sandbox.ProbeRepo(ctx, sp.RepoPath)
+	if git.HasGit {
+		g := map[string]any{
+			"has_git": git.HasGit, "remote_url": git.RemoteURL,
+			"default_branch": git.DefaultBranch, "head_sha": git.HeadSHA,
+		}
+		_ = d.Store.MergeNodeSnapshot(ctx, c.ID, map[string]any{"git": g})
 	}
 	d.complete(ctx, c, nodeOutput{Kind: "import", Summary: "imported " + filepath.Base(sp.RepoPath)})
 	return true, nil
@@ -141,6 +161,10 @@ func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 		}
 		r, err := d.Agent.Run(ctx, ws, t, mode, onStep)
 		if err != nil {
+			if ctx.Err() != nil {
+				d.cancelled(ctx, c)
+				return r, false
+			}
 			d.fail(ctx, c, "agent: "+err.Error())
 			return r, false
 		}
@@ -173,8 +197,17 @@ func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, 
 	d.Log.Log(ctx, event(c, "node.end", out.Summary))
 }
 
-func (d Deps) fail(ctx context.Context, c *queue.ClaimedNode, reason string) {
+func (d Deps) cancelled(ctx context.Context, c *queue.ClaimedNode) {
+	b, _ := json.Marshal(nodeOutput{Kind: c.Type, Summary: "cancelled by user"})
+	_ = d.Queue.Finish(ctx, c.ID, b, "cancelled")
+	d.Log.Log(ctx, event(c, "node.cancelled", "stopped by user"))
+}
 
+func (d Deps) fail(ctx context.Context, c *queue.ClaimedNode, reason string) {
+	if ctx.Err() != nil {
+		d.cancelled(ctx, c)
+		return
+	}
 	b, _ := json.Marshal(nodeOutput{Kind: c.Type, Summary: reason})
 	_ = d.Queue.Finish(ctx, c.ID, b, "failed")
 	e := event(c, "node.fail", reason)

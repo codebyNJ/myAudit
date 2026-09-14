@@ -12,6 +12,7 @@
 | Node.js | 24 (see `.nvmrc`) | web UI build |
 | git | any recent | workspace snapshots |
 | `claude` or `opencode` CLI | logged in | live agent (`make run`) |
+| `gh` | `gh auth login` | Push PR from fixed tickets (git repo with `origin` remote) |
 | Rust + `cargo install tauri-cli` | stable | desktop shell only |
 
 ## Install and run
@@ -87,6 +88,7 @@ Watch the **Board**, read **Notes**, browse changed files in **Explorer**, and u
 | Blank white window | Run `make ui-build` once, or use `make dev` / `make desktop` (auto `ui-check`) |
 | Port 7788 in use | `PORT=7799 make run` |
 | Health banner: CLI missing | `claude login` or `opencode auth login` |
+| Push PR disabled / fails | Import a git repo with `origin` remote; run `gh auth login`; repo must be clean (no uncommitted changes) |
 
 ## See also
 

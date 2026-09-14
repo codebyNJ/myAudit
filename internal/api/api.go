@@ -26,6 +26,7 @@ type RunDetail struct {
 	Checkpoints []store.Checkpoint `json:"checkpoints"`
 	Files       []store.FileEntry  `json:"files"`
 	CostUSD     float64            `json:"cost_usd"`
+	Git         *store.GitInfo     `json:"git,omitempty"`
 }
 
 func NewMux(s *store.Store, static http.Handler) http.Handler {
@@ -95,7 +96,8 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		if err != nil {
 			run = store.RunSummary{ID: id}
 		}
-		writeJSON(w, RunDetail{Run: run, Nodes: nodes, Events: events, Checkpoints: checkpoints, Files: files, CostUSD: cost})
+		opts := s.RunOptsFor(r.Context(), id)
+		writeJSON(w, RunDetail{Run: run, Nodes: nodes, Events: events, Checkpoints: checkpoints, Files: files, CostUSD: cost, Git: opts.Git})
 	})
 
 	mux.HandleFunc("POST /api/runs", func(w http.ResponseWriter, r *http.Request) {
@@ -167,6 +169,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		worker.CancelRun(id.String())
+		Previews.Stop(id.String())
 		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "run.cancelled", Msg: "audit cancelled by user"})
 		w.WriteHeader(200)
 	})
@@ -434,6 +437,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	registerFileOps(mux, s)
 	registerChat(mux, s)
 	registerExport(mux, s)
+	registerPublish(mux, s)
 	registerHealth(mux, s)
 
 	if static != nil {

@@ -57,16 +57,24 @@ func TestNewRealDepsReadsMaxConcurrentFromEnv(t *testing.T) {
 	s := newStore(t)
 	defer s.Close()
 
+	t.Setenv("MAX_CONCURRENT_AGENTS", "")
 	t.Setenv("MAX_CONCURRENT_CLAUDE", "")
 	deps := NewRealDeps(s)
-	if deps.MaxConcurrent != 1 {
-		t.Fatalf("unset MAX_CONCURRENT_CLAUDE should default to 1 (serial), got %d", deps.MaxConcurrent)
+	if deps.MaxConcurrent != resolveMaxConcurrent() {
+		t.Fatalf("unset env should use dynamic MaxConcurrent, got %d want %d", deps.MaxConcurrent, resolveMaxConcurrent())
 	}
 
-	t.Setenv("MAX_CONCURRENT_CLAUDE", "3")
+	t.Setenv("MAX_CONCURRENT_AGENTS", "3")
 	deps = NewRealDeps(s)
-	if deps.MaxConcurrent != 3 {
-		t.Fatalf("MAX_CONCURRENT_CLAUDE=3 should set MaxConcurrent=3, got %d", deps.MaxConcurrent)
+	if deps.MaxConcurrent != minConcurrentAgents {
+		t.Fatalf("MAX_CONCURRENT_AGENTS=3 should floor to %d, got %d", minConcurrentAgents, deps.MaxConcurrent)
+	}
+
+	t.Setenv("MAX_CONCURRENT_AGENTS", "")
+	t.Setenv("MAX_CONCURRENT_CLAUDE", "4")
+	deps = NewRealDeps(s)
+	if deps.MaxConcurrent != 4 {
+		t.Fatalf("MAX_CONCURRENT_CLAUDE=4 should set MaxConcurrent=4, got %d", deps.MaxConcurrent)
 	}
 }
 

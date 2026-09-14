@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -41,10 +40,8 @@ func NewRealDeps(s *store.Store) worker.Deps {
 	if image == "" {
 		image = "myaudit-sandbox"
 	}
-	maxConcurrent := 1
-	if n, err := strconv.Atoi(os.Getenv("MAX_CONCURRENT_CLAUDE")); err == nil && n > 0 {
-		maxConcurrent = n
-	}
+	maxConcurrent := resolveMaxConcurrent()
+	setAgentLimit(maxConcurrent)
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent: realAgent{
@@ -56,6 +53,7 @@ func NewRealDeps(s *store.Store) worker.Deps {
 }
 
 func NewStubDeps(s *store.Store) worker.Deps {
+	setAgentLimit(1)
 	return worker.Deps{
 		Store: s, Queue: queue.New(s.DB()), Log: events.New(s.DB()),
 		Agent:         stubAgent{},

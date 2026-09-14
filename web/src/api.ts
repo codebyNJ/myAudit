@@ -4,7 +4,8 @@ export type Node = { id: string; run_id: string; type: string; status: string; d
 export type EventRow = { ts: string; kind: string; level: string; msg: string; node_id?: string }
 export type Checkpoint = { id: string; run_id: string; node_id: string; question: string; resolved: boolean; answer: string }
 export type FileEntry = { path: string; content?: string; action?: string; changed?: boolean; review?: string }
-export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number }
+export type GitInfo = { has_git: boolean; remote_url?: string; default_branch?: string; head_sha?: string }
+export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number; git?: GitInfo }
 
 function normalizeRunDetail(d: RunDetail): RunDetail {
   return {
@@ -15,7 +16,7 @@ function normalizeRunDetail(d: RunDetail): RunDetail {
     files: d.files ?? [],
   }
 }
-export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; file?: string; severity?: string; priority?: string; detail?: string; tags?: string[] }
+export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; file?: string; severity?: string; priority?: string; detail?: string; tags?: string[]; commit_sha?: string; pr_url?: string; pr_status?: string }
 export type CreateRunBody = { repo_path: string; project?: string; audit_only?: boolean; budget_usd?: number }
 export type SearchHit = { path: string; line: number; text: string }
 export type FlowStep = { label: string; file?: string; kind?: string }
@@ -43,6 +44,7 @@ export const api = {
   health: () => req<{
     ready: boolean
     git: boolean
+    gh?: { installed: boolean; authenticated: boolean }
     agentProvider: string
     providers: Record<string, { installed: boolean; version?: string }>
     claude: boolean
@@ -72,6 +74,8 @@ export const api = {
     req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/enqueue', { method: 'POST' }),
   patchNode: (id: string, nodeId: string, patch: { severity?: string; priority?: string; status?: string }) =>
     req<void>('/api/runs/' + id + '/nodes/' + nodeId, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
+  pushPR: (id: string, nodeId: string) =>
+    req<{ pr_url: string; branch: string }>('/api/runs/' + id + '/nodes/' + nodeId + '/push-pr', { method: 'POST' }),
   rawUrl: (id: string, path: string) => '/api/runs/' + id + '/raw?path=' + encodeURIComponent(path),
   reportUrl: (id: string) => '/api/runs/' + id + '/report.md',
   findingsUrl: (id: string) => '/api/runs/' + id + '/findings.json',

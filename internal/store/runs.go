@@ -23,7 +23,7 @@ func (s *Store) CreateRun(ctx context.Context, project string) (uuid.UUID, error
 
 func (s *Store) CancelRun(ctx context.Context, run uuid.UUID) error {
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE nodes SET status='cancelled' WHERE run_id=? AND status IN ('pending','ready')`, run); err != nil {
+		`UPDATE nodes SET status='cancelled' WHERE run_id=? AND status IN ('pending','ready','running','paused')`, run); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE runs SET status='cancelled' WHERE id=?`, run)

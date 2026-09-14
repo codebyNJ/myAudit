@@ -70,7 +70,7 @@ func TestCancelRun(t *testing.T) {
 	if err := s.CancelRun(ctx, run); err != nil {
 		t.Fatal(err)
 	}
-	want := map[uuid.UUID]string{pend: "cancelled", rdy: "cancelled", runNode: "running", doneNode: "done"}
+	want := map[uuid.UUID]string{pend: "cancelled", rdy: "cancelled", runNode: "cancelled", doneNode: "done"}
 	for id, exp := range want {
 		if got, _ := s.GetNode(ctx, id); got.Status != exp {
 			t.Fatalf("node %s: want %s, got %s", id, exp, got.Status)

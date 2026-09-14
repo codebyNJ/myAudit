@@ -153,7 +153,8 @@ All optional — see [`.env.example`](.env.example).
 | `CLAUDE_MODEL` | Haiku | agent model — set `claude-sonnet-5` (or Opus) for senior-grade depth |
 | `REAL_CLAUDE` | unset | `1` = real agent; unset = $0 stub |
 | `CLAUDE_BIN` | `claude` | path to the Claude Code CLI binary |
-| `MAX_CONCURRENT_CLAUDE` | `1` | max parallel agent processes |
+| `MAX_CONCURRENT_AGENTS` | `max(4, CPU cores)` | max parallel agent processes (active provider; minimum 4) |
+| `MAX_CONCURRENT_CLAUDE` | — | legacy alias for `MAX_CONCURRENT_AGENTS` |
 | `AGENT_ISOLATE` | unset | `1` = run each agent inside a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
 | `RUN_PACE_MS` | — | pace the run loop |
 

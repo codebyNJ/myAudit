@@ -68,6 +68,35 @@ func TestPromoteReadyUnblocksOnFailedDep(t *testing.T) {
 	}
 }
 
+func TestClaimSkipsCancelledRun(t *testing.T) {
+	ctx := context.Background()
+	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	q := New(s.DB())
+
+	cancelled, _ := s.CreateRun(ctx, "stopped")
+	active, _ := s.CreateRun(ctx, "active")
+	s.CancelRun(ctx, cancelled)
+
+	readyCancelled, _ := s.AddNode(ctx, cancelled, "qa", nil)
+	readyActive, _ := s.AddNode(ctx, active, "qa", nil)
+	s.DB().ExecContext(ctx, `UPDATE nodes SET status='ready' WHERE id IN (?,?)`, readyCancelled, readyActive)
+
+	c, err := q.Claim(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c == nil || c.ID != readyActive {
+		t.Fatalf("should claim active run only, got %+v", c)
+	}
+	if c2, _ := q.Claim(ctx); c2 != nil {
+		t.Fatalf("no more ready nodes, got %+v", c2)
+	}
+}
+
 func TestClaimNReturnsUpToNReadyNodes(t *testing.T) {
 	ctx := context.Background()
 	s, err := store.Open(ctx, filepath.Join(t.TempDir(), "q.db"))

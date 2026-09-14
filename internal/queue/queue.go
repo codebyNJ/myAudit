@@ -26,8 +26,10 @@ func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	var spec sql.NullString
 	err := q.db.QueryRowContext(ctx, `
 		UPDATE nodes SET status='running', claimed_at=CURRENT_TIMESTAMP, attempts=attempts+1
-		WHERE id = (SELECT id FROM nodes WHERE status='ready'
-			ORDER BY CASE type WHEN 'import' THEN 0 WHEN 'map' THEN 1 WHEN 'qa' THEN 2 ELSE 3 END, created_at
+		WHERE id = (SELECT n.id FROM nodes n
+			JOIN runs r ON r.id = n.run_id
+			WHERE n.status='ready' AND r.status != 'cancelled'
+			ORDER BY CASE n.type WHEN 'import' THEN 0 WHEN 'map' THEN 1 WHEN 'qa' THEN 2 ELSE 3 END, n.created_at
 			LIMIT 1)
 		RETURNING id, run_id, type, attempts, COALESCE(input_snapshot,'{}')`).
 		Scan(&c.ID, &c.RunID, &c.Type, &c.Attempts, &spec)
@@ -64,7 +66,8 @@ func (q *Queue) Complete(ctx context.Context, id uuid.UUID, output []byte) error
 }
 
 func (q *Queue) Finish(ctx context.Context, id uuid.UUID, output []byte, status string) error {
-	_, err := q.db.ExecContext(ctx, `UPDATE nodes SET status=?, output=? WHERE id=?`, status, string(output), id)
+	_, err := q.db.ExecContext(ctx,
+		`UPDATE nodes SET status=?, output=? WHERE id=? AND status='running'`, status, string(output), id)
 	return err
 }
 
@@ -83,8 +86,10 @@ func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) 
 		`UPDATE nodes SET status='failed' WHERE status='running' AND attempts >= ?`, maxAttempts); err != nil {
 		return 0, err
 	}
-	res, err := q.db.ExecContext(ctx,
-		`UPDATE nodes SET status='ready' WHERE status='running' AND attempts < ?`, maxAttempts)
+	res, err := q.db.ExecContext(ctx, `
+		UPDATE nodes SET status='ready'
+		WHERE status='running' AND attempts < ?
+		  AND run_id IN (SELECT id FROM runs WHERE status != 'cancelled')`, maxAttempts)
 	if err != nil {
 		return 0, err
 	}
@@ -97,6 +102,7 @@ func (q *Queue) PromoteReady(ctx context.Context) (int, error) {
 	res, err := q.db.ExecContext(ctx, `
 		UPDATE nodes SET status='ready'
 		WHERE status='pending'
+		  AND run_id IN (SELECT id FROM runs WHERE status != 'cancelled')
 		  AND NOT EXISTS (
 			SELECT 1 FROM json_each(nodes.deps) AS d
 			JOIN nodes dn ON dn.id = d.value
