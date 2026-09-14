@@ -12,13 +12,13 @@ if [ ! -d "$APP" ]; then
   exit 1
 fi
 
-python3 -c "import PIL" 2>/dev/null || pip3 install -q pillow
+PYTHON="$("$ROOT/scripts/ensure-pillow.sh")"
 
 echo "==> validate layout + generate background"
-python3 "$ROOT/scripts/gen-dmg-background.py"
+"$PYTHON" "$ROOT/scripts/gen-dmg-background.py"
 
 echo "==> debug overlay"
-python3 "$ROOT/scripts/dmg-layout-preview.py"
+"$PYTHON" "$ROOT/scripts/dmg-layout-preview.py"
 
 chmod +x "$ROOT/scripts/repack-dmg.sh" "$ROOT/scripts/codesign-macos-app.sh"
 "$ROOT/scripts/codesign-macos-app.sh" "$APP" 2>/dev/null || true

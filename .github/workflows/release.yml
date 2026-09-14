@@ -105,8 +105,7 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          pip3 install pillow
-          chmod +x scripts/codesign-macos-app.sh scripts/repack-dmg.sh
+          chmod +x scripts/codesign-macos-app.sh scripts/repack-dmg.sh scripts/ensure-pillow.sh
           APP="desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/myAudit.app"
           ./scripts/codesign-macos-app.sh "$APP"
           ./scripts/repack-dmg.sh "$VERSION" "$APP" dist

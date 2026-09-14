@@ -21,13 +21,14 @@ if ! command -v create-dmg >/dev/null; then
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PYTHON="$("$ROOT/scripts/ensure-pillow.sh")"
 LAYOUT="$ROOT/scripts/dmg-layout.json"
 BG="$ROOT/desktop/dmg-background.png"
 VOLICON="$ROOT/desktop/src-tauri/icons/icon.icns"
 VOLNAME="myAudit"
 
 read -r WIN_W WIN_H WIN_X WIN_Y ICON_LX ICON_LY ICON_RX ICON_RY ICON_SIZE TEXT_SIZE < <(
-  python3 -c "
+  "$PYTHON" -c "
 import json
 from pathlib import Path
 L = json.loads(Path('$LAYOUT').read_text())
@@ -38,14 +39,14 @@ print(w['width'], w['height'], w['pos'][0], w['pos'][1],
 "
 )
 
-python3 "$ROOT/scripts/gen-dmg-background.py"
+"$PYTHON" "$ROOT/scripts/gen-dmg-background.py"
 if [ ! -f "$BG" ]; then
   echo "missing DMG background: $BG" >&2
   exit 1
 fi
 
 # Verify @2x retina background (electron-builder / Tauri convention).
-python3 -c "
+"$PYTHON" -c "
 import subprocess, sys
 from PIL import Image
 p = '$BG'

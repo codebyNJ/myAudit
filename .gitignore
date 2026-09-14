@@ -1,3 +1,6 @@
+# DMG background generator venv (scripts/ensure-pillow.sh)
+.venv-dmg/
+
 # Go
 /bin/
 *.out
