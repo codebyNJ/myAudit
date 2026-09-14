@@ -11,15 +11,16 @@ img = Image.new("RGB", (W, H), "#14141a")
 d = ImageDraw.Draw(img)
 d.rounded_rectangle([20, 20, W - 20, H - 20], radius=16, fill="#1c1c24", outline="#2e2e3a")
 ax, ay = 330, 210
+# Arrow points left → right (myAudit → Applications), matching icon positions.
 d.polygon(
     [
-        (ax - 90, ay),
-        (ax + 40, ay - 28),
-        (ax + 40, ay - 10),
-        (ax + 110, ay - 10),
-        (ax + 110, ay + 10),
-        (ax + 40, ay + 10),
-        (ax + 40, ay + 28),
+        (ax + 90, ay),
+        (ax - 40, ay - 28),
+        (ax - 40, ay - 10),
+        (ax - 110, ay - 10),
+        (ax - 110, ay + 10),
+        (ax - 40, ay + 10),
+        (ax - 40, ay + 28),
     ],
     fill="#8b5cf6",
 )
