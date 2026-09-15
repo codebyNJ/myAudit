@@ -1,4 +1,4 @@
-# myAudit — an autonomous, QA-led code-audit IDE
+# myAudit — Autonomous BareBone Harness that Audits your complete codebase
 
 [![CI](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
