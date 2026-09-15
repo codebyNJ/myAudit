@@ -175,20 +175,19 @@ export function KanbanScreen() {
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [prBusy, setPrBusy] = useState(false)
   const clearDrag = () => { dragIdRef.current = null; setDragId(null); setDragOverCol(null) }
-  const onDragCol = (e: DragEvent, colKey: string, droppable: boolean) => {
-    if (!droppable) return
+  const onDragCol = (e: DragEvent, laneColKey: string, col: string) => {
+    if (!dragIdRef.current || !COL_DROP[col]) return
     e.preventDefault()
-    e.stopPropagation()
-    setDragOverCol(colKey)
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverCol(laneColKey)
   }
-  const onDropCol = (e: DragEvent, colKey: string) => {
+  const onDropCol = (e: DragEvent, col: string) => {
     e.preventDefault()
-    e.stopPropagation()
-    const status = COL_DROP[colKey]
+    const status = COL_DROP[col]
     const id = dragIdRef.current || e.dataTransfer.getData('text/plain')
     const card = (cards || []).find((c) => c.id === id)
     clearDrag()
-    if (!status || !card || card.type !== 'bug' || bucket(card.status) === colKey) return
+    if (!status || !card || card.type !== 'bug' || bucket(card.status) === col) return
     patch(card, { status })
     s.toast('info', 'Moved', card.title || card.name)
   }
@@ -295,16 +294,19 @@ export function KanbanScreen() {
         setDragId(n.id)
         e.dataTransfer.setData('text/plain', n.id)
         e.dataTransfer.effectAllowed = 'move'
+        if (e.dataTransfer.setDragImage && e.currentTarget instanceof HTMLElement) {
+          e.dataTransfer.setDragImage(e.currentTarget, 16, 16)
+        }
       }}
       onDragEnd={clearDrag}
       onClick={() => setSel(n)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
       {n.type === 'bug' && (
-        <div className="kcard-actions">
-          <button className="ka-btn" title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
-          {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
-          {canMarkDone(n) && <button className="ka-btn" title="Mark done" onClick={(e) => { e.stopPropagation(); markDone(n) }}>✓</button>}
-          {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
+        <div className="kcard-actions" draggable={false} onDragStart={(e) => e.preventDefault()}>
+          <button className="ka-btn" draggable={false} title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
+          {canRefix(n) && <button className="ka-btn" draggable={false} title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
+          {canMarkDone(n) && <button className="ka-btn" draggable={false} title="Mark done" onClick={(e) => { e.stopPropagation(); markDone(n) }}>✓</button>}
+          {n.status !== 'dismissed' && <button className="ka-btn" draggable={false} title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
         </div>
       )}
       <div className="jtitle">{label(n)}</div>
@@ -411,14 +413,17 @@ export function KanbanScreen() {
               const items = visible.filter((n) => laneOf(n) === lane && bucket(n.status) === c.key)
               const colKey = lane + '/' + c.key
               const isCollapsed = collapsed.has(c.key)
-              const droppable = !!dragId && !!COL_DROP[c.key]
+              const canDropHere = !!COL_DROP[c.key]
+              const dragOver = dragOverCol === colKey && canDropHere && !!dragId
               const sc = sevCounts(items)
               return (
-                <div className={`kcol col-${c.key} ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
-                  onDragOver={(e) => onDragCol(e, colKey, droppable)}
+                <div className={`kcol col-${c.key} ${dragOver ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
+                  onDragOver={(e) => onDragCol(e, colKey, c.key)}
                   onDragLeave={() => setDragOverCol((cur) => (cur === colKey ? null : cur))}
                   onDrop={(e) => onDropCol(e, c.key)}>
-                  <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}>
+                  <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}
+                    onDragOver={(e) => onDragCol(e, colKey, c.key)}
+                    onDrop={(e) => onDropCol(e, c.key)}>
                     <b>{c.label}</b><span className="c">{items.length}</span>
                     {(sc.high + sc.medium + sc.low) > 0 && (
                       <span className="kcol-sev">
@@ -431,7 +436,7 @@ export function KanbanScreen() {
                   <div className={`kcol-acc`} />
                   {!isCollapsed && (
                     <div className={`kcards${dragId ? ' drop-target' : ''}`}
-                      onDragOver={(e) => onDragCol(e, colKey, droppable)}
+                      onDragOver={(e) => onDragCol(e, colKey, c.key)}
                       onDrop={(e) => onDropCol(e, c.key)}>
                       {items.map((n) => renderCard(n))}
                       {!items.length && <div className="kempty">No issues</div>}

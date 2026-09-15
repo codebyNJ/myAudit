@@ -886,7 +886,7 @@ main { position: relative; min-width: 0; min-height: 0; overflow: hidden; backgr
 .kcol.col-done .kcol-acc { background: #4ade80; }
 
 .kcards { display: flex; flex-direction: column; gap: 4px; }
-.kcards.drop-target > .kcard:not(.dragging) { pointer-events: none; }
+.kcards.drop-target > *:not(.dragging) { pointer-events: none; }
 .kcard { position: relative; background: #111114; border: 1px solid rgba(255,255,255,0.08); border-radius: 2px; padding: 10px 10px 8px 13px; cursor: pointer; transition: background .12s ease, border-color .12s ease; box-shadow: none; }
 .kcard:hover { background: #16161b; border-color: rgba(255,255,255,0.16); }
 .kcard:active { transform: none; }
