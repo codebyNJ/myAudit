@@ -31,7 +31,8 @@ func builtDistOnDisk() string {
 		return root
 	}
 	base := repoRoot()
-	for _, rel := range []string{"internal/api/web/dist", "web/dist"} {
+	// Prefer web/dist so a fresh `npm run build` wins over a stale internal copy.
+	for _, rel := range []string{"web/dist", "internal/api/web/dist"} {
 		root := rel
 		if base != "" {
 			root = filepath.Join(base, rel)

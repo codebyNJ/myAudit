@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import {
   Download, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
@@ -171,12 +171,23 @@ export function KanbanScreen() {
   }
 
   const [dragId, setDragId] = useState<string | null>(null)
+  const dragIdRef = useRef<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [prBusy, setPrBusy] = useState(false)
-  const onDrop = (colKey: string) => {
+  const clearDrag = () => { dragIdRef.current = null; setDragId(null); setDragOverCol(null) }
+  const onDragCol = (e: DragEvent, colKey: string, droppable: boolean) => {
+    if (!droppable) return
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverCol(colKey)
+  }
+  const onDropCol = (e: DragEvent, colKey: string) => {
+    e.preventDefault()
+    e.stopPropagation()
     const status = COL_DROP[colKey]
-    const card = (cards || []).find((c) => c.id === dragId)
-    setDragId(null); setDragOverCol(null)
+    const id = dragIdRef.current || e.dataTransfer.getData('text/plain')
+    const card = (cards || []).find((c) => c.id === id)
+    clearDrag()
     if (!status || !card || card.type !== 'bug' || bucket(card.status) === colKey) return
     patch(card, { status })
     s.toast('info', 'Moved', card.title || card.name)
@@ -278,8 +289,14 @@ export function KanbanScreen() {
     <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
       key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
       draggable={n.type === 'bug'}
-      onDragStart={() => n.type === 'bug' && setDragId(n.id)}
-      onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
+      onDragStart={(e) => {
+        if (n.type !== 'bug') return
+        dragIdRef.current = n.id
+        setDragId(n.id)
+        e.dataTransfer.setData('text/plain', n.id)
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+      onDragEnd={clearDrag}
       onClick={() => setSel(n)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
       {n.type === 'bug' && (
@@ -398,9 +415,9 @@ export function KanbanScreen() {
               const sc = sevCounts(items)
               return (
                 <div className={`kcol col-${c.key} ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
-                  onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(colKey) } }}
+                  onDragOver={(e) => onDragCol(e, colKey, droppable)}
                   onDragLeave={() => setDragOverCol((cur) => (cur === colKey ? null : cur))}
-                  onDrop={() => onDrop(c.key)}>
+                  onDrop={(e) => onDropCol(e, c.key)}>
                   <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}>
                     <b>{c.label}</b><span className="c">{items.length}</span>
                     {(sc.high + sc.medium + sc.low) > 0 && (
@@ -413,7 +430,9 @@ export function KanbanScreen() {
                   </div>
                   <div className={`kcol-acc`} />
                   {!isCollapsed && (
-                    <div className="kcards">
+                    <div className={`kcards${dragId ? ' drop-target' : ''}`}
+                      onDragOver={(e) => onDragCol(e, colKey, droppable)}
+                      onDrop={(e) => onDropCol(e, c.key)}>
                       {items.map((n) => renderCard(n))}
                       {!items.length && <div className="kempty">No issues</div>}
                     </div>
