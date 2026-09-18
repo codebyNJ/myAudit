@@ -131,10 +131,9 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 			filed++
 		}
 	}
-	cur, _ := d.Store.GetNotes(ctx, c.RunID)
-	_ = d.Store.PutNotes(ctx, c.RunID, cur+
+	_ = d.Store.AppendNotes(ctx, c.RunID,
 		fmt.Sprintf("\n\n## QA — %s (`%s`)\n\n", sp.Module, sp.Path)+
-		findingsMarkdown(findings, r.Summary))
+			findingsMarkdown(findings, r.Summary))
 	d.complete(ctx, c, nodeOutput{
 		Kind: "qa", Summary: fmt.Sprintf("%s: %d ticket(s) filed", sp.Module, filed),
 		CostUSD: r.CostUSD, Tokens: r.Tokens,
@@ -209,18 +208,13 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 }
 
 func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg string, changed []string) {
-	mu := notesLock(run)
-	mu.Lock()
-	defer mu.Unlock()
-	cur, _ := d.Store.GetNotes(ctx, run)
 	var sb strings.Builder
-	sb.WriteString(cur)
 	sb.WriteString("\n\n### Fix — " + b.Title + "\n\n" + msg + "\n")
 	if len(changed) > 0 {
 		sb.WriteString("\nFiles changed: ")
 		sb.WriteString("`" + strings.Join(changed, "`, `") + "`\n")
 	}
-	_ = d.Store.PutNotes(ctx, run, sb.String())
+	_ = d.Store.AppendNotes(ctx, run, sb.String())
 }
 
 var baselineFails sync.Map // runID -> int

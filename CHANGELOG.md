@@ -34,9 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- QA findings are no longer dropped when the agent writes a sentence containing a bracket before its findings array; an unparsed reply is now logged
-- Editing severity, priority and tags at the same time no longer loses whichever change landed first
-- A truncated agent stream reports the read error instead of "no result from claude stream"
+- Rejecting a file review no longer deletes the file — a modified file is restored to its imported contents, and only agent-created files are removed
+- Push PR now returns your repository to the branch you had checked out, and aborts a failed `git am` instead of leaving the clone mid-apply
+- Import fails loudly on unreadable files instead of silently auditing a partial copy
 
 ## [0.1.0] - 2026-01-01
 

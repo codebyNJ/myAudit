@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 //go:embed all:web/dist
@@ -31,16 +32,31 @@ func builtDistOnDisk() string {
 		return root
 	}
 	base := repoRoot()
-	for _, rel := range []string{"internal/api/web/dist", "web/dist"} {
+	var best string
+	var bestMod time.Time
+	for _, rel := range []string{"web/dist", "internal/api/web/dist"} {
 		root := rel
 		if base != "" {
 			root = filepath.Join(base, rel)
 		}
-		if hasUIAssets(root) {
-			return root
+		if !hasUIAssets(root) {
+			continue
+		}
+		mod := uiBundleModTime(root)
+		if best == "" || mod.After(bestMod) {
+			best = root
+			bestMod = mod
 		}
 	}
-	return ""
+	return best
+}
+
+func uiBundleModTime(root string) time.Time {
+	fi, err := os.Stat(filepath.Join(root, "index.html"))
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
 }
 
 func repoRoot() string {
@@ -73,9 +89,20 @@ func spaFileServer(files http.FileSystem) http.Handler {
 	fileServer := http.FileServer(files)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(r.URL.Path, "/")
-		if p == "" || !fileExists(files, p) {
+		switch {
+		case p == "":
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			r.URL.Path = "/"
+		case !fileExists(files, p):
+			// Missing hashed bundles must 404 — SPA HTML as JS/CSS causes a blank screen.
+			if strings.HasPrefix(p, "assets/") {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			r.URL.Path = "/"
+		case p == "index.html":
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		}
 		fileServer.ServeHTTP(w, r)
 	})

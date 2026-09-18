@@ -195,18 +195,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	})
 
 	mux.HandleFunc("GET /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "bad id", 400)
+		_, abs, clean, ok := wsPathFrom(w, r, r.URL.Query().Get("path"))
+		if !ok {
 			return
 		}
-		p := r.URL.Query().Get("path")
-		clean := filepath.Clean(p)
-		if p == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
-			http.Error(w, "bad path", 400)
-			return
-		}
-		b, err := os.ReadFile(filepath.Join("runs", id.String(), clean))
+		b, err := os.ReadFile(abs)
 		if err != nil {
 			http.Error(w, "not found", 404)
 			return
@@ -215,18 +208,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	})
 
 	mux.HandleFunc("GET /api/runs/{id}/raw", func(w http.ResponseWriter, r *http.Request) {
-		id, err := uuid.Parse(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "bad id", 400)
+		_, abs, _, ok := wsPathFrom(w, r, r.URL.Query().Get("path"))
+		if !ok {
 			return
 		}
-		p := r.URL.Query().Get("path")
-		clean := filepath.Clean(p)
-		if p == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
-			http.Error(w, "bad path", 400)
-			return
-		}
-		http.ServeFile(w, r, filepath.Join("runs", id.String(), clean))
+		http.ServeFile(w, r, abs)
 	})
 
 	mux.HandleFunc("GET /api/runs/{id}/diff", func(w http.ResponseWriter, r *http.Request) {
@@ -237,8 +223,8 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		}
 		path := r.URL.Query().Get("path")
 		if path != "" {
-			clean := filepath.Clean(path)
-			if strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+			_, clean, perr := resolveWorkspacePath(id, path)
+			if perr != nil {
 				http.Error(w, "bad path", 400)
 				return
 			}
@@ -267,12 +253,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			http.Error(w, "bad json", 400)
 			return
 		}
-		clean := filepath.Clean(b.Path)
-		if b.Path == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
+		full, clean, perr := resolveWorkspacePath(id, b.Path)
+		if perr != nil {
 			http.Error(w, "bad path", 400)
 			return
 		}
-		full := filepath.Join("runs", id.String(), clean)
 		_ = os.MkdirAll(filepath.Dir(full), 0o755)
 		if err := os.WriteFile(full, []byte(b.Content), 0o644); err != nil {
 			http.Error(w, err.Error(), 500)
@@ -308,7 +293,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 
 			clean := filepath.Clean(b.Path)
 			if !strings.HasPrefix(clean, "..") && !filepath.IsAbs(clean) {
-				os.Remove(filepath.Join("runs", id.String(), clean))
+				ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
+				if err := ws.RevertFromBaseline(r.Context(), clean); err != nil {
+					http.Error(w, "revert "+clean+": "+err.Error(), 500)
+					return
+				}
 			}
 		}
 		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "review." + b.Status, Msg: b.Path})

@@ -21,6 +21,12 @@ type Queue struct {
 
 func New(db *sql.DB) *Queue { return &Queue{db: db} }
 
+// Claim takes the next runnable node. Every node of a run shares one git
+// workspace, and a bug node commits with `git add -A`, so a bug node is only
+// claimable while no other qa/bug node of that run is running — otherwise a
+// fix commit sweeps up whatever a sibling node happened to be writing, and the
+// two nodes race on the same index. qa nodes still run in parallel with each
+// other, and other runs are unaffected.
 func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 	var c ClaimedNode
 	var spec sql.NullString
@@ -28,7 +34,10 @@ func (q *Queue) Claim(ctx context.Context) (*ClaimedNode, error) {
 		UPDATE nodes SET status='running', claimed_at=CURRENT_TIMESTAMP, attempts=attempts+1
 		WHERE id = (SELECT n.id FROM nodes n
 			JOIN runs r ON r.id = n.run_id
-			WHERE n.status='ready' AND r.status != 'cancelled'
+			WHERE n.status='ready' AND r.status NOT IN ('cancelled','paused')
+			  AND (n.type != 'bug' OR NOT EXISTS (
+				SELECT 1 FROM nodes w
+				WHERE w.run_id = n.run_id AND w.type IN ('qa','bug') AND w.status='running'))
 			ORDER BY CASE n.type WHEN 'import' THEN 0 WHEN 'map' THEN 1 WHEN 'qa' THEN 2 ELSE 3 END, n.created_at
 			LIMIT 1)
 		RETURNING id, run_id, type, attempts, COALESCE(input_snapshot,'{}')`).
@@ -89,7 +98,7 @@ func (q *Queue) RecoverStuck(ctx context.Context, maxAttempts int) (int, error) 
 	res, err := q.db.ExecContext(ctx, `
 		UPDATE nodes SET status='ready'
 		WHERE status='running' AND attempts < ?
-		  AND run_id IN (SELECT id FROM runs WHERE status != 'cancelled')`, maxAttempts)
+		  AND run_id IN (SELECT id FROM runs WHERE status NOT IN ('cancelled','paused'))`, maxAttempts)
 	if err != nil {
 		return 0, err
 	}
@@ -102,7 +111,7 @@ func (q *Queue) PromoteReady(ctx context.Context) (int, error) {
 	res, err := q.db.ExecContext(ctx, `
 		UPDATE nodes SET status='ready'
 		WHERE status='pending'
-		  AND run_id IN (SELECT id FROM runs WHERE status != 'cancelled')
+		  AND run_id IN (SELECT id FROM runs WHERE status NOT IN ('cancelled','paused'))
 		  AND NOT EXISTS (
 			SELECT 1 FROM json_each(nodes.deps) AS d
 			JOIN nodes dn ON dn.id = d.value

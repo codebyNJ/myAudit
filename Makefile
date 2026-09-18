@@ -45,10 +45,9 @@ ui-check:
 
 ## serve-restart: stop a stale myAudit server on :7788 (embed snapshot without UI assets)
 serve-restart:
-	@for pid in $$(lsof -ti :7788 2>/dev/null); do \
-	  case "$$(basename "$$(ps -p $$pid -o comm= 2>/dev/null || echo x)")" in \
-	    serve|myaudit-serve) kill $$pid 2>/dev/null ;; \
-	  esac; \
+	@for pid in $$(lsof -tiTCP:7788 -sTCP:LISTEN 2>/dev/null); do \
+	  args=$$(ps -p $$pid -o args= 2>/dev/null); \
+	  case "$$args" in *exe/serve*|*cmd/serve*|*myaudit-serve*) kill $$pid 2>/dev/null ;; esac; \
 	done
 
 ## run: serve UI + API at http://localhost:7788 with the REAL Claude Code agent

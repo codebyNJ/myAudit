@@ -59,6 +59,26 @@ func TestServesBuiltAssetsFromDisk(t *testing.T) {
 	}
 }
 
+func TestMissingAssetReturns404(t *testing.T) {
+	s := newStore(t)
+	defer s.Close()
+	srv := httptest.NewServer(NewMux(s, StaticHandler()))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/assets/index-stale-missing.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 404 {
+		t.Fatalf("missing asset should 404, got %d body=%q", resp.StatusCode, string(body)[:min(80, len(body))])
+	}
+	if strings.HasPrefix(strings.ToLower(string(body)), "<!doctype") {
+		t.Fatal("missing asset must not SPA-fallback to HTML")
+	}
+}
+
 func TestSPAFallback(t *testing.T) {
 	s := newStore(t)
 	defer s.Close()
