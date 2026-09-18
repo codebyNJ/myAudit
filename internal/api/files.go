@@ -13,20 +13,6 @@ import (
 	"github.com/codebyNJ/myAudit/internal/store"
 )
 
-func wsPath(w http.ResponseWriter, r *http.Request, rel string) (id uuid.UUID, full string, ok bool) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		http.Error(w, "bad id", 400)
-		return id, "", false
-	}
-	clean := filepath.Clean(rel)
-	if rel == "" || strings.HasPrefix(clean, "..") || filepath.IsAbs(clean) {
-		http.Error(w, "bad path", 400)
-		return id, "", false
-	}
-	return id, filepath.Join("runs", id.String(), clean), true
-}
-
 func registerFileOps(mux *http.ServeMux, s *store.Store) {
 
 	mux.HandleFunc("GET /api/runs/{id}/search", func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +38,7 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 			http.Error(w, "bad json", 400)
 			return
 		}
-		_, full, ok := wsPath(w, r, b.Path)
+		_, full, _, ok := wsPathFrom(w, r, b.Path)
 		if !ok {
 			return
 		}
@@ -87,16 +73,15 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 			http.Error(w, "bad json", 400)
 			return
 		}
-		id, from, ok := wsPath(w, r, b.From)
+		id, from, _, ok := wsPathFrom(w, r, b.From)
 		if !ok {
 			return
 		}
-		toClean := filepath.Clean(b.To)
-		if b.To == "" || strings.HasPrefix(toClean, "..") || filepath.IsAbs(toClean) {
+		to, _, perr := resolveWorkspacePath(id, b.To)
+		if perr != nil {
 			http.Error(w, "bad path", 400)
 			return
 		}
-		to := filepath.Join("runs", id.String(), toClean)
 		if _, err := os.Stat(to); err == nil {
 			http.Error(w, "target exists", http.StatusConflict)
 			return
@@ -113,7 +98,7 @@ func registerFileOps(mux *http.ServeMux, s *store.Store) {
 	})
 
 	mux.HandleFunc("DELETE /api/runs/{id}/file", func(w http.ResponseWriter, r *http.Request) {
-		_, full, ok := wsPath(w, r, r.URL.Query().Get("path"))
+		_, full, _, ok := wsPathFrom(w, r, r.URL.Query().Get("path"))
 		if !ok {
 			return
 		}
