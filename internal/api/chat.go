@@ -52,12 +52,17 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 	})
 
 	mux.HandleFunc("POST /api/runs/{id}/nodes/{nid}/enqueue", func(w http.ResponseWriter, r *http.Request) {
-		nid, err := uuid.Parse(r.PathValue("nid"))
-		if err != nil {
-			http.Error(w, "bad node id", 400)
+		n, ok := nodeInRun(w, r, s)
+		if !ok {
 			return
 		}
-		if err := s.SetNodeStatus(r.Context(), nid, "ready"); err != nil {
+		// Only tickets are re-runnable. Re-queuing an import would re-copy the
+		// source repo over a workspace that already holds fixes.
+		if n.Type != "bug" {
+			http.Error(w, "only bug tickets can be re-queued", 400)
+			return
+		}
+		if err := s.SetNodeStatus(r.Context(), n.ID, "ready"); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -65,11 +70,11 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 	})
 
 	mux.HandleFunc("PATCH /api/runs/{id}/nodes/{nid}", func(w http.ResponseWriter, r *http.Request) {
-		nid, err := uuid.Parse(r.PathValue("nid"))
-		if err != nil {
-			http.Error(w, "bad node id", 400)
+		n, ok := nodeInRun(w, r, s)
+		if !ok {
 			return
 		}
+		nid := n.ID
 		var b struct {
 			Severity string `json:"severity"`
 			Priority string `json:"priority"`
@@ -108,9 +113,8 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 	})
 
 	mux.HandleFunc("POST /api/runs/{id}/nodes/{nid}/tags", func(w http.ResponseWriter, r *http.Request) {
-		nid, err := uuid.Parse(r.PathValue("nid"))
-		if err != nil {
-			http.Error(w, "bad node id", 400)
+		n, ok := nodeInRun(w, r, s)
+		if !ok {
 			return
 		}
 		var b struct {
@@ -120,7 +124,7 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 			http.Error(w, "bad json", 400)
 			return
 		}
-		if err := s.SetNodeTags(r.Context(), nid, b.Tags); err != nil {
+		if err := s.SetNodeTags(r.Context(), n.ID, b.Tags); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}

@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
 
+### Fixed
+
+- `DELETE /api/runs/{id}/file?path=.` no longer deletes the entire run workspace
+- Workspace file endpoints refuse paths that leave the run directory through a symlink
+- Node endpoints (`PATCH`, `enqueue`, `tags`) now verify the node belongs to the run in the URL
+- Only bug tickets can be re-queued; re-queuing an import no longer re-copies the source repo over existing fixes
+
 ## [0.1.0] - 2026-01-01
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.
