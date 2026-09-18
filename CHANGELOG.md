@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
 
+### Fixed
+
+- Rejecting a file review no longer deletes the file — a modified file is restored to its imported contents, and only agent-created files are removed
+- Push PR now returns your repository to the branch you had checked out, and aborts a failed `git am` instead of leaving the clone mid-apply
+- Import fails loudly on unreadable files instead of silently auditing a partial copy
+
 ## [0.1.0] - 2026-01-01
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.

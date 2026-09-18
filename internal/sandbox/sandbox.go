@@ -75,21 +75,56 @@ func (w Workspace) ChangedPaths(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
-func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, error) {
-	base, _, err := w.Run(ctx, "git", "rev-list", "--max-parents=0", "HEAD")
+// baselineCommit is the "import baseline" commit made by ensureGitBaseline.
+func (w Workspace) baselineCommit(ctx context.Context) (string, error) {
+	out, _, err := w.Run(ctx, "git", "rev-list", "--max-parents=0", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	fields := strings.Fields(base)
+	fields := strings.Fields(out)
 	if len(fields) == 0 {
 		return "", nil
 	}
-	args := []string{"diff", fields[0]}
+	return fields[0], nil
+}
+
+func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, error) {
+	base, err := w.baselineCommit(ctx)
+	if err != nil || base == "" {
+		return "", err
+	}
+	args := []string{"diff", base}
 	if path != "" {
 		args = append(args, "--", path)
 	}
 	out, _, err := w.Run(ctx, "git", args...)
 	return out, err
+}
+
+// RevertFromBaseline undoes the agent's work on one file: a file that existed
+// at import is restored to its imported contents, a file the agent created is
+// removed. Deleting unconditionally would destroy the user's original file
+// whenever the agent merely modified it.
+func (w Workspace) RevertFromBaseline(ctx context.Context, path string) error {
+	if _, err := os.Stat(w.Dir); os.IsNotExist(err) {
+		return nil // no workspace on disk: nothing to undo
+	}
+	base, err := w.baselineCommit(ctx)
+	if err != nil {
+		return err
+	}
+	if base != "" {
+		if _, code, err := w.Run(ctx, "git", "checkout", base, "--", path); err != nil {
+			return err
+		} else if code == 0 {
+			return nil
+		}
+	}
+	// Not in the baseline tree: the agent created it, so removal is the revert.
+	if err := os.Remove(filepath.Join(w.Dir, filepath.Clean(path))); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (w Workspace) Commit(ctx context.Context, msg string) error {
@@ -122,22 +157,37 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 	return nil
 }
 
+// vanished reports whether err is just a file that went away mid-walk (the
+// source repo may be live). Those are skipped; every other error fails the
+// import, because a silently partial copy gets audited as if it were complete.
+func vanished(err error) bool { return os.IsNotExist(err) }
+
 func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			if vanished(err) {
+				return nil
+			}
+			return fmt.Errorf("read %s: %w", p, err)
 		}
 		rel, err := filepath.Rel(src, p)
 		if err != nil {
-			return nil
+			return fmt.Errorf("resolve %s: %w", p, err)
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			target, err := os.Readlink(p)
 			if err != nil {
-				return nil
+				if vanished(err) {
+					return nil
+				}
+				return fmt.Errorf("readlink %s: %w", rel, err)
 			}
-			_ = os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755)
-			_ = os.Symlink(target, filepath.Join(dst, rel))
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755); err != nil {
+				return err
+			}
+			if err := os.Symlink(target, filepath.Join(dst, rel)); err != nil && !os.IsExist(err) {
+				return fmt.Errorf("symlink %s: %w", rel, err)
+			}
 			return nil
 		}
 		if info.IsDir() {
@@ -150,7 +200,10 @@ func copyDir(src, dst string) error {
 			return nil
 		}
 		if err := copyFile(p, filepath.Join(dst, rel), info); err != nil {
-			return nil
+			if vanished(err) {
+				return nil
+			}
+			return fmt.Errorf("copy %s: %w", rel, err)
 		}
 		return nil
 	})

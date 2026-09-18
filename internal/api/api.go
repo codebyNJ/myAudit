@@ -308,7 +308,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 
 			clean := filepath.Clean(b.Path)
 			if !strings.HasPrefix(clean, "..") && !filepath.IsAbs(clean) {
-				os.Remove(filepath.Join("runs", id.String(), clean))
+				ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
+				if err := ws.RevertFromBaseline(r.Context(), clean); err != nil {
+					http.Error(w, "revert "+clean+": "+err.Error(), 500)
+					return
+				}
 			}
 		}
 		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "review." + b.Status, Msg: b.Path})
