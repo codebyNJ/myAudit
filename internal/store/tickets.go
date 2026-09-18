@@ -56,14 +56,7 @@ func (s *Store) SetNodeTags(ctx context.Context, node uuid.UUID, tags []string) 
 	if tags == nil {
 		tags = []string{}
 	}
-	var raw []byte
-	_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(input_snapshot,'{}') FROM nodes WHERE id=?`, node).Scan(&raw)
-	m := map[string]any{}
-	_ = json.Unmarshal(raw, &m)
-	m["tags"] = tags
-	b, _ := json.Marshal(m)
-	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET input_snapshot=? WHERE id=?`, string(b), node)
-	return err
+	return s.MergeNodeSnapshot(ctx, node, map[string]any{"tags": tags})
 }
 
 func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID, error) {
@@ -84,16 +77,18 @@ func (s *Store) ReopenableBugs(ctx context.Context, run uuid.UUID) ([]uuid.UUID,
 	return ids, rows.Err()
 }
 
+// MergeNodeSnapshot applies patch to the node's input_snapshot in one
+// statement. Reading the row into Go and writing it back lost whichever
+// concurrent patch landed first — severity, priority and tags can all be set
+// at once from the board.
 func (s *Store) MergeNodeSnapshot(ctx context.Context, node uuid.UUID, patch map[string]any) error {
-	var raw []byte
-	_ = s.db.QueryRowContext(ctx, `SELECT COALESCE(input_snapshot,'{}') FROM nodes WHERE id=?`, node).Scan(&raw)
-	m := map[string]any{}
-	_ = json.Unmarshal(raw, &m)
-	for k, v := range patch {
-		m[k] = v
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return err
 	}
-	b, _ := json.Marshal(m)
-	_, err := s.db.ExecContext(ctx, `UPDATE nodes SET input_snapshot=? WHERE id=?`, string(b), node)
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE nodes SET input_snapshot=json_patch(COALESCE(input_snapshot,'{}'), ?) WHERE id=?`,
+		string(b), node)
 	return err
 }
 
