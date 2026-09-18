@@ -32,15 +32,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
 
+## [0.2.12] - 2026-09-18
+
 ### Fixed
+
+Data loss:
 
 - Rejecting a file review no longer deletes the file — a modified file is restored to its imported contents, and only agent-created files are removed
 - Push PR now returns your repository to the branch you had checked out, and aborts a failed `git am` instead of leaving the clone mid-apply
 - Import fails loudly on unreadable files instead of silently auditing a partial copy
+- `DELETE /api/runs/{id}/file?path=.` no longer deletes the entire run workspace
+
+Concurrency:
+
+- Bug-fix tickets in the same audit no longer run concurrently against one shared git workspace, so a fix commit can no longer contain another ticket's edits
+- Budget cap keeps holding after the first pause: tickets filed by an in-flight QA node are parked instead of being promoted and billed
+- A dev server that dies on startup is reported immediately instead of after the 90s boot timeout
+- Two audits starting a preview at the same time are no longer handed the same port
+- Concurrent QA findings are appended to the run notes atomically instead of overwriting each other
+- Editing severity, priority and tags at the same time no longer loses whichever change landed first
+
+Safety and correctness:
+
+- Workspace file endpoints refuse paths that leave the run directory through a symlink
+- Node endpoints (`PATCH`, `enqueue`, `tags`) now verify the node belongs to the run in the URL
+- Only bug tickets can be re-queued; re-queuing an import no longer re-copies the source repo over existing fixes
+- QA findings are no longer dropped when the agent writes a sentence containing a bracket before its findings array; an unparsed reply is now logged
+- A truncated agent stream reports the read error instead of "no result from claude stream"
 
 ## [0.1.0] - 2026-01-01
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.
 
-[Unreleased]: https://github.com/codebyNJ/myAudit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/codebyNJ/myAudit/compare/v0.2.12...HEAD
+[0.2.12]: https://github.com/codebyNJ/myAudit/releases/tag/v0.2.12
 [0.1.0]: https://github.com/codebyNJ/myAudit/releases/tag/v0.1.0
