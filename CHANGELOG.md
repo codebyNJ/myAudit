@@ -34,11 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Bug-fix tickets in the same audit no longer run concurrently against one shared git workspace, so a fix commit can no longer contain another ticket's edits
-- Budget cap keeps holding after the first pause: tickets filed by an in-flight QA node are parked instead of being promoted and billed
-- A dev server that dies on startup is reported immediately instead of after the 90s boot timeout
-- Two audits starting a preview at the same time are no longer handed the same port
-- Concurrent QA findings are appended to the run notes atomically instead of overwriting each other
+- Rejecting a file review no longer deletes the file — a modified file is restored to its imported contents, and only agent-created files are removed
+- Push PR now returns your repository to the branch you had checked out, and aborts a failed `git am` instead of leaving the clone mid-apply
+- Import fails loudly on unreadable files instead of silently auditing a partial copy
 
 ## [0.1.0] - 2026-01-01
 

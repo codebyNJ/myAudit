@@ -57,24 +57,24 @@ func PublishFix(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("format patch: %w", err)
 	}
 
-	_, _, _ = sandbox.RepoGit(ctx, opts.RepoPath, "fetch", "origin")
-	out, code, err := sandbox.RepoGit(ctx, opts.RepoPath, "checkout", "-B", branch, "origin/"+base)
+	// Everything below runs inside the developer's own clone, so whatever
+	// branch they had checked out has to survive this — on every exit path.
+	restore, err := checkoutWorkBranch(ctx, opts.RepoPath, branch, base)
 	if err != nil {
 		return Result{}, err
 	}
-	if code != 0 {
-		out2, code2, _ := sandbox.RepoGit(ctx, opts.RepoPath, "checkout", "-B", branch, base)
-		if code2 != 0 {
-			return Result{}, fmt.Errorf("checkout branch: %s %s", out, out2)
-		}
-	}
+	defer restore()
 
 	amOut, amCode, amErr := gitAm(ctx, opts.RepoPath, patch)
 	if amErr != nil {
+		abortAm(ctx, opts.RepoPath)
 		return Result{}, amErr
 	}
 	if amCode != 0 {
-		_, _, _ = sandbox.RepoGit(ctx, opts.RepoPath, "checkout", base)
+		// A failed `git am` leaves the repo mid-apply; without the abort the
+		// restore checkout below cannot run and the clone stays wedged.
+		abortAm(ctx, opts.RepoPath)
+		restore()
 		_, _, _ = sandbox.RepoGit(ctx, opts.RepoPath, "branch", "-D", branch)
 		return Result{}, fmt.Errorf("git am failed — fix may conflict with current branch:\n%s", amOut)
 	}
@@ -104,6 +104,51 @@ func PublishFix(ctx context.Context, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("gh pr create returned no URL")
 	}
 	return Result{PRURL: prURL, Branch: branch}, nil
+}
+
+// currentRef is the ref to come back to: the checked-out branch, or the raw
+// commit when the repo is in detached HEAD.
+func currentRef(ctx context.Context, dir string) string {
+	if out, code, err := sandbox.RepoGit(ctx, dir, "symbolic-ref", "--short", "-q", "HEAD"); err == nil && code == 0 {
+		if ref := strings.TrimSpace(out); ref != "" {
+			return ref
+		}
+	}
+	out, code, err := sandbox.RepoGit(ctx, dir, "rev-parse", "HEAD")
+	if err != nil || code != 0 {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// checkoutWorkBranch puts dir on branch (forked from base) and returns a
+// function that restores whatever was checked out beforehand. The returned
+// func is safe to call more than once.
+func checkoutWorkBranch(ctx context.Context, dir, branch, base string) (restore func(), err error) {
+	orig := currentRef(ctx, dir)
+	restore = func() {
+		if orig == "" {
+			return
+		}
+		_, _, _ = sandbox.RepoGit(ctx, dir, "checkout", orig)
+	}
+
+	_, _, _ = sandbox.RepoGit(ctx, dir, "fetch", "origin")
+	out, code, err := sandbox.RepoGit(ctx, dir, "checkout", "-B", branch, "origin/"+base)
+	if err != nil {
+		return restore, err
+	}
+	if code != 0 {
+		out2, code2, _ := sandbox.RepoGit(ctx, dir, "checkout", "-B", branch, base)
+		if code2 != 0 {
+			return restore, fmt.Errorf("checkout branch: %s %s", out, out2)
+		}
+	}
+	return restore, nil
+}
+
+func abortAm(ctx context.Context, dir string) {
+	_, _, _ = sandbox.RepoGit(ctx, dir, "am", "--abort")
 }
 
 func preflightGH(ctx context.Context) error {

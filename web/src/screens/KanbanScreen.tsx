@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import {
   Download, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
@@ -171,13 +171,23 @@ export function KanbanScreen() {
   }
 
   const [dragId, setDragId] = useState<string | null>(null)
+  const dragIdRef = useRef<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [prBusy, setPrBusy] = useState(false)
-  const onDrop = (colKey: string) => {
-    const status = COL_DROP[colKey]
-    const card = (cards || []).find((c) => c.id === dragId)
-    setDragId(null); setDragOverCol(null)
-    if (!status || !card || card.type !== 'bug' || bucket(card.status) === colKey) return
+  const clearDrag = () => { dragIdRef.current = null; setDragId(null); setDragOverCol(null) }
+  const onDragCol = (e: DragEvent, laneColKey: string, col: string) => {
+    if (!dragIdRef.current || !COL_DROP[col]) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverCol(laneColKey)
+  }
+  const onDropCol = (e: DragEvent, col: string) => {
+    e.preventDefault()
+    const status = COL_DROP[col]
+    const id = dragIdRef.current || e.dataTransfer.getData('text/plain')
+    const card = (cards || []).find((c) => c.id === id)
+    clearDrag()
+    if (!status || !card || card.type !== 'bug' || bucket(card.status) === col) return
     patch(card, { status })
     s.toast('info', 'Moved', card.title || card.name)
   }
@@ -205,6 +215,11 @@ export function KanbanScreen() {
   }
   const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); s.toast('info', 'Ticket dismissed'); setSel(null) }
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
+  const canMarkDone = (c: NodeCard) => c.type === 'bug' && c.status === 'in_review'
+  const markDone = async (card: NodeCard) => {
+    await patch(card, { status: 'done' })
+    s.toast('success', 'Marked done', card.title || card.name)
+  }
 
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
   const hasGit = !!s.detail?.git?.has_git && !!s.detail?.git?.remote_url
@@ -273,15 +288,25 @@ export function KanbanScreen() {
     <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
       key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
       draggable={n.type === 'bug'}
-      onDragStart={() => n.type === 'bug' && setDragId(n.id)}
-      onDragEnd={() => { setDragId(null); setDragOverCol(null) }}
+      onDragStart={(e) => {
+        if (n.type !== 'bug') return
+        dragIdRef.current = n.id
+        setDragId(n.id)
+        e.dataTransfer.setData('text/plain', n.id)
+        e.dataTransfer.effectAllowed = 'move'
+        if (e.dataTransfer.setDragImage && e.currentTarget instanceof HTMLElement) {
+          e.dataTransfer.setDragImage(e.currentTarget, 16, 16)
+        }
+      }}
+      onDragEnd={clearDrag}
       onClick={() => setSel(n)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(n) } }}>
       {n.type === 'bug' && (
-        <div className="kcard-actions">
-          <button className="ka-btn" title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
-          {canRefix(n) && <button className="ka-btn" title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
-          {n.status !== 'dismissed' && <button className="ka-btn" title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
+        <div className="kcard-actions" draggable={false} onDragStart={(e) => e.preventDefault()}>
+          <button className="ka-btn" draggable={false} title="Open" onClick={(e) => { e.stopPropagation(); setSel(n) }}>⤢</button>
+          {canRefix(n) && <button className="ka-btn" draggable={false} title="Re-run fix" onClick={(e) => { e.stopPropagation(); runFix(n) }}>▶</button>}
+          {canMarkDone(n) && <button className="ka-btn" draggable={false} title="Mark done" onClick={(e) => { e.stopPropagation(); markDone(n) }}>✓</button>}
+          {n.status !== 'dismissed' && <button className="ka-btn" draggable={false} title="Dismiss" onClick={(e) => { e.stopPropagation(); dismiss(n) }}>✕</button>}
         </div>
       )}
       <div className="jtitle">{label(n)}</div>
@@ -388,14 +413,17 @@ export function KanbanScreen() {
               const items = visible.filter((n) => laneOf(n) === lane && bucket(n.status) === c.key)
               const colKey = lane + '/' + c.key
               const isCollapsed = collapsed.has(c.key)
-              const droppable = !!dragId && !!COL_DROP[c.key]
+              const canDropHere = !!COL_DROP[c.key]
+              const dragOver = dragOverCol === colKey && canDropHere && !!dragId
               const sc = sevCounts(items)
               return (
-                <div className={`kcol col-${c.key} ${dragOverCol === colKey && droppable ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
-                  onDragOver={(e) => { if (droppable) { e.preventDefault(); setDragOverCol(colKey) } }}
+                <div className={`kcol col-${c.key} ${dragOver ? 'dragover' : ''} ${isCollapsed ? 'collapsed' : ''}`} key={colKey}
+                  onDragOver={(e) => onDragCol(e, colKey, c.key)}
                   onDragLeave={() => setDragOverCol((cur) => (cur === colKey ? null : cur))}
-                  onDrop={() => onDrop(c.key)}>
-                  <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}>
+                  onDrop={(e) => onDropCol(e, c.key)}>
+                  <div className="kcol-h" onClick={() => setCollapsed((s) => { const n = new Set(s); n.has(c.key) ? n.delete(c.key) : n.add(c.key); return n })} title={isCollapsed ? 'Expand' : 'Collapse'}
+                    onDragOver={(e) => onDragCol(e, colKey, c.key)}
+                    onDrop={(e) => onDropCol(e, c.key)}>
                     <b>{c.label}</b><span className="c">{items.length}</span>
                     {(sc.high + sc.medium + sc.low) > 0 && (
                       <span className="kcol-sev">
@@ -407,7 +435,9 @@ export function KanbanScreen() {
                   </div>
                   <div className={`kcol-acc`} />
                   {!isCollapsed && (
-                    <div className="kcards">
+                    <div className={`kcards${dragId ? ' drop-target' : ''}`}
+                      onDragOver={(e) => onDragCol(e, colKey, c.key)}
+                      onDrop={(e) => onDropCol(e, c.key)}>
                       {items.map((n) => renderCard(n))}
                       {!items.length && <div className="kempty">No issues</div>}
                     </div>
@@ -438,8 +468,11 @@ export function KanbanScreen() {
                 <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
                   <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
                 </span>
+                {canMarkDone(sel) && (
+                  <button className={`btn-sm${canPushPR(sel) ? '' : ' primary'}`} onClick={() => markDone(sel)}>Mark done</button>
+                )}
                 {canRefix(sel) && (
-                  <button className="btn-sm primary" onClick={() => runFix(sel)}>
+                  <button className={`btn-sm${sel.status === 'open' ? ' primary' : ''}`} onClick={() => runFix(sel)}>
                     {sel.status === 'open' ? '▶ Fix this' : sel.status === 'done' ? '↻ Reopen & re-fix' : '▶ Re-run fix'}
                   </button>
                 )}
