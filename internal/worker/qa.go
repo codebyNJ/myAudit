@@ -99,6 +99,9 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 		return true, nil
 	}
 	findings := parseFindings(r.Summary)
+	if len(findings) == 0 && strings.TrimSpace(r.Summary) != "" {
+		d.Log.Log(ctx, event(c, "qa.unparsed", "no findings array in the agent reply — raw output kept in notes"))
+	}
 	filed := 0
 	opts := d.Store.RunOptsFor(ctx, c.RunID)
 	for _, f := range findings {

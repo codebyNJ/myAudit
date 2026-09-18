@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
 
+### Fixed
+
+- QA findings are no longer dropped when the agent writes a sentence containing a bracket before its findings array; an unparsed reply is now logged
+- Editing severity, priority and tags at the same time no longer loses whichever change landed first
+- A truncated agent stream reports the read error instead of "no result from claude stream"
+
 ## [0.1.0] - 2026-01-01
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.

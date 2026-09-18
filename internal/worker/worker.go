@@ -229,15 +229,33 @@ type finding struct {
 	Detail     string `json:"detail"`
 }
 
-var jsonArrayRe = regexp.MustCompile(`(?s)\[.*\]`)
+// extractJSONArray returns the last well-formed JSON array in s. The agent is
+// told its final message must be only the findings array, but prose often
+// precedes it — and a greedy first-"[" to last-"]" match then spans that prose,
+// parses as nothing, and drops every finding for the module without a word.
+func extractJSONArray(s string) []byte {
+	end := strings.LastIndexByte(s, ']')
+	if end < 0 {
+		return nil
+	}
+	for start := end; start >= 0; start-- {
+		if s[start] != '[' {
+			continue
+		}
+		if candidate := s[start : end+1]; json.Valid([]byte(candidate)) {
+			return []byte(candidate)
+		}
+	}
+	return nil
+}
 
 func parseFindings(s string) []finding {
-	m := jsonArrayRe.FindString(s)
-	if m == "" {
+	m := extractJSONArray(s)
+	if m == nil {
 		return nil
 	}
 	var fs []finding
-	if json.Unmarshal([]byte(m), &fs) != nil {
+	if json.Unmarshal(m, &fs) != nil {
 		return nil
 	}
 	out := fs[:0]

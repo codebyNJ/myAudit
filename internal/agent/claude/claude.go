@@ -216,9 +216,16 @@ func runStreaming(cmd *exec.Cmd, onStep func(string)) (agent.Result, error) {
 			haveFinal = true
 		}
 	}
+	// A line past the 8MB buffer ends the scan early; without this the failure
+	// is reported as "no result from claude stream", which sends you looking in
+	// the wrong place.
+	scanErr := sc.Err()
 	waitErr := cmd.Wait()
 	if !haveFinal {
 		msg := strings.TrimSpace(stderr.String())
+		if msg == "" && scanErr != nil {
+			msg = "reading stream: " + scanErr.Error()
+		}
 		if msg == "" && waitErr != nil {
 			msg = waitErr.Error()
 		}
