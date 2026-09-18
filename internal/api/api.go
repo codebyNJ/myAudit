@@ -290,8 +290,14 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		if b.Status == "rejected" {
-			if abs, _, perr := resolveWorkspacePath(id, b.Path); perr == nil {
-				os.Remove(abs)
+
+			clean := filepath.Clean(b.Path)
+			if !strings.HasPrefix(clean, "..") && !filepath.IsAbs(clean) {
+				ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
+				if err := ws.RevertFromBaseline(r.Context(), clean); err != nil {
+					http.Error(w, "revert "+clean+": "+err.Error(), 500)
+					return
+				}
 			}
 		}
 		events.New(s.DB()).Log(r.Context(), events.Event{RunID: id, Kind: "review." + b.Status, Msg: b.Path})

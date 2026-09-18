@@ -34,10 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `DELETE /api/runs/{id}/file?path=.` no longer deletes the entire run workspace
-- Workspace file endpoints refuse paths that leave the run directory through a symlink
-- Node endpoints (`PATCH`, `enqueue`, `tags`) now verify the node belongs to the run in the URL
-- Only bug tickets can be re-queued; re-queuing an import no longer re-copies the source repo over existing fixes
+- Rejecting a file review no longer deletes the file — a modified file is restored to its imported contents, and only agent-created files are removed
+- Push PR now returns your repository to the branch you had checked out, and aborts a failed `git am` instead of leaving the clone mid-apply
+- Import fails loudly on unreadable files instead of silently auditing a partial copy
 
 ## [0.1.0] - 2026-01-01
 
