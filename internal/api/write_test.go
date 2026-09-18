@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/codebyNJ/myAudit/internal/store"
 )
 
 func TestCreateRunImportsRepo(t *testing.T) {
@@ -87,4 +89,50 @@ func TestResolveCheckpointEndpoint(t *testing.T) {
 	if n.Status != "ready" {
 		t.Fatalf("node should be requeued to ready, got %s", n.Status)
 	}
+}
+
+func TestPatchNodeStatusInReviewToDone(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "acme")
+	bid, err := s.CreateBug(ctx, run, store.Bug{
+		Title: "Leaky handler", File: "api.go:10", Severity: "medium", Priority: "P1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetNodeStatus(ctx, bid, "in_review"); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(NewMux(s, nil))
+	defer srv.Close()
+
+	patchJSON(t, srv.URL+"/api/runs/"+run.String()+"/nodes/"+bid.String(),
+		`{"status":"done"}`, 200)
+
+	resp, err := http.Get(srv.URL + "/api/runs/" + run.String() + "/board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("board: want 200 got %d", resp.StatusCode)
+	}
+	var cards []struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cards); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cards {
+		if c.ID == bid.String() {
+			if c.Status != "done" {
+				t.Fatalf("want done, got %s", c.Status)
+			}
+			return
+		}
+	}
+	t.Fatal("bug card not found on board")
 }
