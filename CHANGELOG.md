@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
 
+### Fixed
+
+- Bug-fix tickets in the same audit no longer run concurrently against one shared git workspace, so a fix commit can no longer contain another ticket's edits
+- Budget cap keeps holding after the first pause: tickets filed by an in-flight QA node are parked instead of being promoted and billed
+- A dev server that dies on startup is reported immediately instead of after the 90s boot timeout
+- Two audits starting a preview at the same time are no longer handed the same port
+- Concurrent QA findings are appended to the run notes atomically instead of overwriting each other
+
 ## [0.1.0] - 2026-01-01
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.

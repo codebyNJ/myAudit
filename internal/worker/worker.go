@@ -15,7 +15,6 @@ import (
 	"github.com/codebyNJ/myAudit/internal/queue"
 	"github.com/codebyNJ/myAudit/internal/sandbox"
 	"github.com/codebyNJ/myAudit/internal/store"
-	"github.com/google/uuid"
 )
 
 type Agent interface {
@@ -30,13 +29,6 @@ type Deps struct {
 	WorkspaceRoot string
 	MaxRepairs    int
 	MaxConcurrent int
-}
-
-var notesLocks sync.Map // runID -> *sync.Mutex
-
-func notesLock(runID uuid.UUID) *sync.Mutex {
-	v, _ := notesLocks.LoadOrStore(runID.String(), &sync.Mutex{})
-	return v.(*sync.Mutex)
 }
 
 type nodeOutput struct {

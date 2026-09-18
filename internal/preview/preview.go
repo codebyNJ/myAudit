@@ -32,6 +32,7 @@ type Server struct {
 	Cmd        *exec.Cmd
 	HTTPServer *http.Server
 	Log        string
+	port       int
 }
 
 // startWait lets concurrent Start(runID) callers for the same run share one
@@ -53,11 +54,40 @@ type Manager struct {
 	live     map[string]*Server
 	starting map[string]*startWait
 	crashes  map[string]crashInfo
+	reserved map[int]bool
 	root     string
 }
 
 func New(workspaceRoot string) *Manager {
-	return &Manager{live: map[string]*Server{}, starting: map[string]*startWait{}, crashes: map[string]crashInfo{}, root: workspaceRoot}
+	return &Manager{live: map[string]*Server{}, starting: map[string]*startWait{}, crashes: map[string]crashInfo{}, reserved: map[int]bool{}, root: workspaceRoot}
+}
+
+// reservePort hands out a port no other in-flight start is using. Probing with
+// a listener alone is not enough: the listener must be closed before the child
+// can bind it, so two runs booting at the same moment both probed the same
+// free port and the second dev server failed to bind.
+func (m *Manager) reservePort() (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for p := portLow; p <= portHigh; p++ {
+		if m.reserved[p] {
+			continue
+		}
+		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
+		if err != nil {
+			continue
+		}
+		l.Close()
+		m.reserved[p] = true
+		return p, nil
+	}
+	return 0, fmt.Errorf("no free port in %d-%d", portLow, portHigh)
+}
+
+func (m *Manager) releasePort(p int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.reserved, p)
 }
 
 // launcherFor resolves the Launcher for a run's directory. It is a variable
@@ -114,17 +144,6 @@ func nodeLauncher(dir string) (Launcher, bool) {
 	return Launcher{}, false
 }
 
-func freePort() (int, error) {
-	for p := portLow; p <= portHigh; p++ {
-		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
-		if err == nil {
-			l.Close()
-			return p, nil
-		}
-	}
-	return 0, fmt.Errorf("no free port in %d-%d", portLow, portHigh)
-}
-
 func reachable(port int) bool {
 	c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 300*time.Millisecond)
 	if err != nil {
@@ -173,19 +192,31 @@ func (m *Manager) start(runID string) (*Server, error) {
 	m.mu.Unlock()
 
 	dir := filepath.Join(m.root, runID)
-	port, err := freePort()
+	port, err := m.reservePort()
 	if err != nil {
 		return nil, err
+	}
+	released := false
+	releaseUnlessLive := func() {
+		if !released {
+			released = true
+			m.releasePort(port)
+		}
 	}
 	launcherForMu.Lock()
 	pick := launcherFor
 	launcherForMu.Unlock()
 	l, ok := pick(dir)
 	if !ok {
+		releaseUnlessLive()
 		return nil, fmt.Errorf("no dev server detected for this project")
 	}
 	if l.Static {
-		return m.startStatic(runID, dir, port)
+		s, err := m.startStatic(runID, dir, port)
+		if err != nil {
+			releaseUnlessLive()
+		}
+		return s, err
 	}
 
 	logPath := filepath.Join(dir, ".myaudit", "preview.log")
@@ -208,6 +239,7 @@ func (m *Manager) start(runID string) (*Server, error) {
 		if lf != nil {
 			lf.Close()
 		}
+		releaseUnlessLive()
 		return nil, err
 	}
 	// The child has its own handle to the log file once started; close ours
@@ -217,23 +249,34 @@ func (m *Manager) start(runID string) (*Server, error) {
 		lf.Close()
 	}
 
+	// Wait must be called exactly once, so the boot loop and watch() share this
+	// channel. Polling c.ProcessState here instead never reported an exit:
+	// ProcessState stays nil until Wait returns, so a dev server that died on
+	// startup burned the whole bootTimeout before failing with the wrong error.
+	exited := make(chan error, 1)
+	go func() { exited <- c.Wait() }()
+
 	deadline := time.Now().Add(bootTimeout)
 	for time.Now().Before(deadline) {
 		if reachable(port) {
-			s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), Cmd: c, Log: logPath}
+			s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), Cmd: c, Log: logPath, port: port}
 			m.mu.Lock()
 			m.live[runID] = s
 			m.mu.Unlock()
+			released = true // the live server owns the port until Stop
 			writeLive(dir, s.URL)
-			go m.watch(runID, s)
+			go m.watch(runID, s, exited)
 			return s, nil
 		}
-		if c.ProcessState != nil && c.ProcessState.Exited() {
-			return nil, fmt.Errorf("dev server exited during startup (see .myaudit/preview.log)")
+		select {
+		case err := <-exited:
+			releaseUnlessLive()
+			return nil, fmt.Errorf("dev server exited during startup (%v) — see .myaudit/preview.log", err)
+		case <-time.After(250 * time.Millisecond):
 		}
-		time.Sleep(250 * time.Millisecond)
 	}
 	_ = proc.KillTree(c)
+	releaseUnlessLive()
 	return nil, fmt.Errorf("dev server did not answer on port %d within %s", port, bootTimeout)
 }
 
@@ -246,7 +289,7 @@ func (m *Manager) startStatic(runID, dir string, port int) (*Server, error) {
 	srv := &http.Server{Addr: addr, Handler: http.FileServer(http.Dir(dir))}
 	go func() { _ = srv.Serve(ln) }()
 
-	s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), HTTPServer: srv}
+	s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), HTTPServer: srv, port: port}
 	m.mu.Lock()
 	m.live[runID] = s
 	m.mu.Unlock()
@@ -258,14 +301,15 @@ func (m *Manager) startStatic(runID, dir string, port int) (*Server, error) {
 // removed it, records the exit as a crash. Comparing m.live[runID] == s (not
 // just presence) means a Stop or a newer boot racing this exit is not
 // mistaken for a crash.
-func (m *Manager) watch(runID string, s *Server) {
-	err := s.Cmd.Wait()
+func (m *Manager) watch(runID string, s *Server, exited <-chan error) {
+	err := <-exited
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.live[runID] != s {
 		return
 	}
 	delete(m.live, runID)
+	delete(m.reserved, s.port)
 	reason := "dev server exited"
 	if err != nil {
 		reason = err.Error()
@@ -298,6 +342,7 @@ func (m *Manager) Stop(runID string) {
 	} else {
 		_ = proc.KillTree(s.Cmd)
 	}
+	m.releasePort(s.port)
 	clearLive(filepath.Join(m.root, runID))
 }
 
