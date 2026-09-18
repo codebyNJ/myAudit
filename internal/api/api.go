@@ -290,9 +290,9 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		if b.Status == "rejected" {
-
-			clean := filepath.Clean(b.Path)
-			if !strings.HasPrefix(clean, "..") && !filepath.IsAbs(clean) {
+			// Must go through resolveWorkspacePath: "." reaches the run root, and
+			// reverting that discards every fix in the workspace at once.
+			if _, clean, perr := resolveWorkspacePath(id, b.Path); perr == nil {
 				ws := sandbox.Workspace{Dir: filepath.Join("runs", id.String())}
 				if err := ws.RevertFromBaseline(r.Context(), clean); err != nil {
 					http.Error(w, "revert "+clean+": "+err.Error(), 500)

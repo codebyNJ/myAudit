@@ -180,3 +180,36 @@ func TestEnqueueOnlyAcceptsBugTickets(t *testing.T) {
 		t.Fatalf("enqueue bug ticket: want 202, got %d", code)
 	}
 }
+
+// Rejecting a review reverts a path from the import baseline. Without the
+// shared path guard, "." reaches the run root and is handed straight to
+// RevertFromBaseline — which on a real workspace runs `git checkout <baseline>
+// -- .` and discards every agent change to a tracked file, not just the one
+// being rejected. A merge resolution dropped that guard once; this test is here
+// so it cannot happen quietly again.
+func TestReviewRejectCannotRevertWholeWorkspace(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+	root := workspace(t, run)
+
+	fix := filepath.Join(root, "fixed.go")
+	if err := os.WriteFile(fix, []byte("package main // the agent's fix"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(NewMux(s, nil))
+	defer srv.Close()
+
+	for _, p := range []string{".", "..", "/etc/passwd"} {
+		body := `{"path":"` + p + `","status":"rejected"}`
+		// The review status itself is still recorded; only the revert is skipped.
+		if code := do(t, "POST", srv.URL+"/api/runs/"+run.String()+"/review", body); code != 200 {
+			t.Fatalf("review path=%q: want 200, got %d", p, code)
+		}
+		if _, err := os.Stat(fix); err != nil {
+			t.Fatalf("rejecting path=%q wiped workspace content: %v", p, err)
+		}
+	}
+}
