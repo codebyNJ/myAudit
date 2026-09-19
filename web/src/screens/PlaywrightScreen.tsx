@@ -3,27 +3,32 @@ import {
   ShieldCheck, AlertTriangle, Cpu, Terminal, Layers, CheckCircle2, XCircle, Clock, ArrowUpRight,
   Sparkles, RefreshCw, Eye
 } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api, type NodeCard } from '../api'
 import { evColor, fmtTime } from '../components/util'
 import { Flows } from '../components/Flows'
 import { AgentScreen } from '../components/AgentScreen'
 
 export function PlaywrightScreen() {
-  const s = useStore()
+  const runId = useAppStore((st) => st.runId)
+  const detail = useAppStore((st) => st.detail)
+  const runs = useAppStore((st) => st.runs)
+  const setTab = useAppStore((st) => st.setTab)
+  const openCard = useAppStore((st) => st.openCard)
+  const refresh = useAppStore((st) => st.refresh)
   const [cards, setCards] = useState<NodeCard[] | null>(null)
   const [actFilter, setActFilter] = useState('all')
 
   useEffect(() => {
-    if (!s.runId) { setCards(null); return }
+    if (!runId) { setCards(null); return }
     let alive = true
-    const load = () => api.board(s.runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
+    const load = () => api.board(runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
     load()
     const h = setInterval(load, 2000)
     return () => { alive = false; clearInterval(h) }
-  }, [s.runId])
+  }, [runId])
 
-  if (!s.runId) {
+  if (!runId) {
     return (
       <div className="empty-mid">
         <ShieldCheck size={40} strokeWidth={1.5} color="var(--text-muted)" />
@@ -45,8 +50,8 @@ export function PlaywrightScreen() {
   const qa = cards.filter((c) => c.type === 'qa')
   const bugs = cards.filter((c) => c.type === 'bug')
   const findingsFor = (mod?: string) => bugs.filter((b) => b.tags.includes('module:' + mod)).length
-  const previews = (s.detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path))
-  const events = s.detail?.events || []
+  const previews = (detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path))
+  const events = detail?.events || []
 
   const sev = { high: 0, medium: 0, low: 0 }
   for (const b of bugs) {
@@ -55,9 +60,9 @@ export function PlaywrightScreen() {
 
   const verified = bugs.filter((b) => b.status === 'done').length
   const needsReview = bugs.filter((b) => b.status === 'in_review').length
-  const runStatus = s.detail?.run?.status || 'idle'
-  const cost = s.detail?.cost_usd || 0
-  const curProject = (s.runs || []).find((r) => r.id === s.runId)?.project || 'Project'
+  const runStatus = detail?.run?.status || 'idle'
+  const cost = detail?.cost_usd || 0
+  const curProject = (runs || []).find((r) => r.id === runId)?.project || 'Project'
   const pctVerified = bugs.length > 0 ? Math.round((verified / bugs.length) * 100) : 100
 
   const filteredEvents = events.filter((e) => {
@@ -95,13 +100,13 @@ export function PlaywrightScreen() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn-sm" onClick={() => s.setTab('kanban')}>
+            <button className="btn-sm" onClick={() => setTab('kanban')}>
               View Board <ArrowUpRight size={13} />
             </button>
-            <button className="btn-sm" onClick={() => s.setTab('notes')}>
+            <button className="btn-sm" onClick={() => setTab('notes')}>
               <Eye size={13} /> Notes &amp; Report
             </button>
-            <button className="btn-sm primary" onClick={s.refresh}>
+            <button className="btn-sm primary" onClick={refresh}>
               <RefreshCw size={13} /> Sync
             </button>
           </div>
@@ -198,7 +203,7 @@ export function PlaywrightScreen() {
                     <div
                       key={m.id}
                       className="vercel-row interactive"
-                      onClick={() => s.openCard(m.id)}
+                      onClick={() => openCard(m.id)}
                       title="Inspect module card"
                     >
                       {isDone ? (
@@ -255,7 +260,7 @@ export function PlaywrightScreen() {
                     <div
                       key={b.id}
                       className="vercel-row interactive"
-                      onClick={() => s.openCard(b.id)}
+                      onClick={() => openCard(b.id)}
                       title="Inspect fix ticket"
                     >
                       {isDone ? (
@@ -299,7 +304,7 @@ export function PlaywrightScreen() {
             <div style={{ padding: 18, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
               {previews.map((f) => (
                 <div key={f.path} style={{ border: '1px solid var(--border-dim)', borderRadius: 10, overflow: 'hidden', background: '#070709' }}>
-                  <img src={api.rawUrl(s.runId!, f.path)} alt={f.path} style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }} />
+                  <img src={api.rawUrl(runId!, f.path)} alt={f.path} style={{ width: '100%', height: 180, objectFit: 'cover', display: 'block' }} />
                   <div style={{ padding: '8px 12px', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-dim)' }}>
                     {f.path.split('/').pop()}
                   </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, Search, Plus, X, FileText } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api } from '../api'
 import { Markdown } from '../components/Markdown'
 
@@ -67,7 +67,8 @@ const CAT_STYLE: Record<string, { color: string; bg: string; label: string }> = 
 }
 
 export function NotesScreen() {
-  const s = useStore()
+  const runId = useAppStore((st) => st.runId)
+  const toast = useAppStore((st) => st.toast)
   const [notes, setNotes] = useState<NoteItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCat, setFilterCat] = useState('all')
@@ -76,15 +77,15 @@ export function NotesScreen() {
   const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!s.runId) return
+    if (!runId) return
     setLoading(true)
-    api.getNotes(s.runId)
+    api.getNotes(runId)
       .then((r) => setNotes(parseMarkdownToNotes(r.content || '')))
-      .catch(() => s.toast('error', 'Failed to load report notes'))
+      .catch(() => toast('error', 'Failed to load report notes'))
       .finally(() => setLoading(false))
-  }, [s.runId])
+  }, [runId])
 
-  if (!s.runId) {
+  if (!runId) {
     return (
       <div className="empty-mid">
         <FileText size={40} strokeWidth={1.5} color="var(--text-muted)" />
@@ -118,13 +119,13 @@ export function NotesScreen() {
   }
 
   const saveAll = async () => {
-    if (!s.runId) return
+    if (!runId) return
     setSaving(true)
     try {
-      await api.putNotes(s.runId, serializeNotesToMarkdown(notes))
-      s.toast('success', 'Report saved')
+      await api.putNotes(runId, serializeNotesToMarkdown(notes))
+      toast('success', 'Report saved')
     } catch (e) {
-      s.toast('error', 'Save failed', (e as Error).message)
+      toast('error', 'Save failed', (e as Error).message)
     } finally { setSaving(false) }
   }
 
@@ -159,8 +160,8 @@ export function NotesScreen() {
           </div>
           <button className="btn-sm" onClick={createNewNote}><Plus size={13} /> Note</button>
           <button className="btn-sm" disabled={saving} onClick={saveAll}>{saving ? 'Saving…' : 'Save'}</button>
-          <a className="btn-sm" href={api.reportUrl(s.runId)} download="report.md"><Download size={12} /> .md</a>
-          <a className="btn-sm" href={api.findingsUrl(s.runId)} download="findings.json"><Download size={12} /> .json</a>
+          <a className="btn-sm" href={api.reportUrl(runId)} download="report.md"><Download size={12} /> .md</a>
+          <a className="btn-sm" href={api.findingsUrl(runId)} download="findings.json"><Download size={12} /> .json</a>
         </div>
       </div>
 

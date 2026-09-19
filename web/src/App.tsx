@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties } from 'react'
-import { StoreProvider, useStore, type Tab } from './store'
+import { StoreProvider, type Tab } from './store'
+import { useAppStore } from './store/slices'
 import { Header } from './components/Header'
 import { Explorer } from './components/Explorer'
 import { Toasts } from './components/Toasts'
@@ -27,7 +28,7 @@ const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
 ]
 
 function Screens() {
-  const { tab } = useStore()
+  const tab = useAppStore((st) => st.tab)
   return (
     <>
       {SCREENS.map((s) => (
@@ -40,7 +41,11 @@ function Screens() {
 }
 
 function Shell() {
-  const s = useStore()
+  const tab = useAppStore((st) => st.tab)
+  const explorerOpen = useAppStore((st) => st.explorerOpen)
+  const explorerW = useAppStore((st) => st.explorerW)
+  const setExplorerW = useAppStore((st) => st.setExplorerW)
+  const toggleExplorer = useAppStore((st) => st.toggleExplorer)
   const bodyRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -48,23 +53,23 @@ function Shell() {
     e.preventDefault()
     const left = bodyRef.current?.getBoundingClientRect().left ?? 0
     setDragging(true)
-    const onMove = (ev: MouseEvent) => s.setExplorerW(ev.clientX - left)
+    const onMove = (ev: MouseEvent) => setExplorerW(ev.clientX - left)
     const onUp = () => { setDragging(false); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
 
-  const showExplorer = s.tab === 'dev'
-  const collapsed = !s.explorerOpen
+  const showExplorer = tab === 'dev'
+  const collapsed = !explorerOpen
   return (
     <div className="app">
       <Header />
       <div ref={bodyRef} className={`body ${!showExplorer ? 'locked' : collapsed ? 'collapsed' : ''} ${dragging ? 'resizing' : ''}`}
-        style={{ '--exW': s.explorerW + 'px' } as CSSProperties}>
+        style={{ '--exW': explorerW + 'px' } as CSSProperties}>
         {showExplorer && <Explorer />}
         <main>
           {showExplorer && !collapsed && <div className={`resizer ${dragging ? 'drag' : ''}`} onMouseDown={startDrag} title="Drag to resize" />}
-          {showExplorer && collapsed && <button className="reopen" title="Show Explorer" onClick={s.toggleExplorer}><IcPanelLeft /></button>}
+          {showExplorer && collapsed && <button className="reopen" title="Show Explorer" onClick={toggleExplorer}><IcPanelLeft /></button>}
           <Screens />
         </main>
       </div>
@@ -74,11 +79,11 @@ function Shell() {
 }
 
 function NewProject() {
-  const s = useStore()
+  const setNewOpen = useAppStore((st) => st.setNewOpen)
   return (
     <div className="app">
       <header className="mini-head">
-        <button className="btn-sm" onClick={() => s.setNewOpen(false)}>← Audits</button>
+        <button className="btn-sm" onClick={() => setNewOpen(false)}>← Audits</button>
         <div className="logo"><AgentAvatar size={20} radius={5} /></div>
       </header>
       <main><div className="screen on"><ConfigScreen /></div></main>
@@ -87,8 +92,9 @@ function NewProject() {
 }
 
 function AppInner() {
-  const s = useStore()
-  if (!s.runId) return s.newOpen ? <NewProject /> : <HomeScreen />
+  const runId = useAppStore((st) => st.runId)
+  const newOpen = useAppStore((st) => st.newOpen)
+  if (!runId) return newOpen ? <NewProject /> : <HomeScreen />
   return <Shell />
 }
 

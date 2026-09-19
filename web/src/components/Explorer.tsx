@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, Folder, FolderOpen, FilePlus, Trash2, PenLine } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
+import type { FileEntry } from '../api'
 import { api } from '../api'
 import { IcFile, IcSearch, IcPanelLeft } from './icons'
 
 type TNode = { name: string; path: string; dir: boolean; children: TNode[] }
+
+const NO_FILES: FileEntry[] = []
 
 function buildTree(paths: string[]): TNode[] {
   const root: TNode = { name: '', path: '', dir: true, children: [] }
@@ -55,10 +58,13 @@ function TreeRows({ nodes, depth, collapsed, toggle, onMenu, changed }: {
 function FileRow({ name, path, depth, chg, onMenu }: {
   name: string; path: string; depth: number; chg: boolean; onMenu: (e: React.MouseEvent, n: TNode) => void
 }) {
-  const s = useStore()
+  const file = useAppStore((st) => st.file)
+  const tab = useAppStore((st) => st.tab)
+  const setFile = useAppStore((st) => st.setFile)
+  const setTab = useAppStore((st) => st.setTab)
   return (
-    <div className={`row file ${path === s.file ? 'on' : ''} ${chg ? 'chg' : ''}`} style={{ paddingLeft: 6 + depth * 12 + 15 }}
-      onClick={() => { s.setFile(path); if (s.tab !== 'dev') s.setTab('dev') }}
+    <div className={`row file ${path === file ? 'on' : ''} ${chg ? 'chg' : ''}`} style={{ paddingLeft: 6 + depth * 12 + 15 }}
+      onClick={() => { setFile(path); if (tab !== 'dev') setTab('dev') }}
       onContextMenu={(e) => onMenu(e, { name: path, path, dir: false, children: [] })}>
       <IcFile stroke={chg ? GREEN : 'currentColor'} />
       <span style={chg ? { color: GREEN } : undefined}>{name}</span>
@@ -68,13 +74,20 @@ function FileRow({ name, path, depth, chg, onMenu }: {
 }
 
 export function Explorer() {
-  const s = useStore()
+  const detail = useAppStore((st) => st.detail)
+  const runId = useAppStore((st) => st.runId)
+  const file = useAppStore((st) => st.file)
+  const setFile = useAppStore((st) => st.setFile)
+  const closeFile = useAppStore((st) => st.closeFile)
+  const toggleExplorer = useAppStore((st) => st.toggleExplorer)
+  const reloadDetail = useAppStore((st) => st.reloadDetail)
+  const toast = useAppStore((st) => st.toast)
   const [q, setQ] = useState('')
   const [changedOnly, setChangedOnly] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [menu, setMenu] = useState<Menu | null>(null)
   const [ask, setAsk] = useState<Ask | null>(null)
-  const files = s.visibleFiles
+  const files = detail?.files ?? NO_FILES
   const toggle = (p: string) => setCollapsed((c) => { const n = new Set(c); n.has(p) ? n.delete(p) : n.add(p); return n })
   const key = files.map((f) => (f.changed ? '*' : '') + f.path).join(',')
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [key])
@@ -89,22 +102,22 @@ export function Explorer() {
   const openMenu = (e: React.MouseEvent, n: TNode) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, path: n.path, dir: n.dir }) }
 
   const run = async (fn: () => Promise<void>, okMsg: string) => {
-    if (!s.runId) return
-    try { await fn(); s.reloadDetail(); s.toast('success', okMsg) }
-    catch (e) { s.toast('error', 'Operation failed', (e as Error).message) }
+    if (!runId) return
+    try { await fn(); reloadDetail(); toast('success', okMsg) }
+    catch (e) { toast('error', 'Operation failed', (e as Error).message) }
   }
-  const newFile = () => setAsk({ title: 'New file (path)', value: '', onOk: (v) => run(() => api.newFile(s.runId!, v), 'Created ' + v) })
-  const newIn = (dir: string) => setAsk({ title: 'New file in ' + dir, value: dir + '/', onOk: (v) => run(() => api.newFile(s.runId!, v), 'Created ' + v) })
-  const rename = (from: string) => setAsk({ title: 'Rename', value: from, onOk: (v) => run(() => api.renameFile(s.runId!, from, v).then(() => { if (s.file === from) s.setFile(v) }), 'Renamed') })
-  const del = (path: string) => run(() => api.deleteFile(s.runId!, path).then(() => s.closeFile(path)), 'Deleted ' + path)
+  const newFile = () => setAsk({ title: 'New file (path)', value: '', onOk: (v) => run(() => api.newFile(runId!, v), 'Created ' + v) })
+  const newIn = (dir: string) => setAsk({ title: 'New file in ' + dir, value: dir + '/', onOk: (v) => run(() => api.newFile(runId!, v), 'Created ' + v) })
+  const rename = (from: string) => setAsk({ title: 'Rename', value: from, onOk: (v) => run(() => api.renameFile(runId!, from, v).then(() => { if (file === from) setFile(v) }), 'Renamed') })
+  const del = (path: string) => run(() => api.deleteFile(runId!, path).then(() => closeFile(path)), 'Deleted ' + path)
 
   return (
     <aside onClick={() => menu && setMenu(null)}>
       <div className="aside-h">
         <span>Explorer</span>
         <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {s.runId && <span className="collapse" title="New file" onClick={newFile}><FilePlus size={14} /></span>}
-          <span className="collapse" title="Collapse" onClick={s.toggleExplorer}><IcPanelLeft /></span>
+          {runId && <span className="collapse" title="New file" onClick={newFile}><FilePlus size={14} /></span>}
+          <span className="collapse" title="Collapse" onClick={toggleExplorer}><IcPanelLeft /></span>
         </span>
       </div>
 
@@ -120,7 +133,7 @@ export function Explorer() {
       )}
 
       <div className="tree">
-        {!s.runId ? <div className="tree-empty">No project selected</div>
+        {!runId ? <div className="tree-empty">No project selected</div>
           : !files.length ? <div className="tree-empty">Importing…</div>
           : changedOnly
               ? files.filter((f) => changed.has(f.path)).map((f) => (
