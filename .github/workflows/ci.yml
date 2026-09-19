@@ -37,7 +37,7 @@ jobs:
 
       - name: Test web
         working-directory: web
-        run: npm test
+        run: npm run test:coverage
 
       - name: Typecheck & build web
         working-directory: web
@@ -67,7 +67,10 @@ jobs:
       - name: Test
         run: |
           # shellcheck disable=SC2046  # word splitting is the point: one arg per package
-          go test $(go list ./... | grep -v '/runs/') -count=1
+          go test $(go list ./... | grep -v '/runs/') -count=1 -coverprofile=coverage.out -covermode=atomic
+
+      - name: Go coverage floor
+        run: ./scripts/coverage-gate.sh coverage.out 50
 
       - name: govulncheck
         run: |

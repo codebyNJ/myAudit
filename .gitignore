@@ -34,6 +34,7 @@ docs/
 desktop/src-tauri/binaries/*
 !desktop/src-tauri/binaries/.gitkeep
 
-# coverage reports and browser-automation artifacts (generated)
+# coverage profiles, reports, and browser-automation artifacts (generated)
+coverage.out
 web/coverage/
 .playwright-mcp/
