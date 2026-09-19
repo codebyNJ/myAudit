@@ -3,7 +3,8 @@ import {
   X, Check, Copy, FileCode, ArrowLeft, ArrowRight, CheckCheck,
   WrapText, Map as MapIcon, Search,
 } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
+import type { FileEntry } from '../api'
 import { api } from '../api'
 import { Diff } from '../components/Diff'
 import { lazy, Suspense } from 'react'
@@ -64,10 +65,19 @@ function ChangedList({ files, onOpen }: { files: { path: string; review?: string
   )
 }
 
+const NO_FILES: FileEntry[] = []
+
 export function DevScreen() {
-  const s = useStore()
-  const files = s.visibleFiles
-  const sel = files.find((f) => f.path === s.file) || null
+  const detail = useAppStore((st) => st.detail)
+  const runId = useAppStore((st) => st.runId)
+  const file = useAppStore((st) => st.file)
+  const openFiles = useAppStore((st) => st.openFiles)
+  const setFile = useAppStore((st) => st.setFile)
+  const closeFile = useAppStore((st) => st.closeFile)
+  const reloadDetail = useAppStore((st) => st.reloadDetail)
+  const toast = useAppStore((st) => st.toast)
+  const files = detail?.files ?? NO_FILES
+  const sel = files.find((f) => f.path === file) || null
 
   const [content, setContent] = useState('')
   const [saved, setSaved] = useState('')
@@ -92,7 +102,7 @@ export function DevScreen() {
     if (!changedFiles.length) return
     const base = changedIdx < 0 ? (dir === 1 ? -1 : 0) : changedIdx
     const next = changedFiles[(base + dir + changedFiles.length) % changedFiles.length]
-    if (next) s.setFile(next.path)
+    if (next) setFile(next.path)
   }
 
   const seen = useRef<Set<string>>(new Set())
@@ -101,7 +111,7 @@ export function DevScreen() {
   const changedKey = files.filter((f) => f.changed).map((f) => f.path).join(',')
 
   useEffect(() => {
-    if (!s.runId) { seen.current = new Set(); changedSeen.current = new Set(); primed.current = false; return }
+    if (!runId) { seen.current = new Set(); changedSeen.current = new Set(); primed.current = false; return }
     if (!primed.current) {
       files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
       primed.current = true
@@ -110,17 +120,17 @@ export function DevScreen() {
     const freshChanged = files.filter((f) => f.changed && !changedSeen.current.has(f.path)).map((f) => f.path)
     const freshNew = files.filter((f) => !seen.current.has(f.path) && !f.path.startsWith('.myaudit/')).map((f) => f.path)
     files.forEach((f) => { seen.current.add(f.path); if (f.changed) changedSeen.current.add(f.path) })
-    if (freshChanged.length) s.setFile(freshChanged[freshChanged.length - 1])
-    else if (freshNew.length) s.setFile(freshNew[freshNew.length - 1])
+    if (freshChanged.length) setFile(freshChanged[freshChanged.length - 1])
+    else if (freshNew.length) setFile(freshNew[freshNew.length - 1])
   }, [files.map((f) => f.path).join(',') + '|' + changedKey])
 
 
   useEffect(() => {
     setShowDiff(false)
-    if (!sel || !s.runId) { setContent(''); setSaved(''); return }
+    if (!sel || !runId) { setContent(''); setSaved(''); return }
     const gen = ++loadGen.current
     setLoading(true)
-    api.fileContent(s.runId, sel.path)
+    api.fileContent(runId, sel.path)
       .then((r) => {
         if (loadGen.current !== gen) return
         setContent(r.content)
@@ -132,13 +142,13 @@ export function DevScreen() {
         setSaved('// Could not load file')
       })
       .finally(() => { if (loadGen.current === gen) setLoading(false) })
-  }, [sel?.path, s.runId])
+  }, [sel?.path, runId])
 
 
   useEffect(() => {
-    if (!sel || !s.runId || dirty) return
+    if (!sel || !runId || dirty) return
     let alive = true
-    api.fileContent(s.runId, sel.path)
+    api.fileContent(runId, sel.path)
       .then((r) => {
         if (!alive) return
         setContent((prev) => (prev === r.content ? prev : r.content))
@@ -146,39 +156,39 @@ export function DevScreen() {
       })
       .catch(() => {})
     return () => { alive = false }
-  }, [s.detail, sel?.path, s.runId, dirty])
+  }, [detail, sel?.path, runId, dirty])
 
   useEffect(() => {
-    if (!sel || !s.runId || !sel.changed) { setDiff(''); return }
+    if (!sel || !runId || !sel.changed) { setDiff(''); return }
     let alive = true
-    api.diff(s.runId, sel.path).then((r) => { if (alive) setDiff(r.diff) }).catch(() => {})
+    api.diff(runId, sel.path).then((r) => { if (alive) setDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [s.detail, sel?.path, s.runId, sel?.changed])
+  }, [detail, sel?.path, runId, sel?.changed])
 
   const saveEdit = async () => {
-    if (!sel || !s.runId || !dirty) return
+    if (!sel || !runId || !dirty) return
     setSaving(true)
     try {
-      await api.saveFile(s.runId, sel.path, content)
+      await api.saveFile(runId, sel.path, content)
       setSaved(content)
-      s.toast('success', 'Saved', sel.path)
-      s.reloadDetail()
-    } catch (e) { s.toast('error', 'Save failed', (e as Error).message) }
+      toast('success', 'Saved', sel.path)
+      reloadDetail()
+    } catch (e) { toast('error', 'Save failed', (e as Error).message) }
     finally { setSaving(false) }
   }
 
   const review = async (status: 'accepted' | 'rejected') => {
-    if (!sel || !s.runId) return
+    if (!sel || !runId) return
     if (dirty) {
-      s.toast('info', 'Save first', 'File has unsaved changes')
+      toast('info', 'Save first', 'File has unsaved changes')
       return
     }
     try {
-      await api.review(s.runId, sel.path, status)
-      s.toast(status === 'accepted' ? 'success' : 'info', status === 'accepted' ? 'File accepted' : 'File rejected', sel.path)
-      if (status === 'rejected') s.setFile('')
-      s.reloadDetail()
-    } catch (e) { s.toast('error', 'Review failed', (e as Error).message) }
+      await api.review(runId, sel.path, status)
+      toast(status === 'accepted' ? 'success' : 'info', status === 'accepted' ? 'File accepted' : 'File rejected', sel.path)
+      if (status === 'rejected') setFile('')
+      reloadDetail()
+    } catch (e) { toast('error', 'Review failed', (e as Error).message) }
   }
 
   const copyPath = () => {
@@ -190,7 +200,7 @@ export function DevScreen() {
 
   const copyCode = () => {
     navigator.clipboard?.writeText(content)
-    s.toast('info', 'Copied', sel?.path)
+    toast('info', 'Copied', sel?.path)
   }
 
   const breadcrumbParts = sel?.path ? sel.path.split('/') : []
@@ -209,18 +219,18 @@ export function DevScreen() {
 
   return (
     <div className="cursor-ide">
-      {s.openFiles.length > 0 && (
+      {openFiles.length > 0 && (
         <div className="cursor-tabs-bar">
-          {s.openFiles.map((p) => {
+          {openFiles.map((p) => {
             const entry = files.find((f) => f.path === p)
             const isChanged = entry?.changed
-            const isCurrent = p === s.file
+            const isCurrent = p === file
             const isDirty = isCurrent && dirty
             return (
               <div
                 key={p}
                 className={`cursor-tab ${isCurrent ? 'on' : ''}`}
-                onClick={() => s.setFile(p)}
+                onClick={() => setFile(p)}
                 title={p}
               >
                 <FileTypeBadge path={p} />
@@ -235,7 +245,7 @@ export function DevScreen() {
                   onClick={(e) => {
                     e.stopPropagation()
                     if (isCurrent && dirty && !confirm('Close without saving?')) return
-                    s.closeFile(p)
+                    closeFile(p)
                   }}
                 >
                   <X size={11} />
@@ -348,13 +358,13 @@ export function DevScreen() {
             </Suspense>
           )
         ) : changedFiles.length > 0 ? (
-          <ChangedList files={changedFiles} onOpen={(p) => s.setFile(p)} />
+          <ChangedList files={changedFiles} onOpen={(p) => setFile(p)} />
         ) : (
           <div className="empty-mid" style={{ position: 'static', paddingTop: 100 }}>
             <FileCode size={40} strokeWidth={1.5} color="var(--text-muted)" />
-            <h3>{s.runId ? 'Open a file to edit' : 'No audit workspace loaded'}</h3>
+            <h3>{runId ? 'Open a file to edit' : 'No audit workspace loaded'}</h3>
             <p>
-              {s.runId
+              {runId
                 ? 'Pick a file in the Explorer. Edit freely — ⌘S / Ctrl+S saves. ⌘F finds in the file.'
                 : 'Import a codebase to examine.'}
             </p>

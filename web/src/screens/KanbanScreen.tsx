@@ -4,7 +4,7 @@ import {
   GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
   ChevronUp, ChevronDown, FileSymlink, Link2,
 } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api, type NodeCard } from '../api'
 import type { PatchNodeBody } from '../schemas'
 import { STATUS_COLOR } from '../components/util'
@@ -98,7 +98,13 @@ function ageOf(n: NodeCard): string | null {
 }
 
 export function KanbanScreen() {
-  const s = useStore()
+  const runId = useAppStore((st) => st.runId)
+  const detail = useAppStore((st) => st.detail)
+  const focusCard = useAppStore((st) => st.focusCard)
+  const clearFocusCard = useAppStore((st) => st.clearFocusCard)
+  const setFile = useAppStore((st) => st.setFile)
+  const setTab = useAppStore((st) => st.setTab)
+  const toast = useAppStore((st) => st.toast)
   const [cards, setCards] = useState<NodeCard[] | null>(null)
   const [sel, setSel] = useState<NodeCard | null>(null)
   const [tagDraft, setTagDraft] = useState('')
@@ -139,12 +145,12 @@ export function KanbanScreen() {
 
   useEffect(() => {
     setFixDiff('')
-    if (!sel || !s.runId || sel.type !== 'bug' || !sel.file) return
+    if (!sel || !runId || sel.type !== 'bug' || !sel.file) return
     const path = sel.file.split(':')[0]
     let alive = true
-    api.diff(s.runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
+    api.diff(runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [sel?.id, sel?.file, s.runId, s.detail])
+  }, [sel?.id, sel?.file, runId, detail])
 
   const openedFromUrl = useRef(false)
   useEffect(() => {
@@ -154,21 +160,21 @@ export function KanbanScreen() {
   }, [cards])
 
   useEffect(() => {
-    if (!s.focusCard || !cards) return
-    const c = cards.find((x) => x.id === s.focusCard)
+    if (!focusCard || !cards) return
+    const c = cards.find((x) => x.id === focusCard)
     if (c) setSel(c)
-    s.clearFocusCard()
-  }, [s.focusCard, cards])
+    clearFocusCard()
+  }, [focusCard, cards])
 
   const openFile = (card: NodeCard) => {
     if (!card.file) return
-    s.setFile(card.file.split(':')[0])
-    s.setTab('dev')
+    setFile(card.file.split(':')[0])
+    setTab('dev')
     setSel(null)
   }
   const copyLink = (card: NodeCard) => {
     const url = `${location.origin}${location.pathname}?card=${card.id}${location.hash}`
-    navigator.clipboard?.writeText(url).then(() => s.toast('success', 'Link copied')).catch(() => {})
+    navigator.clipboard?.writeText(url).then(() => toast('success', 'Link copied')).catch(() => {})
   }
 
   const [dragId, setDragId] = useState<string | null>(null)
@@ -190,54 +196,54 @@ export function KanbanScreen() {
     clearDrag()
     if (!status || !card || card.type !== 'bug' || bucket(card.status) === col) return
     patch(card, { status })
-    s.toast('info', 'Moved', card.title || card.name)
+    toast('info', 'Moved', card.title || card.name)
   }
 
   const saveTags = async (card: NodeCard, tags: string[]) => {
-    if (!s.runId) return
+    if (!runId) return
     setSel({ ...card, tags })
-    try { await api.setNodeTags(s.runId, card.id, tags); api.board(s.runId).then(setCards) }
-    catch (e) { s.toast('error', 'Tagging failed', (e as Error).message) }
+    try { await api.setNodeTags(runId, card.id, tags); api.board(runId).then(setCards) }
+    catch (e) { toast('error', 'Tagging failed', (e as Error).message) }
   }
 
   const runFix = async (card: NodeCard) => {
-    if (!s.runId) return
+    if (!runId) return
     try {
-      await api.enqueue(s.runId, card.id)
-      s.toast('info', 'Fix re-queued', 'The dev loop will pick it up — watch the board.')
-      api.board(s.runId).then(setCards)
-    } catch (e) { s.toast('error', 'Could not queue', (e as Error).message) }
+      await api.enqueue(runId, card.id)
+      toast('info', 'Fix re-queued', 'The dev loop will pick it up — watch the board.')
+      api.board(runId).then(setCards)
+    } catch (e) { toast('error', 'Could not queue', (e as Error).message) }
   }
   const patch = async (card: NodeCard, p: PatchNodeBody) => {
-    if (!s.runId) return
+    if (!runId) return
     setSel({ ...card, ...p })
-    try { await api.patchNode(s.runId, card.id, p); api.board(s.runId).then(setCards) }
-    catch (e) { s.toast('error', 'Update failed', (e as Error).message) }
+    try { await api.patchNode(runId, card.id, p); api.board(runId).then(setCards) }
+    catch (e) { toast('error', 'Update failed', (e as Error).message) }
   }
-  const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); s.toast('info', 'Ticket dismissed'); setSel(null) }
+  const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); toast('info', 'Ticket dismissed'); setSel(null) }
   const restore = async (card: NodeCard) => patch(card, { status: 'open' })
   const canMarkDone = (c: NodeCard) => c.type === 'bug' && c.status === 'in_review'
   const markDone = async (card: NodeCard) => {
     await patch(card, { status: 'done' })
-    s.toast('success', 'Marked done', card.title || card.name)
+    toast('success', 'Marked done', card.title || card.name)
   }
 
   const canRefix = (c: NodeCard) => c.type === 'bug' && ['open', 'failed', 'in_review', 'done'].includes(c.status)
-  const hasGit = !!s.detail?.git?.has_git && !!s.detail?.git?.remote_url
+  const hasGit = !!detail?.git?.has_git && !!detail?.git?.remote_url
   const canPushPR = (c: NodeCard) =>
     c.type === 'bug' && hasGit && !!c.commit_sha && !c.pr_url &&
     ['done', 'in_review'].includes(c.status)
 
   const pushPR = async (card: NodeCard) => {
-    if (!s.runId || prBusy) return
+    if (!runId || prBusy) return
     setPrBusy(true)
     try {
-      const res = await api.pushPR(s.runId, card.id)
-      s.toast('success', 'PR created', res.pr_url)
+      const res = await api.pushPR(runId, card.id)
+      toast('success', 'PR created', res.pr_url)
       setSel({ ...card, pr_url: res.pr_url, pr_status: 'pushed' })
-      api.board(s.runId).then(setCards)
+      api.board(runId).then(setCards)
     } catch (e) {
-      s.toast('error', 'Push PR failed', (e as Error).message)
+      toast('error', 'Push PR failed', (e as Error).message)
     } finally {
       setPrBusy(false)
     }
@@ -246,21 +252,21 @@ export function KanbanScreen() {
   const previewsFor = (c: NodeCard) => {
     if (c.type !== 'qa') return []
     const mod = c.tags.find((t) => t.startsWith('module:'))?.slice(7)
-    return (s.detail?.files || []).filter((f) =>
+    return (detail?.files || []).filter((f) =>
       f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path) &&
       (!mod || f.path.includes(mod)))
   }
 
   useEffect(() => {
-    if (!s.runId) { setCards(null); return }
+    if (!runId) { setCards(null); return }
     let alive = true
-    const load = () => api.board(s.runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
+    const load = () => api.board(runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
     load()
     const h = setInterval(load, 2000)
     return () => { alive = false; clearInterval(h) }
-  }, [s.runId])
+  }, [runId])
 
-  if (!s.runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
+  if (!runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
   if (cards == null) return <div className="empty-mid"><div className="spin" /><p style={{ marginTop: 12 }}>Setting up your audit…</p></div>
 
   const ql = q.trim().toLowerCase()
@@ -345,7 +351,7 @@ export function KanbanScreen() {
   orderedRef.current = lanes.flatMap((ln) =>
     COLS.flatMap((c) => visible.filter((n) => laneOf(n) === ln && bucket(n.status) === c.key)))
 
-  const events = s.detail?.events || []
+  const events = detail?.events || []
   const latestStep = (nodeId: string): string => {
     for (let i = events.length - 1; i >= 0; i--) {
       const e = events[i]
@@ -399,8 +405,8 @@ export function KanbanScreen() {
           <button className={`btn-sm ${showDismissed ? 'primary' : ''}`} style={{ marginLeft: 'auto' }}
             onClick={() => setShowDismissed((v) => !v)}>{showDismissed ? 'Hide' : 'Show'} dismissed ({dismissedCount})</button>
         )}
-        {s.runId && (
-          <a className="btn-sm" href={api.patchUrl(s.runId)} download="fixes.patch" title="Download all code changes as a unified diff"
+        {runId && (
+          <a className="btn-sm" href={api.patchUrl(runId)} download="fixes.patch" title="Download all code changes as a unified diff"
             style={{ marginLeft: dismissedCount > 0 ? 0 : 'auto' }}>
             <Download size={12} /> Patch
           </a>
@@ -529,7 +535,7 @@ export function KanbanScreen() {
                   <div className="drawer-sec-h">QA preview</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {previewsFor(sel).map((f) => (
-                      <img key={f.path} src={api.rawUrl(s.runId!, f.path)} alt={f.path}
+                      <img key={f.path} src={api.rawUrl(runId!, f.path)} alt={f.path}
                         style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--border-dim)' }} />
                     ))}
                   </div>
@@ -567,7 +573,7 @@ export function KanbanScreen() {
                 </dl>
                 <div style={{ marginTop: 12 }}>
                   <div className="drawer-sec-h">Activity</div>
-                  {(s.detail?.events || []).filter((e) => e.node_id === sel.id).slice(-12).map((e, i) => (
+                  {(detail?.events || []).filter((e) => e.node_id === sel.id).slice(-12).map((e, i) => (
                     <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
                       <span style={{ color: 'var(--text-muted)' }}>{new Date(e.ts).toLocaleTimeString()}</span> {e.kind} {e.msg}
                     </div>
