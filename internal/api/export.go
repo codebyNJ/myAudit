@@ -26,20 +26,25 @@ func registerExport(mux *http.ServeMux, s *store.Store) {
 			return
 		}
 		type finding struct {
-			Title    string   `json:"title"`
-			File     string   `json:"file,omitempty"`
-			Severity string   `json:"severity"`
-			Priority string   `json:"priority"`
-			Status   string   `json:"status"`
-			Detail   string   `json:"detail,omitempty"`
-			Tags     []string `json:"tags"`
+			Title string `json:"title"`
+			File  string `json:"file,omitempty"`
+			// Class distinguishes a defect from a suggestion; without it a
+			// consumer of this file cannot tell a naming nit from an injection.
+			Class      string   `json:"class,omitempty"`
+			Severity   string   `json:"severity"`
+			Priority   string   `json:"priority"`
+			Confidence string   `json:"confidence,omitempty"`
+			Category   string   `json:"category,omitempty"`
+			Status     string   `json:"status"`
+			Detail     string   `json:"detail,omitempty"`
+			Tags       []string `json:"tags"`
 		}
 		out := []finding{}
 		for _, c := range cards {
 			if c.Type != "bug" {
 				continue
 			}
-			out = append(out, finding{c.Title, c.File, c.Severity, c.Priority, c.Status, c.Detail, c.Tags})
+			out = append(out, finding{c.Title, c.File, c.Class, c.Severity, c.Priority, c.Confidence, c.Category, c.Status, c.Detail, c.Tags})
 		}
 		w.Header().Set("content-type", "application/json")
 		w.Header().Set("content-disposition", `attachment; filename="findings.json"`)
@@ -106,10 +111,10 @@ func buildReport(run store.RunSummary, cards []store.NodeDetail, cost float64, n
 		len(bugs), counts["done"], counts["in_review"], counts["failed"], counts["open"], counts["dismissed"])
 
 	if len(bugs) > 0 {
-		b.WriteString("## Findings\n\n| Severity | Priority | Status | Title | File |\n|---|---|---|---|---|\n")
+		b.WriteString("## Findings\n\n| Class | Severity | Priority | Status | Title | File |\n|---|---|---|---|---|---|\n")
 		for _, f := range bugs {
-			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n",
-				dash(f.Severity), dash(f.Priority), dash(f.Status), mdCell(f.Title), mdCell(f.File))
+			fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s |\n",
+				dash(classOf(f)), dash(f.Severity), dash(f.Priority), dash(f.Status), mdCell(f.Title), mdCell(f.File))
 		}
 		b.WriteString("\n## Details\n\n")
 		for _, f := range bugs {
@@ -126,6 +131,15 @@ func buildReport(run store.RunSummary, cards []store.NodeDetail, cost float64, n
 		b.WriteString("## Notes log\n\n" + notes + "\n")
 	}
 	return b.String()
+}
+
+// classOf defaults to "bug" so findings filed before classification still read
+// correctly in a report rather than showing a blank column.
+func classOf(f store.NodeDetail) string {
+	if f.Class == "" {
+		return "bug"
+	}
+	return f.Class
 }
 
 func dash(s string) string {

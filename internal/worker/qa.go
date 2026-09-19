@@ -46,6 +46,9 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 		fmt.Fprintf(&b, "\n_%d module(s) skipped (10-module cap reached): %s_\n",
 			len(dropped), strings.Join(dropped, ", "))
 	}
+	if conv := readConventions(ws.Dir); conv != "" {
+		b.WriteString(conv)
+	}
 	_ = d.Store.PutNotes(ctx, c.RunID, b.String())
 
 	if _, err := d.Store.AddNodeFull(ctx, c.RunID, "flows", []uuid.UUID{c.ID},
@@ -106,16 +109,19 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	opts := d.Store.RunOptsFor(ctx, c.RunID)
 	for _, f := range findings {
 		sev := normSeverity(f.Severity)
+		class := normClass(f.Class)
+		tags := []string{"from:qa", "module:" + sp.Module, sev, "class:" + class, scopeTag(f.File, sp.Path)}
 		bug := store.Bug{
 			Title:      f.Title,
 			Name:       f.Title,
 			File:       f.File,
 			Severity:   sev,
-			Priority:   map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev],
+			Priority:   priorityFor(class, sev),
+			Class:      class,
 			Category:   f.Category,
-			Confidence: f.Confidence,
+			Confidence: normConfidence(f.Confidence),
 			Detail:     f.Detail,
-			Tags:       []string{"from:qa", "module:" + sp.Module, sev},
+			Tags:       tags,
 		}
 		var bid uuid.UUID
 		var err error
@@ -331,12 +337,104 @@ func looksNotRunnable(out string) bool {
 	return false
 }
 
+// normClass keeps the agent's own judgement of what it found. Anything
+// unrecognised is treated as a bug, so a model that ignores the field cannot
+// quietly downgrade a real defect into a note.
+func normClass(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "improvement":
+		return "improvement"
+	case "style":
+		return "style"
+	case "question":
+		return "question"
+	default:
+		return "bug"
+	}
+}
+
+func normConfidence(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "high", "medium", "low":
+		return strings.ToLower(strings.TrimSpace(s))
+	default:
+		return ""
+	}
+}
+
+// priorityFor stops a naming nit from arriving as a P0. Only defects get a
+// priority derived from severity; everything else is triage-later by
+// construction, whatever severity the agent claimed.
+func priorityFor(class, sev string) string {
+	if class != "bug" {
+		return "P2"
+	}
+	return map[string]string{"high": "P0", "medium": "P1", "low": "P2"}[sev]
+}
+
+// scopeTag records whether a finding is actually about the module that was
+// audited. Scope was previously enforced three ways with very different
+// strength — the filesystem cwd, a line in the prompt, and a cosmetic tag —
+// and a finding's file was never checked against any of them, so an agent that
+// wandered filed a ticket labelled with the wrong module and nothing noticed.
+// Findings outside the module are tagged, never dropped: cross-module problems
+// are real and the module boundary is ours, not the codebase's.
+func scopeTag(file, modulePath string) string {
+	if file == "" || modulePath == "" || modulePath == "." {
+		return "scope:in"
+	}
+	clean := strings.TrimPrefix(filepath.Clean(file), "./")
+	if clean == modulePath || strings.HasPrefix(clean, modulePath+"/") {
+		return "scope:in"
+	}
+	return "scope:adjacent"
+}
+
 func normSeverity(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "high" || s == "medium" || s == "low" {
 		return s
 	}
 	return "medium"
+}
+
+// conventionFiles are the places a repo states how it wants to be worked in.
+// Order matters: the agent-facing ones first, since they are written for
+// exactly this audience.
+var conventionFiles = []string{"AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", ".cursorrules"}
+
+const conventionBudget = 6000
+
+// readConventions pulls a repo's own stated conventions into the run notes.
+//
+// Nothing used to tell the agent how this codebase prefers to be written, so a
+// pattern used deliberately and consistently — an error-handling idiom, a
+// naming scheme, a file layout — came back as a finding. The notes blob is
+// already passed into every qa and fix prompt, so this needs no new plumbing:
+// putting the conventions there means every later node inherits them.
+func readConventions(root string) string {
+	var b strings.Builder
+	for _, name := range conventionFiles {
+		raw, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			continue
+		}
+		text := strings.TrimSpace(string(raw))
+		if text == "" {
+			continue
+		}
+		if len(text) > conventionBudget {
+			// These can be long. The opening section is where a repo states its
+			// rules; the rest is usually setup instructions.
+			text = text[:conventionBudget] + "\n\n_(truncated)_"
+		}
+		fmt.Fprintf(&b, "\n### %s\n\n%s\n", name, text)
+	}
+	if b.Len() == 0 {
+		return ""
+	}
+	return "\n## Repo conventions\n\nTreat these as intentional. A pattern the repo " +
+		"follows consistently is a convention, not a defect.\n" + b.String()
 }
 
 type module struct{ Name, Path string }
@@ -457,7 +555,8 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"3. Read the module's main flow (routes/handlers/exported functions) — list what it does "+
 			"before judging anything.\n"+
 			"4. Now look for defects, in this order: broken/incorrect logic → missing error handling → "+
-			"security issues → missing tests → style/best-practice gaps.\n"+
+			"security issues → missing tests. Report anything that is not a defect as an "+
+			"improvement or a style note, not as a bug (see `class` below).\n"+
 			"5. Stop actively exploring once you've covered 1–4 once. Do not keep re-reading files.\n"+
 			"6. write your findings now, even if incomplete — a partial finding list beats a truncated response.\n\n"+
 			"WHILE the product is up and reachable (if you start a server), write `.myaudit/live.json` as "+
@@ -465,15 +564,26 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			" so the operator can watch it live, and delete that file immediately after you kill the server. "+
 			"As you exercise the UI, save successive screenshots to `.myaudit/live/<step>.png` so the run is "+
 			"watchable frame by frame. "+
-			"Find real bugs, correctness issues, best-practice violations, AND important test cases that are "+
-			"missing for this module. You may write NEW test files to prove a bug, but do not fix the code. "+
+			"Find real bugs, correctness issues, AND important test cases that are missing for this "+
+			"module. You may write NEW test files to prove a bug, but do not fix the code. "+
 			"Put new tests in a dedicated folder (`tests/` at repo root, or `__tests__/` for JS/TS) — not "+
 			"alongside source files. "+
 			"If this module has a visible UI and you can render it, save a screenshot as evidence to "+
 			"`.myaudit/preview/%[1]s.png` (create the dir).\n\n"+
+			"JUDGEMENT. Two things separate a useful report from a noisy one:\n"+
+			"- Respect the module boundary. If a problem is real but lives outside `%[2]s`, still "+
+			"report it and give its true path — do not silently reattribute it to this module.\n"+
+			"- Treat a pattern the codebase uses consistently as intentional. If the repo always "+
+			"handles errors, names things, or lays out files a certain way, that is a convention, "+
+			"not a defect. Only flag it if it is actually causing harm, and say which convention it "+
+			"contradicts. Repo conventions, where they were found, are in the analysis above.\n\n"+
 			"When done, your FINAL message must be ONLY a JSON array (no prose, no fences) of findings, each:\n"+
-			`{"title":"<short one-line>","file":"<path:line>","severity":"high|medium|low","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
-			"\nReturn [] if the module is genuinely clean. Order by severity (high first). Max 8.",
+			`{"title":"<short one-line>","file":"<path:line>","class":"bug|improvement|style|question","severity":"high|medium|low","confidence":"high|medium|low","category":"<one word, e.g. security, correctness, performance, testing>","detail":"<the problem, why it matters, and exact steps to reproduce (commands/inputs) or the failing test output>"}`+
+			"\n\n`class` is what you found: `bug` = it is wrong and will misbehave; `improvement` = it "+
+			"works but could be better; `style` = cosmetic or convention; `question` = you are not sure "+
+			"and a human should look. `severity` is how much it matters IF real. `confidence` is how sure "+
+			"you are that it is real — a high-severity guess is `high`/`low`, not `high`/`high`.\n"+
+			"Return [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path)
 	return sb.String()
 }

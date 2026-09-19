@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Findings are classified as bug / improvement / style / question, and the board shows defects by default — a style note can no longer arrive as a P0
+- Findings outside the audited module are tagged rather than mislabelled, and the agent is shown the repo's own conventions (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`) so a consistent pattern is not reported as a defect
+- Exports (`findings.json`, `report.md`) carry class, confidence and category
 - [docs/state-management.md](docs/state-management.md) documents where frontend state lives and the rules for adding more
 - Polling is centralised and paused for screens you are not looking at: a board tab that made 43 requests every 20 seconds now makes 20, and the duplicated board poll is gone
 - Frontend state moved to Zustand; removed two store members that had no consumers and an unreachable tab from the routing type

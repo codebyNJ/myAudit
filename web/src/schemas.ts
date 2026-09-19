@@ -119,6 +119,7 @@ export const NodeCardSchema = z.object({
   file: z.string().optional(),
   severity: z.string().optional(),
   priority: z.string().optional(),
+  class: z.string().optional(),
   category: z.string().optional(),
   confidence: z.string().optional(),
   detail: z.string().optional(),

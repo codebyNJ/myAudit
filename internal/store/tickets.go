@@ -13,6 +13,7 @@ type Bug struct {
 	File       string   `json:"file"`
 	Severity   string   `json:"severity"`
 	Priority   string   `json:"priority"`
+	Class      string   `json:"class,omitempty"`
 	Category   string   `json:"category,omitempty"`
 	Confidence string   `json:"confidence,omitempty"`
 	Detail     string   `json:"detail"`
