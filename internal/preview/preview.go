@@ -271,7 +271,7 @@ func (m *Manager) start(runID string) (*Server, error) {
 		select {
 		case err := <-exited:
 			releaseUnlessLive()
-			return nil, fmt.Errorf("dev server exited during startup (%v) — see .myaudit/preview.log", err)
+			return nil, fmt.Errorf("dev server exited during startup: %w — see .myaudit/preview.log", err)
 		case <-time.After(250 * time.Millisecond):
 		}
 	}

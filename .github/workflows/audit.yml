@@ -1,0 +1,43 @@
+name: Dependency audit
+
+# Dependabot version-bump PRs were removed; Dependabot *security* updates cover
+# Go and npm, and govulncheck runs in CI. Nothing covered the Rust crate in
+# desktop/src-tauri, which ships inside every desktop release — this closes that
+# gap. Weekly rather than per-PR: a CVE appears on the advisory DB's schedule,
+# not on ours, and installing a Rust toolchain on every pull request would cost
+# minutes for a check that rarely changes answer between commits.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  pull_request:
+    paths:
+      - 'desktop/src-tauri/Cargo.lock'
+      - 'desktop/src-tauri/Cargo.toml'
+      - '.github/workflows/audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: cargo audit (desktop/src-tauri)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo-audit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}
+
+      - name: Install cargo-audit
+        run: command -v cargo-audit || cargo install cargo-audit --locked
+
+      - name: Audit
+        working-directory: desktop/src-tauri
+        run: cargo audit

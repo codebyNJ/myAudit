@@ -21,13 +21,21 @@ func TestNotesEndpoint(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/runs/"+run.String()+"/notes", bytes.NewBufferString(`{"content":"hello notes"}`))
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != 200 {
-		t.Fatalf("PUT notes failed: %v %v", err, resp.StatusCode)
+	if err != nil {
+		t.Fatalf("PUT notes failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("PUT notes failed: %v", resp.StatusCode)
 	}
 	var out struct {
 		Content string `json:"content"`
 	}
-	r2, _ := http.Get(srv.URL + "/api/runs/" + run.String() + "/notes")
+	r2, err := http.Get(srv.URL + "/api/runs/" + run.String() + "/notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Body.Close()
 	json.NewDecoder(r2.Body).Decode(&out)
 	if out.Content != "hello notes" {
 		t.Fatalf("notes roundtrip: %q", out.Content)
@@ -41,14 +49,22 @@ func TestSettingsEndpoint(t *testing.T) {
 	defer srv.Close()
 
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/settings", bytes.NewBufferString(`{"model_tier":"sonnet-5"}`))
-	resp, _ := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	var merged map[string]any
 	json.NewDecoder(resp.Body).Decode(&merged)
 	if merged["model_tier"] != "sonnet-5" {
 		t.Fatalf("settings merge: %+v", merged)
 	}
 
-	r2, _ := http.Get(srv.URL + "/api/settings")
+	r2, err := http.Get(srv.URL + "/api/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Body.Close()
 	var got map[string]any
 	json.NewDecoder(r2.Body).Decode(&got)
 	if got["model_tier"] != "sonnet-5" {

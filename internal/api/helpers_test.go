@@ -26,6 +26,7 @@ func postJSON(t *testing.T, url, body string, want int) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != want {
 		t.Fatalf("POST %s: want %d got %d", url, want, resp.StatusCode)
 	}
@@ -39,6 +40,7 @@ func patchJSON(t *testing.T, url, body string, want int) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != want {
 		t.Fatalf("PATCH %s: want %d got %d", url, want, resp.StatusCode)
 	}
@@ -51,6 +53,7 @@ func putJSON(t *testing.T, url, body string, want int) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != want {
 		t.Fatalf("PUT %s: want %d got %d", url, want, resp.StatusCode)
 	}

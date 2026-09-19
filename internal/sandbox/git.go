@@ -54,14 +54,7 @@ func ProbeRepo(ctx context.Context, path string) GitInfo {
 func gitAt(ctx context.Context, dir string, args ...string) (string, int, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	b, err := cmd.CombinedOutput()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return string(b), ee.ExitCode(), nil
-		}
-		return string(b), -1, err
-	}
-	return string(b), 0, nil
+	return RunOutput(cmd)
 }
 
 // HeadSHA returns the current commit in the workspace.

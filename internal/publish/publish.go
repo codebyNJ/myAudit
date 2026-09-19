@@ -179,14 +179,7 @@ func gitAm(ctx context.Context, dir, patch string) (string, int, error) {
 	cmd := exec.CommandContext(ctx, "git", "am")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(patch)
-	b, err := cmd.CombinedOutput()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return string(b), ee.ExitCode(), nil
-		}
-		return string(b), -1, err
-	}
-	return string(b), 0, nil
+	return sandbox.RunOutput(cmd)
 }
 
 func ghCreate(ctx context.Context, dir, title, body, head, base string) (string, int, error) {
@@ -194,14 +187,7 @@ func ghCreate(ctx context.Context, dir, title, body, head, base string) (string,
 		"--head", head, "--base", base, "--title", title, "--body", body)
 	cmd.Dir = dir
 	cmd.Env = os.Environ()
-	b, err := cmd.CombinedOutput()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			return string(b), ee.ExitCode(), nil
-		}
-		return string(b), -1, err
-	}
-	return strings.TrimSpace(string(b)), 0, nil
+	return sandbox.RunOutput(cmd) // caller trims; see prURL below
 }
 
 func shortID(id uuid.UUID) string {

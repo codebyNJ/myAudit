@@ -24,6 +24,7 @@ func TestListRunsEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	defer resp.Body.Close()
 	var runs []store.RunSummary
 	json.NewDecoder(resp.Body).Decode(&runs)
 	if len(runs) != 1 || runs[0].Project != "acme-saas" {
@@ -47,6 +48,7 @@ func TestRunDetailEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
+	defer resp.Body.Close()
 	var d RunDetail
 	json.NewDecoder(resp.Body).Decode(&d)
 	if len(d.Nodes) != 1 || d.Nodes[0].Type != "implement" {
@@ -68,7 +70,11 @@ func TestRunDetailIncludesCheckpoints(t *testing.T) {
 
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
-	resp, _ := http.Get(srv.URL + "/api/runs/" + run.String())
+	resp, err := http.Get(srv.URL + "/api/runs/" + run.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	var d RunDetail
 	json.NewDecoder(resp.Body).Decode(&d)
 	if len(d.Checkpoints) != 1 || d.Checkpoints[0].Question != "Google-only?" {
@@ -81,7 +87,11 @@ func TestRunDetailBadID(t *testing.T) {
 	defer s.Close()
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
-	resp, _ := http.Get(srv.URL + "/api/runs/not-a-uuid")
+	resp, err := http.Get(srv.URL + "/api/runs/not-a-uuid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
 		t.Fatalf("bad id should 400, got %d", resp.StatusCode)
 	}

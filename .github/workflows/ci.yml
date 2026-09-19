@@ -48,6 +48,11 @@ jobs:
           rm -rf internal/api/web/dist
           cp -r web/dist internal/api/web/dist
 
+      # release.yml sat unparseable on main for five days because nothing
+      # checked it; actionlint reproduces GitHub's own error in under a second.
+      - name: Lint workflows
+        run: go tool actionlint
+
       - name: Check Go formatting
         run: test -z "$(gofmt -l .)"
 
@@ -60,10 +65,14 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test $(go list ./... | grep -v '/runs/') -count=1
+        run: |
+          # shellcheck disable=SC2046  # word splitting is the point: one arg per package
+          go test $(go list ./... | grep -v '/runs/') -count=1
 
       - name: govulncheck
-        run: go tool govulncheck $(go list ./... | grep -v '/runs/')
+        run: |
+          # shellcheck disable=SC2046  # ditto
+          go tool govulncheck $(go list ./... | grep -v '/runs/')
 
       - name: Build server
         run: go build ./cmd/serve

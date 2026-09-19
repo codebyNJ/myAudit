@@ -28,6 +28,7 @@ func TestCreateRunImportsRepo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 201 {
 		t.Fatalf("want 201, got %d", resp.StatusCode)
 	}
@@ -49,7 +50,11 @@ func TestCreateRunRequiresRepoPath(t *testing.T) {
 	defer s.Close()
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
-	resp, _ := http.Post(srv.URL+"/api/runs", "application/json", bytes.NewBufferString(`{}`))
+	resp, err := http.Post(srv.URL+"/api/runs", "application/json", bytes.NewBufferString(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
 		t.Fatalf("missing repo_path should 400, got %d", resp.StatusCode)
 	}
@@ -60,7 +65,11 @@ func TestCreateRunRejectsMissingDir(t *testing.T) {
 	defer s.Close()
 	srv := httptest.NewServer(NewMux(s, nil))
 	defer srv.Close()
-	resp, _ := http.Post(srv.URL+"/api/runs", "application/json", bytes.NewBufferString(`{"repo_path":"/no/such/dir/xyz"}`))
+	resp, err := http.Post(srv.URL+"/api/runs", "application/json", bytes.NewBufferString(`{"repo_path":"/no/such/dir/xyz"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 400 {
 		t.Fatalf("nonexistent dir should 400, got %d", resp.StatusCode)
 	}
@@ -82,6 +91,7 @@ func TestResolveCheckpointEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("want 200, got %d", resp.StatusCode)
 	}
@@ -116,6 +126,7 @@ func TestPatchNodeStatusInReviewToDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("board: want 200 got %d", resp.StatusCode)
 	}

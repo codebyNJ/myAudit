@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,18 +37,28 @@ func Import(ctx context.Context, root, runID, src string) (Workspace, error) {
 	return Workspace{Dir: dir}, nil
 }
 
-func (w Workspace) Run(ctx context.Context, name string, args ...string) (out string, code int, err error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Dir = w.Dir
-	cmd.Stdin = nil
+// RunOutput runs cmd and reports its combined output and exit code. A command
+// that runs and exits non-zero comes back as (output, code, nil) — the caller
+// decides whether that is a failure; only an inability to run at all returns a
+// non-nil error. errors.As rather than a bare type assertion, so a wrapped
+// ExitError is still recognised.
+func RunOutput(cmd *exec.Cmd) (string, int, error) {
 	b, err := cmd.CombinedOutput()
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
 			return string(b), ee.ExitCode(), nil
 		}
 		return string(b), -1, err
 	}
 	return string(b), 0, nil
+}
+
+func (w Workspace) Run(ctx context.Context, name string, args ...string) (out string, code int, err error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = w.Dir
+	cmd.Stdin = nil
+	return RunOutput(cmd)
 }
 
 func (w Workspace) Diff(ctx context.Context) (string, error) {
@@ -151,7 +162,7 @@ func ensureGitBaseline(ctx context.Context, dir string) error {
 	}
 	for _, args := range steps {
 		if out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput(); err != nil {
-			return fmt.Errorf("git %v: %v: %s", args, err, out)
+			return fmt.Errorf("git %v: %w: %s", args, err, out)
 		}
 	}
 	return nil
