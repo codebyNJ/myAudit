@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api } from '../api'
 
 type Provider = 'claude' | 'opencode'
@@ -23,7 +23,7 @@ function normalizeOpenCodeModel(m: string | undefined) {
 }
 
 export function SettingsScreen() {
-  const s = useStore()
+  const toast = useAppStore((s) => s.toast)
   const [provider, setProvider] = useState<Provider>('claude')
   const [tier, setTier] = useState('haiku-4.5')
   const [opencodeModel, setOpencodeModel] = useState(defaultOpenCodeModel)
@@ -46,9 +46,9 @@ export function SettingsScreen() {
         model_tier: tier,
         opencode_model: opencodeModel,
       })
-      s.toast('success', 'Settings saved')
+      toast('success', 'Settings saved')
     } catch (e) {
-      s.toast('error', 'Save failed', (e as Error).message)
+      toast('error', 'Save failed', (e as Error).message)
     } finally {
       setSaving(false)
     }

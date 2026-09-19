@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, Radio, Camera, MonitorPlay, ExternalLink, RotateCw, Terminal, AlertTriangle } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api, type LiveView } from '../api'
 import { viewportWidth, withPath, type ViewportSize } from './util'
 import { openExternal } from '../tauri'
@@ -90,7 +90,7 @@ function ServerLog({ runId }: { runId: string }) {
 }
 
 export function AgentScreen() {
-  const s = useStore()
+  const runId = useAppStore((s) => s.runId)
   const [view, setView] = useState<LiveView | null>(null)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'preview' | 'log'>('preview')
@@ -99,15 +99,15 @@ export function AgentScreen() {
   const [restarting, setRestarting] = useState(false)
 
   useEffect(() => {
-    if (!s.runId) { setView(null); return }
+    if (!runId) { setView(null); return }
     let alive = true
-    const load = () => api.live(s.runId!).then((v) => { if (alive) setView(v) }).catch(() => {})
+    const load = () => api.live(runId!).then((v) => { if (alive) setView(v) }).catch(() => {})
     load()
     const h = setInterval(load, 2500)
     return () => { alive = false; clearInterval(h) }
-  }, [s.runId])
+  }, [runId])
 
-  useEffect(() => { setPath('') }, [s.runId, view?.url])
+  useEffect(() => { setPath('') }, [runId, view?.url])
 
   useEffect(() => {
     if (!open) return
@@ -116,12 +116,12 @@ export function AgentScreen() {
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
 
-  if (!s.runId || !view) return null
+  if (!runId || !view) return null
 
   const restart = async () => {
-    if (!s.runId || restarting) return
+    if (!runId || restarting) return
     setRestarting(true)
-    try { await api.previewRestart(s.runId) } catch { /* next poll surfaces the outcome */ }
+    try { await api.previewRestart(runId) } catch { /* next poll surfaces the outcome */ }
     setTimeout(() => setRestarting(false), 2000)
   }
 
@@ -150,7 +150,7 @@ export function AgentScreen() {
       </div>
 
       <div className="as-stage" onClick={() => setOpen(true)} title="Open viewer">
-        <Surface view={view} runId={s.runId} expanded={false} viewport="desktop" onRestart={restart} />
+        <Surface view={view} runId={runId} expanded={false} viewport="desktop" onRestart={restart} />
         <div className="as-hover"><span className="btn-sm primary as-openpill"><Maximize2 size={13} /> Open</span></div>
       </div>
 
@@ -211,8 +211,8 @@ export function AgentScreen() {
 
             <div className="as-viewport">
               {tab === 'preview'
-                ? <Surface view={displayUrl ? { ...view, url: displayUrl } : view} runId={s.runId} expanded viewport={viewport} onRestart={restart} />
-                : <ServerLog runId={s.runId} />}
+                ? <Surface view={displayUrl ? { ...view, url: displayUrl } : view} runId={runId} expanded viewport={viewport} onRestart={restart} />
+                : <ServerLog runId={runId} />}
             </div>
           </div>
         </div>,
