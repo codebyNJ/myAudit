@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Search, FolderGit2, CheckCircle2, Loader2, ArrowUpRight, Sparkles } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api } from '../api'
 import { AgentAvatar } from '../components/icons'
 import { HealthBanner } from '../components/HealthBanner'
@@ -19,8 +19,12 @@ function relTime(ts: string) {
 }
 
 export function HomeScreen() {
-  const s = useStore()
-  const runs = s.runs || []
+  const runs_ = useAppStore((s) => s.runs)
+  const createRun = useAppStore((s) => s.createRun)
+  const setNewOpen = useAppStore((s) => s.setNewOpen)
+  const setRun = useAppStore((s) => s.setRun)
+  const toast = useAppStore((s) => s.toast)
+  const runs = runs_ || []
   const [q, setQ] = useState('')
   const [demoBusy, setDemoBusy] = useState(false)
 
@@ -35,9 +39,9 @@ export function HomeScreen() {
     setDemoBusy(true)
     try {
       const { path } = await api.demoPath()
-      await s.createRun({ repo_path: path, project: 'demo', audit_only: true, budget_usd: 3 })
+      await createRun({ repo_path: path, project: 'demo', audit_only: true, budget_usd: 3 })
     } catch (e) {
-      s.toast('error', 'Demo failed', (e as Error).message)
+      toast('error', 'Demo failed', (e as Error).message)
     } finally {
       setDemoBusy(false)
     }
@@ -58,7 +62,7 @@ export function HomeScreen() {
             <button className="btn-sm" disabled={demoBusy} onClick={tryDemo}>
               <Sparkles size={14} /> {demoBusy ? 'Starting…' : 'Try demo'}
             </button>
-            <button className="btn-sm primary home-cta" onClick={() => s.setNewOpen(true)}>
+            <button className="btn-sm primary home-cta" onClick={() => setNewOpen(true)}>
               <Plus size={14} /> Import codebase
             </button>
           </div>
@@ -94,12 +98,12 @@ export function HomeScreen() {
         </div>
 
         <div className="home-grid">
-          <button className="proj-card new" onClick={() => s.setNewOpen(true)}>
+          <button className="proj-card new" onClick={() => setNewOpen(true)}>
             <Plus size={18} />
             <span>Import codebase</span>
           </button>
           {visible.map((r) => (
-            <button key={r.id} className="proj-card" onClick={() => s.setRun(r.id)}>
+            <button key={r.id} className="proj-card" onClick={() => setRun(r.id)}>
               <div className="proj-top">
                 <div className="proj-name">{r.project}</div>
                 <ArrowUpRight size={14} className="proj-go" />
@@ -115,7 +119,7 @@ export function HomeScreen() {
           ))}
         </div>
 
-        {s.runs && !runs.length && (
+        {runs_ && !runs.length && (
           <div className="home-empty">
             <FolderGit2 size={30} strokeWidth={1.5} />
             <h3>No audits yet</h3>
@@ -125,7 +129,7 @@ export function HomeScreen() {
             </button>
           </div>
         )}
-        {s.runs && runs.length > 0 && !visible.length && (
+        {runs_ && runs.length > 0 && !visible.length && (
           <div className="home-empty"><p>No audit matches “{q}”.</p></div>
         )}
       </div>

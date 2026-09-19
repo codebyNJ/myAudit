@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Database, GitBranch, AlertTriangle, Play, RefreshCw } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api, type FlowsResp, type FlowStep, type DataFlow, type ProductFlow } from '../api'
 
 const KIND_COLOR: Record<string, string> = {
@@ -12,12 +12,13 @@ const KIND_BG: Record<string, string> = {
 }
 
 function Pipeline({ steps }: { steps?: FlowStep[] }) {
-  const s = useStore()
+  const setFile = useAppStore((s) => s.setFile)
+  const setTab = useAppStore((s) => s.setTab)
   if (!steps?.length) return null
   const open = (file?: string) => {
     if (!file) return
-    s.setFile(file.split(':')[0])
-    s.setTab('dev')
+    setFile(file.split(':')[0])
+    setTab('dev')
   }
   return (
     <div className="flow-pipe">
@@ -95,27 +96,28 @@ function FlowSection({
 }
 
 export function Flows() {
-  const s = useStore()
+  const runId = useAppStore((s) => s.runId)
+  const toast = useAppStore((s) => s.toast)
   const [r, setR] = useState<FlowsResp | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (!s.runId) { setR(null); return }
+    if (!runId) { setR(null); return }
     let alive = true
-    const load = () => api.flows(s.runId!).then((x) => { if (alive) setR(x) }).catch(() => {})
+    const load = () => api.flows(runId!).then((x) => { if (alive) setR(x) }).catch(() => {})
     load()
     const h = setInterval(load, 4000)
     return () => { alive = false; clearInterval(h) }
-  }, [s.runId])
+  }, [runId])
 
   const start = async () => {
-    if (!s.runId) return
+    if (!runId) return
     setBusy(true)
     try {
-      await api.runFlows(s.runId)
-      s.toast('info', 'Identifying flows', 'The agent is mapping data and product flows.')
+      await api.runFlows(runId)
+      toast('info', 'Identifying flows', 'The agent is mapping data and product flows.')
     } catch (e) {
-      s.toast('error', 'Could not start', (e as Error).message)
+      toast('error', 'Could not start', (e as Error).message)
     } finally { setBusy(false) }
   }
 

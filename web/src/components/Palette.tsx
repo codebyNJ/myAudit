@@ -1,18 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
+import type { FileEntry } from '../api'
 import { api, type SearchHit } from '../api'
 
 type Mode = 'files' | 'text'
 
+const NO_FILES: FileEntry[] = []
+
 export function Palette() {
-  const s = useStore()
+  const runId = useAppStore((s) => s.runId)
+  // Select `detail` and derive, rather than `s.detail?.files ?? []`: that
+  // selector allocates a new array whenever detail is null, zustand compares
+  // with Object.is, and the store re-renders forever (React error #185).
+  const detail = useAppStore((s) => s.detail)
+  const visibleFiles = detail?.files ?? NO_FILES
+  const setFile = useAppStore((s) => s.setFile)
+  const setTab = useAppStore((s) => s.setTab)
   const [mode, setMode] = useState<Mode | null>(null)
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const [hits, setHits] = useState<SearchHit[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
-  const runIdRef = useRef(s.runId)
-  runIdRef.current = s.runId
+  const runIdRef = useRef(runId)
+  runIdRef.current = runId
 
   const open = (m: Mode) => { if (!runIdRef.current) return; setMode(m); setQ(''); setHits([]); setSel(0); setTimeout(() => inputRef.current?.focus(), 0) }
 
@@ -29,25 +39,25 @@ export function Palette() {
 
   const fileMatches = useMemo(() => {
     if (mode !== 'files') return []
-    const paths = s.visibleFiles.map((f) => f.path)
+    const paths = visibleFiles.map((f) => f.path)
     if (!q) return paths.slice(0, 50)
     const ql = q.toLowerCase()
     return paths.filter((p) => fuzzy(p.toLowerCase(), ql)).slice(0, 50)
-  }, [mode, q, s.visibleFiles])
+  }, [mode, q, visibleFiles])
 
   useEffect(() => {
-    if (mode !== 'text' || q.trim().length < 2 || !s.runId) { setHits([]); return }
-    const t = setTimeout(() => { api.search(s.runId!, q).then(setHits).catch(() => setHits([])) }, 200)
+    if (mode !== 'text' || q.trim().length < 2 || !runId) { setHits([]); return }
+    const t = setTimeout(() => { api.search(runId!, q).then(setHits).catch(() => setHits([])) }, 200)
     return () => clearTimeout(t)
-  }, [mode, q, s.runId])
+  }, [mode, q, runId])
 
   useEffect(() => setSel(0), [q, mode])
   if (!mode) return null
 
   const rows = mode === 'files' ? fileMatches.length : hits.length
   const choose = (i: number) => {
-    if (mode === 'files') { const p = fileMatches[i]; if (p) { s.setFile(p); s.setTab('dev') } }
-    else { const h = hits[i]; if (h) { s.setFile(h.path); s.setTab('dev') } }
+    if (mode === 'files') { const p = fileMatches[i]; if (p) { setFile(p); setTab('dev') } }
+    else { const h = hits[i]; if (h) { setFile(h.path); setTab('dev') } }
     setMode(null)
   }
   const onKey = (e: React.KeyboardEvent) => {

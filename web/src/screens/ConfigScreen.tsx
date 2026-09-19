@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { FolderGit2, Sparkles, FolderSearch, Shield, Wallet } from 'lucide-react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { isDesktopApp, pickFolder } from '../tauri'
 
 export function ConfigScreen() {
-  const s = useStore()
+  const createRun = useAppStore((s) => s.createRun)
+  const setNewOpen = useAppStore((s) => s.setNewOpen)
+  const toast = useAppStore((s) => s.toast)
   const [repo, setRepo] = useState('')
   const [name, setName] = useState('')
   const [auditOnly, setAuditOnly] = useState(false)
@@ -16,7 +18,7 @@ export function ConfigScreen() {
     try {
       const picked = await pickFolder()
       if (picked) setRepo(picked)
-    } catch (e) { s.toast('error', 'Folder picker failed', (e as Error).message) }
+    } catch (e) { toast('error', 'Folder picker failed', (e as Error).message) }
   }
 
   const path = repo.trim()
@@ -26,10 +28,10 @@ export function ConfigScreen() {
   const budgetUSD = budget !== '' && !Number.isNaN(budgetNum) && budgetNum > 0 ? budgetNum : undefined
 
   const start = async () => {
-    if (!path) { s.toast('error', 'Repo path required'); return }
-    if (!isAbs) { s.toast('error', 'Path must be absolute', 'e.g. /Users/you/project'); return }
+    if (!path) { toast('error', 'Repo path required'); return }
+    if (!isAbs) { toast('error', 'Path must be absolute', 'e.g. /Users/you/project'); return }
     setBusy(true)
-    await s.createRun({
+    await createRun({
       repo_path: path,
       project: name.trim() || undefined,
       audit_only: auditOnly || undefined,
@@ -98,7 +100,7 @@ export function ConfigScreen() {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
-          <button className="btn-sm" style={{ padding: '10px 20px' }} disabled={busy} onClick={() => s.setNewOpen(false)}>Cancel</button>
+          <button className="btn-sm" style={{ padding: '10px 20px' }} disabled={busy} onClick={() => setNewOpen(false)}>Cancel</button>
           <button className="btn-sm primary" style={{ padding: '10px 20px' }} disabled={busy || !!pathError || !path} onClick={start}>{busy ? 'Starting…' : 'Start audit →'}</button>
         </div>
       </div>
