@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   ShieldCheck, AlertTriangle, Cpu, Terminal, Layers, CheckCircle2, XCircle, Clock, ArrowUpRight,
   Sparkles, RefreshCw, Eye
 } from 'lucide-react'
 import { useAppStore } from '../store/slices'
-import { api, type NodeCard } from '../api'
+import { api } from '../api'
 import { evColor, fmtTime } from '../components/util'
 import { Flows } from '../components/Flows'
 import { AgentScreen } from '../components/AgentScreen'
@@ -16,17 +16,11 @@ export function PlaywrightScreen() {
   const setTab = useAppStore((st) => st.setTab)
   const openCard = useAppStore((st) => st.openCard)
   const refresh = useAppStore((st) => st.refresh)
-  const [cards, setCards] = useState<NodeCard[] | null>(null)
+  // Was a second, identical 2s api.board poll — now the store's single one.
+  const cards = useAppStore((st) => st.board)
   const [actFilter, setActFilter] = useState('all')
 
-  useEffect(() => {
-    if (!runId) { setCards(null); return }
-    let alive = true
-    const load = () => api.board(runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
-    load()
-    const h = setInterval(load, 2000)
-    return () => { alive = false; clearInterval(h) }
-  }, [runId])
+
 
   if (!runId) {
     return (

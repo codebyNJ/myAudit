@@ -1,27 +1,10 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { api, type FileEntry } from './api'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { api } from './api'
 import { parseHash, shouldRetryPreview, useAppStore, type State, type Tab, type Toast } from './store/slices'
+import { usePoll } from './usePoll'
 
 export type { Tab, Toast }
 export { shouldRetryPreview, parseHash } from './store/slices'
-
-/**
- * Compatibility adapter over the Zustand store.
- *
- * Every consumer still calls `useStore()` and gets the same object it always
- * did, so this change touches no screen. Components move onto selectors in
- * #49, one batch at a time, and this adapter is deleted in #51.
- *
- * Note what the adapter does NOT fix: it subscribes to the whole store, so a
- * component using it still re-renders on any change. That is deliberate — the
- * win arrives with selectors, and doing both at once would make the diff
- * unreviewable.
- */
-export function useStore() {
-  const s = useAppStore()
-  const visibleFiles: FileEntry[] = s.detail?.files ?? []
-  return useMemo(() => ({ ...s, visibleFiles }), [s, visibleFiles])
-}
 
 /**
  * Owns the effects that used to live in the provider body: initial load, the
@@ -33,6 +16,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const detail = useAppStore((s: State) => s.detail)
   const loadRuns = useAppStore((s: State) => s.loadRuns)
   const loadDetail = useAppStore((s: State) => s.loadDetail)
+  const loadBoard = useAppStore((s: State) => s.loadBoard)
 
   useEffect(() => {
     void loadRuns()
@@ -42,13 +26,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (runId) void loadDetail(runId)
   }, [runId, loadDetail])
 
-  // The run-detail poll. #50 moves this behind a shared usePoll and gates it
-  // on the active tab.
-  useEffect(() => {
-    if (!runId) return
-    const h = setInterval(() => void loadDetail(runId), 2000)
-    return () => clearInterval(h)
-  }, [runId, loadDetail])
+  // Run detail and the board are needed by whichever screen is showing, so
+  // these two poll whenever a run is open rather than per-tab. The per-screen
+  // polls (live, preview log, flows) are gated on their own tab.
+  usePoll(() => { if (runId) void loadDetail(runId) }, 2000, !!runId)
+  usePoll(() => { if (runId) void loadBoard(runId) }, 2000, !!runId)
 
   useEffect(() => {
     const want = runId ? `#/run/${runId}/${tab}` : '#/'

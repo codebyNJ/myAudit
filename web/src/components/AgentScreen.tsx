@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Maximize2, Minimize2, Radio, Camera, MonitorPlay, ExternalLink, RotateCw, Terminal, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../store/slices'
+import { usePoll } from '../usePoll'
 import { api, type LiveView } from '../api'
 import { viewportWidth, withPath, type ViewportSize } from './util'
 import { openExternal } from '../tauri'
@@ -78,19 +79,16 @@ function Surface({ view, runId, expanded, viewport, onRestart }: {
 function ServerLog({ runId }: { runId: string }) {
   const [log, setLog] = useState('')
 
-  useEffect(() => {
-    let alive = true
-    const load = () => api.previewLog(runId).then((v) => { if (alive) setLog(v) }).catch(() => {})
-    load()
-    const h = setInterval(load, 3000)
-    return () => { alive = false; clearInterval(h) }
-  }, [runId])
+  // Only mounted while the log tab of the preview modal is open, so it needs
+  // no extra gate.
+  usePoll(() => { void api.previewLog(runId).then(setLog).catch(() => {}) }, 3000)
 
   return <pre className="as-log">{log || 'No server log yet.'}</pre>
 }
 
 export function AgentScreen() {
   const runId = useAppStore((s) => s.runId)
+  const activeTab = useAppStore((s) => s.tab)
   const [view, setView] = useState<LiveView | null>(null)
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'preview' | 'log'>('preview')
@@ -98,14 +96,14 @@ export function AgentScreen() {
   const [path, setPath] = useState('')
   const [restarting, setRestarting] = useState(false)
 
-  useEffect(() => {
-    if (!runId) { setView(null); return }
-    let alive = true
-    const load = () => api.live(runId!).then((v) => { if (alive) setView(v) }).catch(() => {})
-    load()
-    const h = setInterval(load, 2500)
-    return () => { alive = false; clearInterval(h) }
-  }, [runId])
+  // Gated on the Overview tab: this component stays mounted when you switch
+  // away (App renders every screen and hides the inactive ones), so `view`
+  // survives and there is no blank frame on return — only the polling stops.
+  usePoll(
+    () => { if (runId) void api.live(runId).then(setView).catch(() => {}) },
+    2500,
+    !!runId && activeTab === 'playwright',
+  )
 
   useEffect(() => { setPath('') }, [runId, view?.url])
 

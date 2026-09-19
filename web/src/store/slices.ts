@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, type CreateRunBody, type Run, type RunDetail } from '../api'
+import { api, type CreateRunBody, type NodeCard, type Run, type RunDetail } from '../api'
 
 export type Tab = 'dev' | 'playwright' | 'kanban' | 'notes' | 'settings'
 export type Toast = { id: number; type: 'success' | 'error' | 'info'; title: string; msg?: string }
@@ -42,6 +42,8 @@ export type State = {
   runs: Run[] | null
   runId: string | null
   detail: RunDetail | null
+  /** Board cards. Kanban and Overview both render these; one poll feeds both. */
+  board: NodeCard[] | null
 
   // ---- ui
   tab: Tab
@@ -71,6 +73,7 @@ export type State = {
 
   loadRuns: () => Promise<void>
   loadDetail: (id: string) => Promise<void>
+  loadBoard: (id: string) => Promise<void>
   reloadDetail: () => void
   refresh: () => void
   createRun: (b: CreateRunBody) => Promise<boolean>
@@ -86,6 +89,7 @@ export const useAppStore = create<State>((set, get) => ({
   runs: null,
   runId: initial.runId,
   detail: null,
+  board: null,
 
   tab: initial.tab,
   file: null,
@@ -99,7 +103,7 @@ export const useAppStore = create<State>((set, get) => ({
 
   setTab: (tab) => set({ tab }),
 
-  setRun: (runId) => set({ runId, newOpen: false, tab: 'kanban', file: null, openFiles: [] }),
+  setRun: (runId) => set({ runId, newOpen: false, tab: 'kanban', file: null, openFiles: [], board: null, detail: null }),
 
   goHome: () => set({ runId: null, newOpen: false, file: null, openFiles: [] }),
 
@@ -164,6 +168,14 @@ export const useAppStore = create<State>((set, get) => ({
         pollFailed = true
         get().toast('error', 'Lost connection to the run', (e as Error).message)
       }
+    }
+  },
+
+  loadBoard: async (id) => {
+    try {
+      set({ board: await api.board(id) })
+    } catch {
+      // The board poll is best-effort; the detail poll surfaces connection loss.
     }
   },
 
