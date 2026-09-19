@@ -213,7 +213,12 @@ func event(c *queue.ClaimedNode, kind, msg string) events.Event {
 }
 
 type finding struct {
-	Title      string `json:"title"`
+	Title string `json:"title"`
+	// Class separates a defect from a suggestion. The prompt has always asked
+	// for "style/best-practice gaps" alongside real bugs, and everything came
+	// back as a ticket with a P0/P1/P2 derived purely from severity — so a
+	// naming nit competed for attention with a SQL injection.
+	Class      string `json:"class"`
 	File       string `json:"file"`
 	Severity   string `json:"severity"`
 	Category   string `json:"category"`

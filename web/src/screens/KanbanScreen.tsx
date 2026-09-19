@@ -19,6 +19,15 @@ const keyFor = (n: NodeCard) => `${KEY_PREFIX[n.type] || 'AUD'}-${n.id.slice(0, 
 
 const SEV_COLOR: Record<string, string> = { high: '#f87171', medium: '#e0a92e', low: '#60a5fa' }
 
+// Non-defects are muted on purpose: an improvement or a style note should be
+// visible without competing with a real bug for attention.
+const CLASS_COLOR: Record<string, string> = {
+  improvement: '#7c9cbf',
+  style: '#8a8a9e',
+  question: '#b08bd4',
+}
+const isDefect = (n: NodeCard) => !n.class || n.class === 'bug'
+
 const COLS = [
   { key: 'todo', label: 'To do' },
   { key: 'active', label: 'In progress' },
@@ -112,6 +121,7 @@ export function KanbanScreen() {
   const [tagDraft, setTagDraft] = useState('')
   const [fSev, setFSev] = useState('all')
   const [fType, setFType] = useState('all')
+  const [fClass, setFClass] = useState('defects')
   const [q, setQ] = useState('')
   const [showDismissed, setShowDismissed] = useState(false)
   const [sortBy, setSortBy] = useState('default')
@@ -273,19 +283,23 @@ export function KanbanScreen() {
     if (fType === 'bug' && n.type !== 'bug') return false
     if (fType === 'qa' && n.type !== 'qa') return false
     if (fType === 'flow' && (n.type === 'bug' || n.type === 'qa')) return false
+    // Defects-only by default. #25: the agent is asked for improvements and
+    // style notes too, and before they were classed they arrived as tickets
+    // competing with real bugs. Non-bug cards are one dropdown away.
+    if (n.type === 'bug' && fClass !== 'all' && !(fClass === 'defects' ? isDefect(n) : n.class === fClass)) return false
     if (ql) {
       const hay = (label(n) + ' ' + (n.summary || '') + ' ' + n.tags.join(' ')).toLowerCase()
       if (!hay.includes(ql)) return false
     }
     return true
   })
-  const activeFilter = fSev !== 'all' || fType !== 'all' || ql !== ''
+  const activeFilter = fSev !== 'all' || fType !== 'all' || fClass !== 'defects' || ql !== ''
   if (sortBy !== 'default') visible.sort(SORTERS[sortBy])
 
   const renderCard = (n: NodeCard) => {
-    const stripe = SEV_COLOR[n.severity || ''] || STATUS_COLOR[n.status] || 'var(--border-subtle)'
+    const stripe = (isDefect(n) ? SEV_COLOR[n.severity || ''] : CLASS_COLOR[n.class!]) || STATUS_COLOR[n.status] || 'var(--border-subtle)'
     const moduleTag = n.tags.find((t) => t.startsWith('module:'))?.slice(7)
-    const otherTags = n.tags.filter((t) => t !== n.severity && !t.startsWith('module:') && t !== ('from:qa'))
+    const otherTags = n.tags.filter((t) => t !== n.severity && !t.startsWith('module:') && !t.startsWith('class:') && !t.startsWith('scope:') && t !== ('from:qa'))
     return (
     <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
       key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
@@ -317,7 +331,9 @@ export function KanbanScreen() {
         : n.summary && <div className="ksum">{n.summary}</div>}
       {(n.severity || moduleTag || otherTags.length > 0) && (
         <div className="ktags">
-          {n.severity && <span className="jsev" style={{ background: SEV_COLOR[n.severity] || 'var(--text-muted)' }}>{n.severity}</span>}
+          {!isDefect(n) && <span className="jsev" style={{ background: CLASS_COLOR[n.class!] || 'var(--text-muted)' }}>{n.class}</span>}
+          {n.severity && isDefect(n) && <span className="jsev" style={{ background: SEV_COLOR[n.severity] || 'var(--text-muted)' }}>{n.severity}</span>}
+          {n.tags.some((t) => t === 'scope:adjacent') && <span className="ktag" title="This finding is outside the module that was audited">outside module</span>}
           {moduleTag && <span className="ktag">{moduleTag}</span>}
           {otherTags.map((t) => <span key={t} className="ktag">{t}</span>)}
         </div>
@@ -375,6 +391,13 @@ export function KanbanScreen() {
           <option value="qa">QA</option>
           <option value="flow">Pipeline</option>
         </select>
+        <select className="bf-sel" value={fClass} onChange={(e) => setFClass(e.target.value)} title="Defects, or everything the agent reported">
+          <option value="defects">Defects</option>
+          <option value="all">All findings</option>
+          <option value="improvement">Improvements</option>
+          <option value="style">Style</option>
+          <option value="question">Questions</option>
+        </select>
         <select className="bf-sel" value={fSev} onChange={(e) => setFSev(e.target.value)}>
           <option value="all">Any severity</option>
           <option value="high">High</option>
@@ -394,7 +417,7 @@ export function KanbanScreen() {
         </select>
         {activeFilter && <>
           <span className="bf-count">{visible.length} / {cards.length}</span>
-          <button className="btn-sm" onClick={() => { setQ(''); setFSev('all'); setFType('all') }}>Clear</button>
+          <button className="btn-sm" onClick={() => { setQ(''); setFSev('all'); setFType('all'); setFClass('defects') }}>Clear</button>
         </>}
         {dismissedCount > 0 && (
           <button className={`btn-sm ${showDismissed ? 'primary' : ''}`} style={{ marginLeft: 'auto' }}
