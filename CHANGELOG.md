@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- API responses and request bodies are validated against Zod schemas written from the Go structs, so a field that changes shape is reported instead of silently read as `undefined`
 - Live view now shows the captured-frame timestamp and the real application title; both read a wrongly-capitalised key and were always `undefined`
 - Blank UI on launch caused by mismatched `react` / `react-dom` versions (19.3.0 vs 19.2.8); both are now pinned together and a test fails the build if they ever diverge
 
