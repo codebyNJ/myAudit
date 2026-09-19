@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Database, GitBranch, AlertTriangle, Play, RefreshCw } from 'lucide-react'
 import { useAppStore } from '../store/slices'
+import { usePoll } from '../usePoll'
 import { api, type FlowsResp, type FlowStep, type DataFlow, type ProductFlow } from '../api'
 
 const KIND_COLOR: Record<string, string> = {
@@ -97,18 +98,17 @@ function FlowSection({
 
 export function Flows() {
   const runId = useAppStore((s) => s.runId)
+  const tab = useAppStore((s) => s.tab)
   const toast = useAppStore((s) => s.toast)
   const [r, setR] = useState<FlowsResp | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    if (!runId) { setR(null); return }
-    let alive = true
-    const load = () => api.flows(runId!).then((x) => { if (alive) setR(x) }).catch(() => {})
-    load()
-    const h = setInterval(load, 4000)
-    return () => { alive = false; clearInterval(h) }
-  }, [runId])
+  // Same gate as AgentScreen — stays mounted, keeps its last flows.
+  usePoll(
+    () => { if (runId) void api.flows(runId).then(setR).catch(() => {}) },
+    4000,
+    !!runId && tab === 'playwright',
+  )
 
   const start = async () => {
     if (!runId) return

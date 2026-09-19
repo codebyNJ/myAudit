@@ -99,13 +99,15 @@ function ageOf(n: NodeCard): string | null {
 
 export function KanbanScreen() {
   const runId = useAppStore((st) => st.runId)
+  const loadBoard = useAppStore((st) => st.loadBoard)
   const detail = useAppStore((st) => st.detail)
   const focusCard = useAppStore((st) => st.focusCard)
   const clearFocusCard = useAppStore((st) => st.clearFocusCard)
   const setFile = useAppStore((st) => st.setFile)
   const setTab = useAppStore((st) => st.setTab)
   const toast = useAppStore((st) => st.toast)
-  const [cards, setCards] = useState<NodeCard[] | null>(null)
+  // One board poll lives in the store; Overview reads the same cards.
+  const cards = useAppStore((st) => st.board)
   const [sel, setSel] = useState<NodeCard | null>(null)
   const [tagDraft, setTagDraft] = useState('')
   const [fSev, setFSev] = useState('all')
@@ -202,7 +204,7 @@ export function KanbanScreen() {
   const saveTags = async (card: NodeCard, tags: string[]) => {
     if (!runId) return
     setSel({ ...card, tags })
-    try { await api.setNodeTags(runId, card.id, tags); api.board(runId).then(setCards) }
+    try { await api.setNodeTags(runId, card.id, tags); void loadBoard(runId) }
     catch (e) { toast('error', 'Tagging failed', (e as Error).message) }
   }
 
@@ -211,13 +213,13 @@ export function KanbanScreen() {
     try {
       await api.enqueue(runId, card.id)
       toast('info', 'Fix re-queued', 'The dev loop will pick it up — watch the board.')
-      api.board(runId).then(setCards)
+      void loadBoard(runId)
     } catch (e) { toast('error', 'Could not queue', (e as Error).message) }
   }
   const patch = async (card: NodeCard, p: PatchNodeBody) => {
     if (!runId) return
     setSel({ ...card, ...p })
-    try { await api.patchNode(runId, card.id, p); api.board(runId).then(setCards) }
+    try { await api.patchNode(runId, card.id, p); void loadBoard(runId) }
     catch (e) { toast('error', 'Update failed', (e as Error).message) }
   }
   const dismiss = async (card: NodeCard) => { await patch(card, { status: 'dismissed' }); toast('info', 'Ticket dismissed'); setSel(null) }
@@ -241,7 +243,7 @@ export function KanbanScreen() {
       const res = await api.pushPR(runId, card.id)
       toast('success', 'PR created', res.pr_url)
       setSel({ ...card, pr_url: res.pr_url, pr_status: 'pushed' })
-      api.board(runId).then(setCards)
+      void loadBoard(runId)
     } catch (e) {
       toast('error', 'Push PR failed', (e as Error).message)
     } finally {
@@ -257,14 +259,7 @@ export function KanbanScreen() {
       (!mod || f.path.includes(mod)))
   }
 
-  useEffect(() => {
-    if (!runId) { setCards(null); return }
-    let alive = true
-    const load = () => api.board(runId!).then((c) => { if (alive) setCards(c) }).catch(() => {})
-    load()
-    const h = setInterval(load, 2000)
-    return () => { alive = false; clearInterval(h) }
-  }, [runId])
+
 
   if (!runId) return <div className="empty-mid"><h3>No board</h3><p>Import a codebase to see its audit board.</p></div>
   if (cards == null) return <div className="empty-mid"><div className="spin" /><p style={{ marginTop: 12 }}>Setting up your audit…</p></div>
