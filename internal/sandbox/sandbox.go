@@ -87,7 +87,16 @@ func (w Workspace) ChangedPaths(ctx context.Context) ([]string, error) {
 }
 
 // baselineCommit is the "import baseline" commit made by ensureGitBaseline.
+// An empty string with no error means there is no baseline to compare against
+// — either the workspace is gone (a seeded run, or one whose caches were
+// reclaimed) or it is not a git repo. Callers treat that as "nothing to do"
+// rather than as a failure, which is why this is not an error: running git in
+// a directory that does not exist fails in a way that reads like a server
+// fault, and surfaced as a 500 on every ticket the board opened.
 func (w Workspace) baselineCommit(ctx context.Context) (string, error) {
+	if _, err := os.Stat(w.Dir); os.IsNotExist(err) {
+		return "", nil
+	}
 	out, _, err := w.Run(ctx, "git", "rev-list", "--max-parents=0", "HEAD")
 	if err != nil {
 		return "", err
@@ -117,9 +126,6 @@ func (w Workspace) DiffFromBaseline(ctx context.Context, path string) (string, e
 // removed. Deleting unconditionally would destroy the user's original file
 // whenever the agent merely modified it.
 func (w Workspace) RevertFromBaseline(ctx context.Context, path string) error {
-	if _, err := os.Stat(w.Dir); os.IsNotExist(err) {
-		return nil // no workspace on disk: nothing to undo
-	}
 	base, err := w.baselineCommit(ctx)
 	if err != nil {
 		return err
