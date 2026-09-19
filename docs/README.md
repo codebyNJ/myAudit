@@ -19,6 +19,7 @@ Welcome to the myAudit wiki. Use this hub to navigate setup, architecture, API, 
 | [Architecture](architecture.md) | Audit graph, scheduling, data model, packages |
 | [HTTP API](api.md) | REST endpoints, request/response shapes |
 | [Desktop app](desktop.md) | Tauri shell, dev workflow, production builds |
+| [Frontend state](state-management.md) | Where state lives, selectors, polling rules |
 
 ## Contributing
 
