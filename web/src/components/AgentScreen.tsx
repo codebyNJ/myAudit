@@ -130,7 +130,7 @@ export function AgentScreen() {
   const badge = isLive
     ? <span className="as-badge live"><span className="as-dot" /> LIVE{typeof view.latency_ms === 'number' ? ` · ${view.latency_ms}ms` : ''}</span>
     : view.status === 'frames'
-      ? <span className="as-badge"><Camera size={11} /> {fmtAgo(view.At)}</span>
+      ? <span className="as-badge"><Camera size={11} /> {fmtAgo(view.at)}</span>
       : view.status === 'crashed'
         ? <span className="as-badge crashed">crashed</span>
         : isIdleNoUI
@@ -156,7 +156,7 @@ export function AgentScreen() {
 
       <div className="as-meta">
         {isLive
-          ? <><Radio size={12} /> <span>{view.Title || 'Application under test'}</span>
+          ? <><Radio size={12} /> <span>{view.title || 'Application under test'}</span>
               <a className="as-link" href={view.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); e.preventDefault(); openExternal(view.url!) }}>
                 {view.url} <ExternalLink size={11} />
               </a></>

@@ -17,7 +17,7 @@
     "marked": "^18.0.12",
     "monaco-editor": "^0.56.0",
     "react": "^19.3.0",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",
