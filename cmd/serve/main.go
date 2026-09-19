@@ -62,7 +62,15 @@ func main() {
 		addr = ":" + p
 	}
 	slog.Info("myAudit UI serving", "addr", "http://localhost"+addr)
-	if err := http.ListenAndServe(addr, api.NewMux(s, api.StaticHandler())); err != nil {
+	// ReadHeaderTimeout only. A chat turn runs an agent and can legitimately
+	// hold the request open for minutes (chatTimeout is 10m), so Read/Write
+	// timeouts would sever real work; a slow *header* never is real work.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           api.NewMux(s, api.StaticHandler()),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		if errors.Is(err, syscall.EADDRINUSE) {
 			slog.Error("port already in use — another myAudit (or app) is on "+addr+
 				". Stop it, or set PORT to a free port (e.g. PORT=7799).", "err", err)

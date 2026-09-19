@@ -5,13 +5,29 @@ linters:
   # Only linters that find real defects in THIS codebase. Deliberately absent:
   #   nilerr  — 10 hits, all filepath.Walk callbacks that return nil on purpose
   #             to skip unreadable entries. That is the repo's idiom, not a bug.
-  #   gosec   — enabled separately; ~2/3 of its hits here are by-design (the
-  #             product shells out to agent CLIs and walks filesystems).
   enable:
     - errorlint      # %w vs %v, and type assertions that break on wrapped errors
     - bodyclose      # unclosed HTTP response bodies
     - rowserrcheck   # sql.Rows.Err() unchecked — internal/store iterates rows everywhere
     - sqlclosecheck  # unclosed sql.Rows/Stmt
+    - gosec          # SECURITY.md's scope is path traversal and sandbox escape
+  settings:
+    gosec:
+      # Rules that are systematically wrong for this product, excluded here with
+      # the reason rather than as scattered nolint comments. G703 (path
+      # traversal) and G704 (SSRF) are deliberately NOT listed: they are exactly
+      # SECURITY.md's declared scope, so they stay on and are suppressed per-site
+      # where a guard exists, which means a future *unguarded* path still fails.
+      excludes:
+        - G204 # subprocess with variable args — the product's whole job is to
+               # exec the agent CLI the user configured (claude/opencode) and a
+               # project's own dev server.
+        - G306 # 0644 file writes — these are workspace files the agent and the
+               # user both need to read. 0600 would break the product.
+        - G122 # filepath.Walk callback paths — listing and copying a workspace.
+               # Escape is prevented at the HTTP boundary by
+               # resolveWorkspacePath, not inside the walk.
+        - G706 # log injection — writing the configured port into a local log.
   exclusions:
     generated: lax
     presets:
@@ -23,6 +39,27 @@ linters:
       - linters:
           - errcheck
         path: _test\.go
+      # Tests are not attack surface: they exec git, write 0644 fixtures and
+      # fetch their own httptest URLs, all of which gosec flags by design.
+      - linters:
+          - gosec
+        path: _test\.go
+      # Dev-only tooling, never shipped or fed untrusted input.
+      - linters:
+          - gosec
+        path: ^scripts/
+      # G703 in internal/api: every filesystem call reachable from a handler is
+      # flagged, because the taint analysis cannot see through the one guard
+      # they all share — resolveWorkspacePath (internal/api/wspath.go), which
+      # rejects "..", absolute paths, the run root, and symlink escapes. The
+      # guarantee is that function plus wspath_test.go, which tests each case;
+      # gosec adds nothing on top and 15 near-identical suppressions would just
+      # be noise for someone to copy onto genuinely unguarded code later.
+      # G703 stays ON everywhere else, and G704 stays on here.
+      - linters:
+          - gosec
+        text: "G703"
+        path: ^internal/api/
     paths:
       - runs
       - internal/api/web/dist

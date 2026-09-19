@@ -286,7 +286,11 @@ func (m *Manager) startStatic(runID, dir string, port int) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	srv := &http.Server{Addr: addr, Handler: http.FileServer(http.Dir(dir))}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           http.FileServer(http.Dir(dir)),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	go func() { _ = srv.Serve(ln) }()
 
 	s := &Server{RunID: runID, URL: fmt.Sprintf("http://localhost:%d", port), HTTPServer: srv, port: port}
