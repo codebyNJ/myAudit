@@ -3,7 +3,7 @@ import { AgentAvatar, IcBranch } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { Tabs } from './Tabs'
 import { AccountMenu } from './AccountMenu'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { api } from '../api'
 
 const RUN_VERB: Record<string, string> = {
@@ -11,27 +11,31 @@ const RUN_VERB: Record<string, string> = {
 }
 
 export function Header() {
-  const s = useStore()
-  const cost = s.detail?.cost_usd || 0
-  const nodes = s.detail?.nodes || []
+  const detail = useAppStore((s) => s.detail)
+  const runId = useAppStore((s) => s.runId)
+  const toast = useAppStore((s) => s.toast)
+  const goHome = useAppStore((s) => s.goHome)
+  const reloadDetail = useAppStore((s) => s.reloadDetail)
+  const cost = detail?.cost_usd || 0
+  const nodes = detail?.nodes || []
   const running = nodes.find((n) => n.status === 'running')
   const queued = nodes.filter((n) => n.status === 'ready' || n.status === 'pending').length
-  const runStatus = s.detail?.run?.status
+  const runStatus = detail?.run?.status
   const active = runStatus !== 'cancelled' && (!!running || queued > 0)
   const stop = async () => {
-    if (!s.runId) return
-    try { await api.cancelRun(s.runId); s.toast('info', 'Audit stopped'); s.reloadDetail() }
-    catch (e) { s.toast('error', 'Stop failed', (e as Error).message) }
+    if (!runId) return
+    try { await api.cancelRun(runId); toast('info', 'Audit stopped'); reloadDetail() }
+    catch (e) { toast('error', 'Stop failed', (e as Error).message) }
   }
   return (
     <header>
       <div className="h-left">
-        <div className="logo" style={{ cursor: 'pointer' }} title="Back to dashboard" onClick={s.goHome}><AgentAvatar size={22} radius={6} /></div>
-        <button className="back-btn" title="Back to dashboard" onClick={s.goHome}><ArrowLeft size={13} /> Dashboard</button>
+        <div className="logo" style={{ cursor: 'pointer' }} title="Back to dashboard" onClick={goHome}><AgentAvatar size={22} radius={6} /></div>
+        <button className="back-btn" title="Back to dashboard" onClick={goHome}><ArrowLeft size={13} /> Dashboard</button>
         <WorkspaceSwitcher />
-        {s.detail?.git?.has_git ? (
-          <div className="branch-tag" title={s.detail.git.remote_url || 'git repo'}>
-            <IcBranch /> {s.detail.git.default_branch || 'main'}
+        {detail?.git?.has_git ? (
+          <div className="branch-tag" title={detail.git.remote_url || 'git repo'}>
+            <IcBranch /> {detail.git.default_branch || 'main'}
           </div>
         ) : (
           <div className="branch-tag" title="No git remote detected at import"><IcBranch /> no git</div>

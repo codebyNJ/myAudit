@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { useStore } from '../store'
+import { useAppStore } from '../store/slices'
 import { IcChevron } from './icons'
 import { STATUS_COLOR } from './util'
 
 export function WorkspaceSwitcher() {
-  const s = useStore()
+  const runs = useAppStore((s) => s.runs)
+  const runId = useAppStore((s) => s.runId)
+  const setRun = useAppStore((s) => s.setRun)
   const [open, setOpen] = useState(false)
-  const cur = (s.runs || []).find((r) => r.id === s.runId)
+  const cur = (runs || []).find((r) => r.id === runId)
   return (
     <div style={{ position: 'relative' }}>
       <div className="workspace-switcher" onClick={() => setOpen((v) => !v)}>
-        <span className="ws-name">{cur ? cur.project : (s.runs && s.runs.length === 0 ? 'No projects' : 'Loading…')}</span> <IcChevron />
+        <span className="ws-name">{cur ? cur.project : (runs && runs.length === 0 ? 'No projects' : 'Loading…')}</span> <IcChevron />
       </div>
       {open && (
         <div className="dropdown" style={{ top: 34, left: 0 }} onMouseLeave={() => setOpen(false)}>
-          {s.runs && s.runs.length ? s.runs.map((r) => (
-            <div key={r.id} className={`dd-item ${r.id === s.runId ? 'on' : ''}`} onClick={() => { s.setRun(r.id); setOpen(false) }}>
+          {runs && runs.length ? runs.map((r) => (
+            <div key={r.id} className={`dd-item ${r.id === runId ? 'on' : ''}`} onClick={() => { setRun(r.id); setOpen(false) }}>
               <span style={{ width: 7, height: 7, borderRadius: 999, background: STATUS_COLOR[r.status] || 'var(--text-muted)' }} />
               {r.project}
               <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{r.status}</span>
