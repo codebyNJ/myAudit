@@ -34,9 +34,25 @@ type liveTarget struct {
 	Title string `json:"title,omitempty"`
 }
 
+// loopbackOnly reports whether h is this machine. The URL handed to reachable
+// comes from .myaudit/live.json, which the agent writes inside the workspace —
+// i.e. it is influenced by the repository under audit. Previews are local dev
+// servers by definition, so refusing anything else keeps a hostile repo from
+// using the server as a port-scanning oracle for the host's network.
+func loopbackOnly(h string) bool {
+	if h == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
+}
+
 func reachable(raw string) bool {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
+		return false
+	}
+	if !loopbackOnly(u.Hostname()) {
 		return false
 	}
 	host := u.Host
@@ -47,6 +63,8 @@ func reachable(raw string) bool {
 			host = net.JoinHostPort(u.Hostname(), "80")
 		}
 	}
+	// #nosec G704 -- loopbackOnly above restricts this to localhost, so a
+	// workspace-controlled live.json cannot aim it at the host's network.
 	c, err := net.DialTimeout("tcp", host, 400*time.Millisecond)
 	if err != nil {
 		return false

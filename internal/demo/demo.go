@@ -40,6 +40,8 @@ func resolve() (string, error) {
 		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "demo"))
 	}
 	for _, p := range candidates {
+		// #nosec G703 -- candidates are built from the executable path and
+		// compile-time constants, never from request input.
 		if info, err := os.Stat(p); err == nil && info.IsDir() {
 			return p, nil
 		}

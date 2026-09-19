@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dependency updates: routine version-bump PRs replaced by Dependabot **security** updates (CVEs only), with a weekly `cargo audit` covering the Rust crate that ships in the desktop app
 - CI now lints its own workflow files (`actionlint`) and runs CodeQL on Go and TypeScript
+- `gosec` runs in CI; the local HTTP server and the preview static server now set `ReadHeaderTimeout`, and preview reachability checks are restricted to loopback
+- TypeScript `strict` enabled for the web app
 - CI measures test coverage: Go gated at a 50% floor (measured 53.1%), web reported only until it has enough tests for a gate to mean anything (measured 2.6%)
 - `.golangci.yml` enables defect-finding linters (`errorlint`, `bodyclose`, `rowserrcheck`, `sqlclosecheck`) instead of the bare default set
 
