@@ -68,6 +68,11 @@ make lint-go                  # golangci-lint v2
 make ci                       # full CI mirror (web + Go + cross-compile)
 ```
 
+`make ci` runs `go tool actionlint` over `.github/workflows/`. Install
+[shellcheck](https://www.shellcheck.net/) (`brew install shellcheck`) so it also
+checks the shell inside `run:` blocks — CI runners have shellcheck, so without it
+your local run is weaker than CI's and can pass where CI fails.
+
 ### Integration tests
 
 Agent integration tests are gated behind a build tag and require a template path:

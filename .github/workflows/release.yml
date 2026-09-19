@@ -247,7 +247,7 @@ jobs:
       - name: Generate SHA256 checksums
         run: |
           cd dist
-          sha256sum * > SHA256SUMS.txt
+          sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - uses: softprops/action-gh-release@v2

@@ -65,10 +65,14 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test $(go list ./... | grep -v '/runs/') -count=1
+        run: |
+          # shellcheck disable=SC2046  # word splitting is the point: one arg per package
+          go test $(go list ./... | grep -v '/runs/') -count=1
 
       - name: govulncheck
-        run: go tool govulncheck $(go list ./... | grep -v '/runs/')
+        run: |
+          # shellcheck disable=SC2046  # ditto
+          go tool govulncheck $(go list ./... | grep -v '/runs/')
 
       - name: Build server
         run: go build ./cmd/serve
