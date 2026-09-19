@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency updates: routine version-bump PRs replaced by Dependabot **security** updates (CVEs only), with a weekly `cargo audit` covering the Rust crate that ships in the desktop app
+
 ### Added
 
 - Windows desktop installer (`myAudit-*-Windows-x86_64-setup.exe`) restored in releases
