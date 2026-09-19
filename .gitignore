@@ -33,3 +33,7 @@ docs/
 # tauri sidecar (built by scripts/build-sidecar.sh / CI)
 desktop/src-tauri/binaries/*
 !desktop/src-tauri/binaries/.gitkeep
+
+# coverage reports and browser-automation artifacts (generated)
+web/coverage/
+.playwright-mcp/

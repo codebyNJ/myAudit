@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Blank UI on launch caused by mismatched `react` / `react-dom` versions (19.3.0 vs 19.2.8); both are now pinned together and a test fails the build if they ever diverge
+
 ### Added
 
 - Windows desktop installer (`myAudit-*-Windows-x86_64-setup.exe`) restored in releases
