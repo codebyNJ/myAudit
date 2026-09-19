@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Opening a ticket on a run whose workspace is gone no longer logs a 500; the diff is simply empty
 - Findings are classified as bug / improvement / style / question, and the board shows defects by default — a style note can no longer arrive as a P0
 - Findings outside the audited module are tagged rather than mislabelled, and the agent is shown the repo's own conventions (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`) so a consistent pattern is not reported as a defect
 - Exports (`findings.json`, `report.md`) carry class, confidence and category
