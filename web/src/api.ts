@@ -23,7 +23,7 @@ export type FlowStep = { label: string; file?: string; kind?: string }
 export type DataFlow = { name: string; entity?: string; store?: string; steps?: FlowStep[]; note?: string; concern?: string }
 export type ProductFlow = { name: string; trigger?: string; steps?: FlowStep[]; outcome?: string; concern?: string }
 export type FlowsDoc = { persistence?: string; data_flows?: DataFlow[]; product_flows?: ProductFlow[] }
-export type LiveView = { status: 'live' | 'frames' | 'idle' | 'crashed'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; At?: string; Title?: string; reason?: string; latency_ms?: number }
+export type LiveView = { status: 'live' | 'frames' | 'idle' | 'crashed'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; at?: string; title?: string; reason?: string; latency_ms?: number }
 export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
