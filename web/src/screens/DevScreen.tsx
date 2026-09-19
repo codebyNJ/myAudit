@@ -156,14 +156,16 @@ export function DevScreen() {
       })
       .catch(() => {})
     return () => { alive = false }
-  }, [detail, sel?.path, runId, dirty])
+    // `detail` changes every poll; the file only changes when the audit
+    // touches it, which `changed` already tracks.
+  }, [sel?.path, sel?.changed, runId, dirty])
 
   useEffect(() => {
     if (!sel || !runId || !sel.changed) { setDiff(''); return }
     let alive = true
     api.diff(runId, sel.path).then((r) => { if (alive) setDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [detail, sel?.path, runId, sel?.changed])
+  }, [sel?.path, sel?.changed, runId])
 
   const saveEdit = async () => {
     if (!sel || !runId || !dirty) return
