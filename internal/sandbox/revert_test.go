@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +80,40 @@ func TestImportFailsOnUnreadableFile(t *testing.T) {
 
 	if _, err := Import(context.Background(), t.TempDir(), "partial", src); err == nil {
 		t.Fatal("import must report the unreadable file instead of silently skipping it")
+	}
+}
+
+// A run whose workspace is gone — seeded, or reclaimed after finishing — has
+// nothing to diff. Running git in a directory that does not exist fails in a
+// way that read as a server fault, so the board put a 500 in the console every
+// time you opened a ticket on an older run.
+func TestDiffFromBaselineIsEmptyWhenWorkspaceIsGone(t *testing.T) {
+	ws := Workspace{Dir: filepath.Join(t.TempDir(), "never-imported")}
+
+	diff, err := ws.DiffFromBaseline(context.Background(), "")
+	if err != nil {
+		t.Fatalf("a missing workspace is nothing to diff, not an error: %v", err)
+	}
+	if diff != "" {
+		t.Fatalf("want an empty diff, got %q", diff)
+	}
+}
+
+func TestDiffFromBaselineStillDiffsARealWorkspace(t *testing.T) {
+	ctx := context.Background()
+	ws, err := Import(ctx, t.TempDir(), "diffrun", makeRepo(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws.Dir, "main.go"), []byte("package main // changed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diff, err := ws.DiffFromBaseline(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(diff, "main.go") {
+		t.Fatalf("a real workspace should still produce its diff, got %q", diff)
 	}
 }
