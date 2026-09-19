@@ -143,13 +143,15 @@ export function Flows() {
     )
   }
 
-  const doc = r.flows || {}
-  const data: DataFlow[] = doc.data_flows || []
-  const prod: ProductFlow[] = doc.product_flows || []
+  // FlowsDocSchema defaults both arrays, so no `|| []` guard is needed; `flows`
+  // itself is still optional because the envelope omits it when ready is false.
+  const doc = r.flows
+  const data: DataFlow[] = doc?.data_flows ?? []
+  const prod: ProductFlow[] = doc?.product_flows ?? []
 
   return (
     <div className="fl-wrap">
-      {doc.persistence && (
+      {doc?.persistence && (
         <div className="fl-persist"><Database size={13} /> <b>Storage</b> <span>{doc.persistence}</span></div>
       )}
 

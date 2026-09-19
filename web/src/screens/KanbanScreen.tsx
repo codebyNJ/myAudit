@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useStore } from '../store'
 import { api, type NodeCard } from '../api'
+import type { PatchNodeBody } from '../schemas'
 import { STATUS_COLOR } from '../components/util'
 import { Diff } from '../components/Diff'
 import { Markdown } from '../components/Markdown'
@@ -35,7 +36,7 @@ const bucket = (st: string) => {
 }
 const isFailed = (st: string) => st === 'failed' || st === 'reopened'
 
-const COL_DROP: Record<string, string> = { todo: 'open', review: 'in_review', done: 'done' }
+const COL_DROP: Record<string, NonNullable<PatchNodeBody['status']>> = { todo: 'open', review: 'in_review', done: 'done' }
 
 const SEV_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
 const PRI_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2 }
@@ -207,7 +208,7 @@ export function KanbanScreen() {
       api.board(s.runId).then(setCards)
     } catch (e) { s.toast('error', 'Could not queue', (e as Error).message) }
   }
-  const patch = async (card: NodeCard, p: { severity?: string; priority?: string; status?: string }) => {
+  const patch = async (card: NodeCard, p: PatchNodeBody) => {
     if (!s.runId) return
     setSel({ ...card, ...p })
     try { await api.patchNode(s.runId, card.id, p); api.board(s.runId).then(setCards) }
@@ -244,7 +245,7 @@ export function KanbanScreen() {
 
   const previewsFor = (c: NodeCard) => {
     if (c.type !== 'qa') return []
-    const mod = (c.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
+    const mod = c.tags.find((t) => t.startsWith('module:'))?.slice(7)
     return (s.detail?.files || []).filter((f) =>
       f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path) &&
       (!mod || f.path.includes(mod)))
@@ -272,7 +273,7 @@ export function KanbanScreen() {
     if (fType === 'qa' && n.type !== 'qa') return false
     if (fType === 'flow' && (n.type === 'bug' || n.type === 'qa')) return false
     if (ql) {
-      const hay = (label(n) + ' ' + (n.summary || '') + ' ' + (n.tags || []).join(' ')).toLowerCase()
+      const hay = (label(n) + ' ' + (n.summary || '') + ' ' + n.tags.join(' ')).toLowerCase()
       if (!hay.includes(ql)) return false
     }
     return true
@@ -282,8 +283,8 @@ export function KanbanScreen() {
 
   const renderCard = (n: NodeCard) => {
     const stripe = SEV_COLOR[n.severity || ''] || STATUS_COLOR[n.status] || 'var(--border-subtle)'
-    const moduleTag = (n.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
-    const otherTags = (n.tags || []).filter((t) => t !== n.severity && !t.startsWith('module:') && t !== ('from:qa'))
+    const moduleTag = n.tags.find((t) => t.startsWith('module:'))?.slice(7)
+    const otherTags = n.tags.filter((t) => t !== n.severity && !t.startsWith('module:') && t !== ('from:qa'))
     return (
     <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
       key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
@@ -336,7 +337,7 @@ export function KanbanScreen() {
   }
 
   const laneOf = (n: NodeCard) =>
-    groupBy === 'module' ? ((n.tags || []).find((t) => t.startsWith('module:'))?.slice(7) || '—')
+    groupBy === 'module' ? (n.tags.find((t) => t.startsWith('module:'))?.slice(7) || '—')
       : groupBy === 'severity' ? (n.severity || '—')
       : 'All'
   const lanes = groupBy === 'none' ? ['All'] : [...new Set(visible.map(laneOf))].sort()
@@ -490,10 +491,10 @@ export function KanbanScreen() {
 
               {sel.type === 'bug' && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <select className="bf-sel" value={sel.severity || 'medium'} onChange={(e) => patch(sel, { severity: e.target.value })}>
+                  <select className="bf-sel" value={sel.severity || 'medium'} onChange={(e) => patch(sel, { severity: e.target.value as PatchNodeBody['severity'] })}>
                     <option value="high">high</option><option value="medium">medium</option><option value="low">low</option>
                   </select>
-                  <select className="bf-sel" value={sel.priority || 'P1'} onChange={(e) => patch(sel, { priority: e.target.value })}>
+                  <select className="bf-sel" value={sel.priority || 'P1'} onChange={(e) => patch(sel, { priority: e.target.value as PatchNodeBody['priority'] })}>
                     <option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option>
                   </select>
                 </div>
@@ -539,13 +540,13 @@ export function KanbanScreen() {
                 <div>
                   <div className="drawer-sec-h">Tags</div>
                   <div className="ktags">
-                    {(sel.tags || []).map((t) => (
-                      <span key={t} className="ktag" style={{ cursor: 'pointer' }} onClick={() => saveTags(sel, (sel.tags || []).filter((x) => x !== t))} title="Remove">{t} ×</span>
+                    {sel.tags.map((t) => (
+                      <span key={t} className="ktag" style={{ cursor: 'pointer' }} onClick={() => saveTags(sel, sel.tags.filter((x) => x !== t))} title="Remove">{t} ×</span>
                     ))}
                     <input className="tag-input" value={tagDraft} onChange={(e) => setTagDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && tagDraft.trim()) {
-                          const nt = Array.from(new Set([...(sel.tags || []), tagDraft.trim()]))
+                          const nt = Array.from(new Set([...sel.tags, tagDraft.trim()]))
                           saveTags(sel, nt); setTagDraft('')
                         }
                       }}

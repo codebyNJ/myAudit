@@ -1,106 +1,162 @@
+import type { ZodType } from 'zod'
+import { parsed } from './validate'
+import {
+  ChatBodySchema, ChatReplySchema, CreateRunBodySchema, DemoPathSchema, DiffSchema,
+  FileContentSchema, FlowsRespSchema, HealthSchema, LiveViewSchema, NewFileBodySchema,
+  NodeCardSchema, NotesSchema, PatchNodeBodySchema, PushPRSchema, PutNotesBodySchema,
+  RenameFileBodySchema, ResolveCheckpointBodySchema, ReviewBodySchema, RunDetailSchema,
+  RunIdSchema, RunSchema, SaveFileBodySchema, SearchHitSchema, SetTagsBodySchema,
+  SettingsSchema, StartPreviewSchema,
+} from './schemas'
 
-export type Run = { id: string; project: string; status: string; created_at: string }
-export type Node = { id: string; run_id: string; type: string; status: string; deps: string[] }
-export type EventRow = { ts: string; kind: string; level: string; msg: string; node_id?: string }
-export type Checkpoint = { id: string; run_id: string; node_id: string; question: string; resolved: boolean; answer: string }
-export type FileEntry = { path: string; content?: string; action?: string; changed?: boolean; review?: string }
-export type GitInfo = { has_git: boolean; remote_url?: string; default_branch?: string; head_sha?: string }
-export type RunDetail = { run: Run; nodes: Node[]; events: EventRow[]; checkpoints: Checkpoint[]; files: FileEntry[]; cost_usd: number; git?: GitInfo }
+export type {
+  Checkpoint, CreateRunBody, DataFlow, EventRow, FileEntry, FlowStep, FlowsDoc, FlowsResp,
+  GitInfo, Health, LiveView, Node, NodeCard, ProductFlow, Run, RunDetail, SearchHit, Settings,
+} from './schemas'
+import type { NodeCard, Run, RunDetail, SearchHit } from './schemas'
 
-function normalizeRunDetail(d: RunDetail): RunDetail {
+/** Send a JSON body, validated on the way out so a malformed request is caught here. */
+function json<T>(schema: ZodType<T>, body: T): RequestInit {
   return {
-    ...d,
-    nodes: d.nodes ?? [],
-    events: d.events ?? [],
-    checkpoints: d.checkpoints ?? [],
-    files: d.files ?? [],
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(schema.parse(body)),
   }
 }
-export type NodeCard = { id: string; type: string; name: string; status: string; deps: number; attempts: number; summary: string; files: number; cost_usd: number; events: number; created_at: string; claimed_at?: string; title?: string; file?: string; severity?: string; priority?: string; detail?: string; tags?: string[]; commit_sha?: string; pr_url?: string; pr_status?: string }
-export type CreateRunBody = { repo_path: string; project?: string; audit_only?: boolean; budget_usd?: number }
-export type SearchHit = { path: string; line: number; text: string }
-export type FlowStep = { label: string; file?: string; kind?: string }
-export type DataFlow = { name: string; entity?: string; store?: string; steps?: FlowStep[]; note?: string; concern?: string }
-export type ProductFlow = { name: string; trigger?: string; steps?: FlowStep[]; outcome?: string; concern?: string }
-export type FlowsDoc = { persistence?: string; data_flows?: DataFlow[]; product_flows?: ProductFlow[] }
-export type LiveView = { status: 'live' | 'frames' | 'idle' | 'crashed'; kind?: 'web' | 'desktop' | 'none'; url?: string; frame?: string; at?: string; title?: string; reason?: string; latency_ms?: number }
-export type FlowsResp = { ready: boolean; pending: boolean; flows?: FlowsDoc }
 
-async function req<T>(path: string, opts?: RequestInit): Promise<T> {
+/**
+ * Fetch and decode. Non-2xx throws with the server's plain-text message; an
+ * empty body decodes to `undefined`, which is correct for the fourteen
+ * endpoints that return 200/201/202 with nothing — and for startPreview, whose
+ * normal path is a bare 202 (internal/api/live.go:117).
+ */
+async function decode(path: string, opts?: RequestInit): Promise<unknown> {
   const r = await fetch(path, opts)
-
-
   const body = await r.text()
   if (!r.ok) throw new Error(body.trim() || `HTTP ${r.status}`)
-  if (!body.trim()) return undefined as T
+  if (!body.trim()) return undefined
   try {
-    return JSON.parse(body) as T
+    return JSON.parse(body)
   } catch {
     throw new Error(`bad JSON from ${path}: ${body.slice(0, 120)}`)
   }
 }
 
+/** Fetch, decode, and validate against the wire contract. */
+async function req<T>(path: string, schema: ZodType<T>, fallback: T, opts?: RequestInit): Promise<T> {
+  return parsed(schema, await decode(path, opts), `GET ${path}`, fallback)
+}
+
+/** Fetch an endpoint that returns no body. */
+async function send(path: string, opts?: RequestInit): Promise<void> {
+  await decode(path, opts)
+}
+
+const runPath = (id: string) => '/api/runs/' + id
+const nodePath = (id: string, nid: string) => runPath(id) + '/nodes/' + nid
+
 export const api = {
-  health: () => req<{
-    ready: boolean
-    git: boolean
-    gh?: { installed: boolean; authenticated: boolean }
-    agentProvider: string
-    providers: Record<string, { installed: boolean; version?: string }>
-    claude: boolean
-    claudeVersion: string
-    message: string
-  }>('/api/health'),
-  listRuns: () => req<Run[]>('/api/runs'),
-  runDetail: (id: string) => req<RunDetail>('/api/runs/' + id).then(normalizeRunDetail),
-  createRun: (body: CreateRunBody) =>
-    req<{ id: string }>('/api/runs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+  health: () => req('/api/health', HealthSchema, {
+    ready: false, git: false, agentProvider: '', providers: {},
+    claude: false, claudeVersion: '', message: '',
+  }),
+
+  listRuns: () => req<Run[]>('/api/runs', RunSchema.array(), []),
+
+  runDetail: (id: string) =>
+    req<RunDetail>(runPath(id), RunDetailSchema, {
+      run: { id, project: '', status: '', created_at: '' },
+      nodes: [], events: [], checkpoints: [], files: [], cost_usd: 0,
+    }),
+
+  createRun: (body: import('./schemas').CreateRunBody) =>
+    req('/api/runs', RunIdSchema, { id: '' }, { method: 'POST', ...json(CreateRunBodySchema, body) }),
+
   resolveCheckpoint: (id: string, answer: string) =>
-    req<void>('/api/checkpoints/' + id + '/resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer }) }),
-  board: (id: string) => req<NodeCard[]>('/api/runs/' + id + '/board').then((c) => c ?? []),
-  cancelRun: (id: string) => req<void>('/api/runs/' + id + '/cancel', { method: 'POST' }),
-  fileContent: (id: string, path: string) => req<{ path: string; content: string }>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path)),
-  diff: (id: string, path: string) => req<{ path: string; diff: string }>('/api/runs/' + id + '/diff?path=' + encodeURIComponent(path)),
+    send('/api/checkpoints/' + id + '/resolve', {
+      method: 'POST', ...json(ResolveCheckpointBodySchema, { answer }),
+    }),
+
+  board: (id: string) => req<NodeCard[]>(runPath(id) + '/board', NodeCardSchema.array(), []),
+
+  cancelRun: (id: string) => send(runPath(id) + '/cancel', { method: 'POST' }),
+
+  fileContent: (id: string, path: string) =>
+    req(runPath(id) + '/file?path=' + encodeURIComponent(path), FileContentSchema, { path, content: '' }),
+
+  diff: (id: string, path: string) =>
+    req(runPath(id) + '/diff?path=' + encodeURIComponent(path), DiffSchema, { path, diff: '' }),
+
   saveFile: (id: string, path: string, content: string) =>
-    req<void>('/api/runs/' + id + '/file', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, content }) }),
-  getNotes: (id: string) => req<{ content: string }>('/api/runs/' + id + '/notes'),
+    send(runPath(id) + '/file', { method: 'PUT', ...json(SaveFileBodySchema, { path, content }) }),
+
+  getNotes: (id: string) => req(runPath(id) + '/notes', NotesSchema, { content: '' }),
+
   putNotes: (id: string, content: string) =>
-    req<void>('/api/runs/' + id + '/notes', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content }) }),
+    send(runPath(id) + '/notes', { method: 'PUT', ...json(PutNotesBodySchema, { content }) }),
+
   chat: (id: string, message: string) =>
-    req<{ reply: string }>('/api/runs/' + id + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) }),
+    req(runPath(id) + '/chat', ChatReplySchema, { reply: '' }, {
+      method: 'POST', ...json(ChatBodySchema, { message }),
+    }),
+
   setNodeTags: (id: string, nodeId: string, tags: string[]) =>
-    req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/tags', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tags }) }),
-  enqueue: (id: string, nodeId: string) =>
-    req<void>('/api/runs/' + id + '/nodes/' + nodeId + '/enqueue', { method: 'POST' }),
-  patchNode: (id: string, nodeId: string, patch: { severity?: string; priority?: string; status?: string }) =>
-    req<void>('/api/runs/' + id + '/nodes/' + nodeId, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
+    send(nodePath(id, nodeId) + '/tags', { method: 'POST', ...json(SetTagsBodySchema, { tags }) }),
+
+  enqueue: (id: string, nodeId: string) => send(nodePath(id, nodeId) + '/enqueue', { method: 'POST' }),
+
+  patchNode: (id: string, nodeId: string, patch: import('./schemas').PatchNodeBody) =>
+    send(nodePath(id, nodeId), { method: 'PATCH', ...json(PatchNodeBodySchema, patch) }),
+
   pushPR: (id: string, nodeId: string) =>
-    req<{ pr_url: string; branch: string }>('/api/runs/' + id + '/nodes/' + nodeId + '/push-pr', { method: 'POST' }),
-  rawUrl: (id: string, path: string) => '/api/runs/' + id + '/raw?path=' + encodeURIComponent(path),
-  reportUrl: (id: string) => '/api/runs/' + id + '/report.md',
-  findingsUrl: (id: string) => '/api/runs/' + id + '/findings.json',
-  patchUrl: (id: string) => '/api/runs/' + id + '/patch.diff',
-  demoPath: () => req<{ path: string }>('/api/demo'),
+    req(nodePath(id, nodeId) + '/push-pr', PushPRSchema, { pr_url: '', branch: '' }, { method: 'POST' }),
+
+  rawUrl: (id: string, path: string) => runPath(id) + '/raw?path=' + encodeURIComponent(path),
+  reportUrl: (id: string) => runPath(id) + '/report.md',
+  findingsUrl: (id: string) => runPath(id) + '/findings.json',
+  patchUrl: (id: string) => runPath(id) + '/patch.diff',
+
+  demoPath: () => req('/api/demo', DemoPathSchema, { path: '' }),
+
   review: (id: string, path: string, status: 'accepted' | 'rejected') =>
-    req<void>('/api/runs/' + id + '/review', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, status }) }),
-  search: (id: string, q: string) => req<SearchHit[]>('/api/runs/' + id + '/search?q=' + encodeURIComponent(q)),
+    send(runPath(id) + '/review', { method: 'POST', ...json(ReviewBodySchema, { path, status }) }),
+
+  search: (id: string, q: string) =>
+    req<SearchHit[]>(runPath(id) + '/search?q=' + encodeURIComponent(q), SearchHitSchema.array(), []),
+
   newFile: (id: string, path: string, dir = false) =>
-    req<void>('/api/runs/' + id + '/file/new', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, dir }) }),
+    send(runPath(id) + '/file/new', { method: 'POST', ...json(NewFileBodySchema, { path, dir }) }),
+
   renameFile: (id: string, from: string, to: string) =>
-    req<void>('/api/runs/' + id + '/file/rename', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from, to }) }),
+    send(runPath(id) + '/file/rename', { method: 'POST', ...json(RenameFileBodySchema, { from, to }) }),
+
   deleteFile: (id: string, path: string) =>
-    req<void>('/api/runs/' + id + '/file?path=' + encodeURIComponent(path), { method: 'DELETE' }),
-  startPreview: (id: string) => req<{ status?: string; url?: string }>('/api/runs/' + id + '/preview', { method: 'POST' }),
-  stopPreview: (id: string) => req<void>('/api/runs/' + id + '/preview', { method: 'DELETE' }),
-  live: (id: string) => req<LiveView>('/api/runs/' + id + '/live'),
-  previewRestart: (id: string) => req<void>('/api/runs/' + id + '/preview/restart', { method: 'POST' }),
+    send(runPath(id) + '/file?path=' + encodeURIComponent(path), { method: 'DELETE' }),
+
+  startPreview: (id: string) =>
+    req(runPath(id) + '/preview', StartPreviewSchema, undefined, { method: 'POST' }),
+
+  stopPreview: (id: string) => send(runPath(id) + '/preview', { method: 'DELETE' }),
+
+  live: (id: string) => req(runPath(id) + '/live', LiveViewSchema, { status: 'idle' as const }),
+
+  previewRestart: (id: string) => send(runPath(id) + '/preview/restart', { method: 'POST' }),
+
+  // Deliberately outside the schema boundary: text/plain, not JSON.
   previewLog: async (id: string): Promise<string> => {
-    const r = await fetch('/api/runs/' + id + '/preview/log')
+    const r = await fetch(runPath(id) + '/preview/log')
     return r.ok ? r.text() : ''
   },
-  flows: (id: string) => req<FlowsResp>('/api/runs/' + id + '/flows'),
-  runFlows: (id: string) => req<void>('/api/runs/' + id + '/flows', { method: 'POST' }),
-  getSettings: () => req<Record<string, unknown>>('/api/settings'),
+
+  flows: (id: string) => req(runPath(id) + '/flows', FlowsRespSchema, { ready: false, pending: false }),
+
+  runFlows: (id: string) => send(runPath(id) + '/flows', { method: 'POST' }),
+
+  getSettings: () => req('/api/settings', SettingsSchema, {}),
+
   putSettings: (patch: Record<string, unknown>) =>
-    req<Record<string, unknown>>('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch) }),
+    req('/api/settings', SettingsSchema, {}, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
 }

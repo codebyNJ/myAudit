@@ -44,7 +44,7 @@ export function PlaywrightScreen() {
 
   const qa = cards.filter((c) => c.type === 'qa')
   const bugs = cards.filter((c) => c.type === 'bug')
-  const findingsFor = (mod?: string) => bugs.filter((b) => (b.tags || []).includes('module:' + mod)).length
+  const findingsFor = (mod?: string) => bugs.filter((b) => b.tags.includes('module:' + mod)).length
   const previews = (s.detail?.files || []).filter((f) => f.path.startsWith('.myaudit/preview/') && /\.(png|jpe?g|webp|gif)$/i.test(f.path))
   const events = s.detail?.events || []
 
@@ -191,7 +191,7 @@ export function PlaywrightScreen() {
             <div className="vercel-card-body">
               {qa.length ? (
                 qa.map((m) => {
-                  const modTag = (m.tags || []).find((t) => t.startsWith('module:'))?.slice(7)
+                  const modTag = m.tags.find((t) => t.startsWith('module:'))?.slice(7)
                   const fCount = findingsFor(modTag)
                   const isDone = m.status === 'done'
                   return (
