@@ -5,7 +5,7 @@
 MYAUDIT_DB ?= myaudit.db
 export
 
-.PHONY: test test-integration run dev seed ui-build ui-check serve-restart ui-dev desktop tidy lint-go ci
+.PHONY: cover test test-integration run dev seed ui-build ui-check serve-restart ui-dev desktop tidy lint-go ci
 
 ## test: run the full Go suite (each test uses its own temp SQLite; no services)
 test: ui-check
@@ -27,12 +27,19 @@ ci:
 	test -z "$$(gofmt -l .)"
 	golangci-lint run ./...
 	go vet $$(go list ./... | grep -v '/runs/')
-	go test $$(go list ./... | grep -v '/runs/') -count=1
+	go test $$(go list ./... | grep -v '/runs/') -count=1 -coverprofile=coverage.out -covermode=atomic
+	./scripts/coverage-gate.sh coverage.out 50
 	go tool govulncheck $$(go list ./... | grep -v '/runs/')
 	go build ./cmd/serve
 	GOOS=windows GOARCH=amd64 go build ./...
 	GOOS=linux   GOARCH=amd64 go build ./...
 	GOOS=darwin  GOARCH=arm64 go build ./...
+
+## cover: Go coverage summary, then the CI floor check
+cover:
+	go test $$(go list ./... | grep -v '/runs/') -count=1 -coverprofile=coverage.out -covermode=atomic
+	go tool cover -func=coverage.out | tail -20
+	./scripts/coverage-gate.sh coverage.out 50
 
 ## ui-check: build the embedded UI if assets/ is missing (avoids a blank white window)
 ui-check:
