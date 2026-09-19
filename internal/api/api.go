@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -368,12 +367,11 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 			return
 		}
 		pending, _ := s.HasPendingFlows(r.Context(), id)
-		w.Header().Set("content-type", "application/json")
-		if len(raw) == 0 {
-			fmt.Fprintf(w, `{"ready":false,"pending":%t}`, pending)
-			return
+		resp := map[string]any{"ready": len(raw) > 0, "pending": pending}
+		if len(raw) > 0 {
+			resp["flows"] = json.RawMessage(raw)
 		}
-		fmt.Fprintf(w, `{"ready":true,"pending":%t,"flows":%s}`, pending, raw)
+		writeJSON(w, resp)
 	})
 
 	mux.HandleFunc("POST /api/runs/{id}/flows", func(w http.ResponseWriter, r *http.Request) {
