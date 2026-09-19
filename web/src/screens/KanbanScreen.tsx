@@ -129,7 +129,12 @@ export function KanbanScreen() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (sel && cards) { const fresh = cards.find((c) => c.id === sel.id); if (fresh) setSel(fresh) }
+    if (!sel || !cards) return
+    const fresh = cards.find((c) => c.id === sel.id)
+    // Every poll produces new card objects. Replacing `sel` with an
+    // equal-but-new one re-rendered the whole drawer twice a second for no
+    // change; only swap when the contents actually differ.
+    if (fresh && JSON.stringify(fresh) !== JSON.stringify(sel)) setSel(fresh)
   }, [cards])
 
   const [fixDiff, setFixDiff] = useState('')
@@ -162,7 +167,10 @@ export function KanbanScreen() {
     let alive = true
     api.diff(runId, path).then((r) => { if (alive) setFixDiff(r.diff) }).catch(() => {})
     return () => { alive = false }
-  }, [sel?.id, sel?.file, runId, detail])
+    // Keyed on what can actually change this diff, not on `detail`. `detail`
+    // is replaced by the 2s poll, so listing it here re-cleared and refetched
+    // the diff ten times per 20s for a file nobody had touched.
+  }, [sel?.id, sel?.file, sel?.commit_sha, sel?.status, sel?.files, runId])
 
   const openedFromUrl = useRef(false)
   useEffect(() => {
