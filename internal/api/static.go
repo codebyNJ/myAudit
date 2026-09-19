@@ -3,9 +3,11 @@ package api
 import (
 	"embed"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -76,13 +78,34 @@ func repoRoot() string {
 	}
 }
 
+// entryScriptRe pulls the bundle that index.html actually loads.
+var entryScriptRe = regexp.MustCompile(`src="(/assets/[^"]+\.js)"`)
+
+// hasUIAssets reports whether root holds a *self-consistent* built UI.
+//
+// Checking that some index-*.js exists is not enough. index.html and the
+// assets beside it can disagree: internal/api/web/dist/index.html is tracked
+// while everything else in that directory is gitignored, so any checkout,
+// branch switch or stash restores a placeholder naming a bundle that was
+// deleted by the last build. Because that placeholder was just written, its
+// mtime is newest, and builtDistOnDisk preferred it — serving a page whose own
+// entry point 404s, which looks exactly like the app crashing.
 func hasUIAssets(root string) bool {
-	matches, err := filepath.Glob(filepath.Join(root, "assets", "index-*.js"))
-	if err != nil || len(matches) == 0 {
+	data, err := os.ReadFile(filepath.Join(root, "index.html"))
+	if err != nil || !strings.Contains(string(data), `id="root"`) {
 		return false
 	}
-	data, err := os.ReadFile(filepath.Join(root, "index.html"))
-	return err == nil && strings.Contains(string(data), `id="root"`)
+	m := entryScriptRe.FindSubmatch(data)
+	if m == nil {
+		return false
+	}
+	entry := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(string(m[1]), "/")))
+	if _, err := os.Stat(entry); err != nil {
+		slog.Warn("ignoring stale UI build: index.html references a bundle that is not there",
+			"dir", root, "bundle", string(m[1]), "hint", "run `make ui-build`")
+		return false
+	}
+	return true
 }
 
 func spaFileServer(files http.FileSystem) http.Handler {
