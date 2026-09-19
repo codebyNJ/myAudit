@@ -50,6 +50,9 @@ func nodeStatuses(t *testing.T, s *Store, run, typ string) []string {
 		}
 		out = append(out, st)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	return out
 }
 

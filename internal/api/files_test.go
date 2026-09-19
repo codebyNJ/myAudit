@@ -28,7 +28,11 @@ func TestFileOpsAndSearch(t *testing.T) {
 
 	putJSON(t, base+"/file", `{"path":"src/app.go","content":"package main\n// TODO: audit me\n"}`, 200)
 
-	resp, _ := http.Get(base + "/search?q=TODO")
+	resp, err := http.Get(base + "/search?q=TODO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	var hits []searchHit
 	json.NewDecoder(resp.Body).Decode(&hits)
 	if len(hits) != 1 || hits[0].Path != "src/app.go" || hits[0].Line != 2 {
@@ -44,7 +48,11 @@ func TestFileOpsAndSearch(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("DELETE", base+"/file?path=src/main.go", nil)
-	dr, _ := http.DefaultClient.Do(req)
+	dr, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dr.Body.Close()
 	if dr.StatusCode != 200 {
 		t.Fatalf("delete status %d", dr.StatusCode)
 	}

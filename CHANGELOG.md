@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Dependency updates: routine version-bump PRs replaced by Dependabot **security** updates (CVEs only), with a weekly `cargo audit` covering the Rust crate that ships in the desktop app
+- CI now lints its own workflow files (`actionlint`) and runs CodeQL on Go and TypeScript
+- `.golangci.yml` enables defect-finding linters (`errorlint`, `bodyclose`, `rowserrcheck`, `sqlclosecheck`) instead of the bare default set
 
 ### Added
 

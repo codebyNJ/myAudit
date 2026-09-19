@@ -2,6 +2,16 @@ version: "2"
 run:
   tests: true
 linters:
+  # Only linters that find real defects in THIS codebase. Deliberately absent:
+  #   nilerr  — 10 hits, all filepath.Walk callbacks that return nil on purpose
+  #             to skip unreadable entries. That is the repo's idiom, not a bug.
+  #   gosec   — enabled separately; ~2/3 of its hits here are by-design (the
+  #             product shells out to agent CLIs and walks filesystems).
+  enable:
+    - errorlint      # %w vs %v, and type assertions that break on wrapped errors
+    - bodyclose      # unclosed HTTP response bodies
+    - rowserrcheck   # sql.Rows.Err() unchecked — internal/store iterates rows everywhere
+    - sqlclosecheck  # unclosed sql.Rows/Stmt
   exclusions:
     generated: lax
     presets:

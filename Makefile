@@ -23,6 +23,7 @@ lint-go:
 ci:
 	cd web && npm ci --no-audit --no-fund && npm run lint && npm test && npm run build
 	rm -rf internal/api/web/dist && cp -r web/dist internal/api/web/dist
+	go tool actionlint
 	test -z "$$(gofmt -l .)"
 	golangci-lint run ./...
 	go vet $$(go list ./... | grep -v '/runs/')

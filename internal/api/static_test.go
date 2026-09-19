@@ -85,7 +85,11 @@ func TestSPAFallback(t *testing.T) {
 	srv := httptest.NewServer(NewMux(s, StaticHandler()))
 	defer srv.Close()
 
-	resp, _ := http.Get(srv.URL + "/settings")
+	resp, err := http.Get(srv.URL + "/settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		t.Fatalf("SPA fallback should 200, got %d", resp.StatusCode)
 	}
