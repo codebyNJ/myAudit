@@ -7,10 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-20
+
 ### Added
 
 - Ticket cards and the ticket drawer show the git work behind a finding: the fix commit, the branch it is labelled with, and copy actions whose command follows where that branch actually lives — the run workspace before a push, your own clone after one. Exports (`findings.json`, `report.md`) carry the same trail
 - Chat is a first-class tab alongside Board, Overview, Report and Code, replacing the floating dock and its launcher button. The agent can now see the findings board rather than only the code and the audit notes, a draft survives switching tabs, and a waiting checkpoint is flagged on the tab itself
+- [docs/state-management.md](docs/state-management.md) documents where frontend state lives and the rules for adding more
+- API responses and request bodies are validated against Zod schemas written from the Go structs, so a field that changes shape is reported instead of silently read as `undefined`
+
+### Changed
+
+- Frontend state moved to Zustand; removed two store members that had no consumers and an unreachable tab from the routing type
+- Dependency updates: routine version-bump PRs replaced by Dependabot **security** updates (CVEs only), with a weekly `cargo audit` covering the Rust crate that ships in the desktop app
+- CI now lints its own workflow files (`actionlint`) and runs CodeQL on Go and TypeScript
+- `gosec` runs in CI; the local HTTP server and the preview static server now set `ReadHeaderTimeout`, and preview reachability checks are restricted to loopback
+- TypeScript `strict` enabled for the web app
+- CI measures test coverage: Go gated at a 50% floor (measured 53.1%), web reported only until it has enough tests for a gate to mean anything (measured 2.6%)
+- `.golangci.yml` enables defect-finding linters (`errorlint`, `bodyclose`, `rowserrcheck`, `sqlclosecheck`) instead of the bare default set
 
 ### Fixed
 
@@ -21,21 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Findings are classified as bug / improvement / style / question, and the board shows defects by default — a style note can no longer arrive as a P0
 - Findings outside the audited module are tagged rather than mislabelled, and the agent is shown the repo's own conventions (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`) so a consistent pattern is not reported as a defect
 - Exports (`findings.json`, `report.md`) carry class, confidence and category
-- [docs/state-management.md](docs/state-management.md) documents where frontend state lives and the rules for adding more
 - Polling is centralised and paused for screens you are not looking at: a board tab that made 43 requests every 20 seconds now makes 20, and the duplicated board poll is gone
-- Frontend state moved to Zustand; removed two store members that had no consumers and an unreachable tab from the routing type
-- API responses and request bodies are validated against Zod schemas written from the Go structs, so a field that changes shape is reported instead of silently read as `undefined`
 - Live view now shows the captured-frame timestamp and the real application title; both read a wrongly-capitalised key and were always `undefined`
 - Blank UI on launch caused by mismatched `react` / `react-dom` versions (19.3.0 vs 19.2.8); both are now pinned together and a test fails the build if they ever diverge
 
-### Changed
-
-- Dependency updates: routine version-bump PRs replaced by Dependabot **security** updates (CVEs only), with a weekly `cargo audit` covering the Rust crate that ships in the desktop app
-- CI now lints its own workflow files (`actionlint`) and runs CodeQL on Go and TypeScript
-- `gosec` runs in CI; the local HTTP server and the preview static server now set `ReadHeaderTimeout`, and preview reachability checks are restricted to loopback
-- TypeScript `strict` enabled for the web app
-- CI measures test coverage: Go gated at a 50% floor (measured 53.1%), web reported only until it has enough tests for a gate to mean anything (measured 2.6%)
-- `.golangci.yml` enables defect-finding linters (`errorlint`, `bodyclose`, `rowserrcheck`, `sqlclosecheck`) instead of the bare default set
+## [0.2.12] - 2026-09-18
 
 ### Added
 
@@ -56,13 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - macOS DMG installer: retina background, volume icon, clearer drag-to-Applications layout
-
-### Changed
-
 - Removed ~14 MB of committed frontend build artifacts from `internal/api/web/dist/`
 - Replaced boilerplate `web/README.md` and `desktop/README.md`
-
-## [0.2.12] - 2026-09-18
 
 ### Fixed
 
@@ -94,6 +93,7 @@ Safety and correctness:
 
 Initial public release. See [GitHub Releases](https://github.com/codebyNJ/myAudit/releases) for desktop installer artifacts and auto-generated notes.
 
-[Unreleased]: https://github.com/codebyNJ/myAudit/compare/v0.2.12...HEAD
+[Unreleased]: https://github.com/codebyNJ/myAudit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/codebyNJ/myAudit/compare/v0.2.12...v0.3.0
 [0.2.12]: https://github.com/codebyNJ/myAudit/releases/tag/v0.2.12
 [0.1.0]: https://github.com/codebyNJ/myAudit/releases/tag/v0.1.0
