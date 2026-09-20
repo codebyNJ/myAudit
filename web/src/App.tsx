@@ -9,7 +9,6 @@ import { Palette } from './components/Palette'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
-import { Chat } from './components/Chat'
 import { DevScreen } from './screens/DevScreen'
 import { ConfigScreen } from './screens/ConfigScreen'
 import { PlaywrightScreen } from './screens/PlaywrightScreen'
@@ -75,7 +74,6 @@ function Shell() {
           <Screens />
         </main>
       </div>
-      <Chat />
     </div>
   )
 }

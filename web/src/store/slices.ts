@@ -53,12 +53,12 @@ export type State = {
   newOpen: boolean
   explorerOpen: boolean
   explorerW: number
-  chatOpen: boolean
   /**
-   * The composer and the in-flight flag live here, not in the component: the
-   * dock and the Chat tab are two views of one conversation, and a reply can
-   * take up to chatTimeout (10 minutes). Component-local state would give each
-   * view its own draft and abandon a send when either unmounted.
+   * The composer and the in-flight flag live here, not in ChatScreen. A reply
+   * can take up to chatTimeout (10 minutes), so an abandoned one costs real
+   * money. Screens happen to stay mounted across a tab switch today, but that
+   * is an accident of App.tsx hiding them with CSS — see docs/state-management.md,
+   * which says not to rely on it. Owning this in the store makes it a guarantee.
    */
   chatDraft: string
   chatBusy: boolean
@@ -73,7 +73,6 @@ export type State = {
   setNewOpen: (v: boolean) => void
   toggleExplorer: () => void
   setExplorerW: (n: number) => void
-  setChatOpen: (v: boolean) => void
   setChatDraft: (v: string) => void
   sendChat: () => Promise<void>
   openCard: (id: string) => void
@@ -108,7 +107,6 @@ export const useAppStore = create<State>((set, get) => ({
   newOpen: false,
   explorerOpen: true,
   explorerW: num('explorerW', 180, 480, 240),
-  chatOpen: ls.get('chatOpen') === '1',
   chatDraft: '',
   chatBusy: false,
   toasts: [],
@@ -141,11 +139,6 @@ export const useAppStore = create<State>((set, get) => ({
     const explorerW = Math.min(480, Math.max(180, Math.round(n)))
     ls.set('explorerW', String(explorerW))
     set({ explorerW })
-  },
-
-  setChatOpen: (chatOpen) => {
-    ls.set('chatOpen', chatOpen ? '1' : '0')
-    set({ chatOpen })
   },
 
   setChatDraft: (chatDraft) => set({ chatDraft }),
