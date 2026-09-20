@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useScrollAnchor } from '../useScrollAnchor'
 import {
   Download, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
@@ -118,6 +119,7 @@ export function KanbanScreen() {
   // One board poll lives in the store; Overview reads the same cards.
   const cards = useAppStore((st) => st.board)
   const [sel, setSel] = useState<NodeCard | null>(null)
+  const drawerBody = useScrollAnchor<HTMLDivElement>(sel?.id)
   const [tagDraft, setTagDraft] = useState('')
   const [fSev, setFSev] = useState('all')
   const [fType, setFType] = useState('all')
@@ -496,7 +498,7 @@ export function KanbanScreen() {
                 <button className="icon-btn" title="Close (Esc)" onClick={() => setSel(null)}><X size={17} /></button>
               </span>
             </div>
-            <div className="drawer-body">
+            <div className="drawer-body" ref={drawerBody}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <span className="kbadge" style={{ color: STATUS_COLOR[sel.status], background: 'var(--bg-panel)' }}>
                   <span className="kdot" style={{ background: STATUS_COLOR[sel.status] }} />{sel.status}
