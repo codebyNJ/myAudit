@@ -39,6 +39,7 @@ type nodeOutput struct {
 	Changed   []string        `json:"changed,omitempty"`
 	Flows     json.RawMessage `json:"flows,omitempty"`
 	CommitSHA string          `json:"commit_sha,omitempty"`
+	Branch    string          `json:"branch,omitempty"`
 	PRURL     string          `json:"pr_url,omitempty"`
 	PRStatus  string          `json:"pr_status,omitempty"`
 }

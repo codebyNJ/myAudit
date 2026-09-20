@@ -69,6 +69,42 @@ func (w Workspace) HeadSHA(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
+// BranchName is the branch a ticket's fix uses, in the sandbox and later in
+// the developer's own clone. Both are derived here so the label the UI shows
+// before a push and the branch `git push` actually creates cannot drift apart.
+//
+// Takes strings rather than uuid.UUID to keep this package on the standard
+// library.
+func BranchName(runID, nodeID string) string {
+	return fmt.Sprintf("myaudit/%s/%s", shortID(runID), shortID(nodeID))
+}
+
+func shortID(id string) string {
+	if len(id) >= 8 {
+		return id[:8]
+	}
+	return id
+}
+
+// CreateBranch points name at sha without touching HEAD or the working tree.
+//
+// Every node of a run shares one workspace and up to MaxConcurrent of them run
+// at once, so checking a branch out here would make concurrent fixes fight
+// over HEAD. A bare ref costs nothing and is what the UI needs.
+//
+// Forced, so a retried fix node re-points its branch instead of failing on a
+// name that already exists.
+func (w Workspace) CreateBranch(ctx context.Context, name, sha string) error {
+	out, code, err := w.Run(ctx, "git", "branch", "-f", name, sha)
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		return fmt.Errorf("git branch %s: %s", name, out)
+	}
+	return nil
+}
+
 // FormatPatch returns a mailbox patch for a single commit.
 func (w Workspace) FormatPatch(ctx context.Context, sha string) (string, error) {
 	out, code, err := w.Run(ctx, "git", "format-patch", "-1", sha, "--stdout")

@@ -1181,3 +1181,9 @@ aside .row.file > span { overflow: hidden; text-overflow: ellipsis; white-space:
 .as-badge.crashed { color: var(--diff-del-text); border-color: rgba(248,81,73,.35); background: rgba(248,81,73,.1); }
 
 .icon-spin { animation: sp .7s linear infinite; }
+
+/* Ticket drawer: the git trail for a finding (commit, branch, where it lives). */
+.git-ref { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.git-ref code { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border-dim); border-radius: 6px; padding: 2px 7px; }
+.git-none { color: var(--text-muted); font-style: italic; }
+.git-where { margin-top: 8px; font-size: 11.5px; color: var(--text-muted); }

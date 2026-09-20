@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Ticket cards and the ticket drawer show the git work behind a finding: the fix commit, the branch it is labelled with, and copy actions whose command follows where that branch actually lives — the run workspace before a push, your own clone after one. Exports (`findings.json`, `report.md`) carry the same trail
+
 ### Fixed
 
 - Opening a ticket on a run whose workspace is gone no longer logs a 500; the diff is simply empty

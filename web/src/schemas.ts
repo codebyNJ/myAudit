@@ -126,6 +126,8 @@ export const NodeCardSchema = z.object({
   tags: z.array(z.string()).default([]),
 
   commit_sha: z.string().optional(),
+  /** Set when the fix commits; the same name Push PR later creates in your clone. */
+  branch: z.string().optional(),
   pr_url: z.string().optional(),
   pr_status: z.string().optional(),
 })
