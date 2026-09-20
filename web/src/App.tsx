@@ -9,12 +9,12 @@ import { Palette } from './components/Palette'
 import { Splash } from './components/Splash'
 import { AgentAvatar, IcPanelLeft } from './components/icons'
 import { HomeScreen } from './screens/HomeScreen'
-import { Chat } from './components/Chat'
 import { DevScreen } from './screens/DevScreen'
 import { ConfigScreen } from './screens/ConfigScreen'
 import { PlaywrightScreen } from './screens/PlaywrightScreen'
 import { KanbanScreen } from './screens/KanbanScreen'
 import { NotesScreen } from './screens/NotesScreen'
+import { ChatScreen } from './screens/ChatScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { ProviderPicker } from './components/ProviderPicker'
 import { api } from './api'
@@ -24,6 +24,7 @@ const SCREENS: { tab: Tab; el: React.ReactNode }[] = [
   { tab: 'playwright', el: <PlaywrightScreen /> },
   { tab: 'notes', el: <NotesScreen /> },
   { tab: 'dev', el: <DevScreen /> },
+  { tab: 'chat', el: <ChatScreen /> },
   { tab: 'settings', el: <SettingsScreen /> },
 ]
 
@@ -73,7 +74,6 @@ function Shell() {
           <Screens />
         </main>
       </div>
-      <Chat />
     </div>
   )
 }

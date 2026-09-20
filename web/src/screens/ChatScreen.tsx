@@ -1,61 +1,52 @@
-import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useAppStore } from '../store/slices'
-import { api } from '../api'
-import { AgentAvatar } from './icons'
-import { Markdown } from './Markdown'
+import { Markdown } from '../components/Markdown'
+import { AgentAvatar } from '../components/icons'
 
-export function Chat() {
+/**
+ * Chat as a first-class tab (#23).
+ *
+ * This replaced a floating dock. The draft and the in-flight flag live in the
+ * store rather than here: a reply can take up to chatTimeout — ten minutes —
+ * so unmounting this screen on a tab switch would otherwise abandon a request
+ * that was already paid for, and lose what was typed.
+ */
+export function ChatScreen() {
   const detail = useAppStore((s) => s.detail)
   const runs = useAppStore((s) => s.runs)
   const runId = useAppStore((s) => s.runId)
-  const chatOpen = useAppStore((s) => s.chatOpen)
-  const setChatOpen = useAppStore((s) => s.setChatOpen)
-  const toast = useAppStore((s) => s.toast)
-  const reloadDetail = useAppStore((s) => s.reloadDetail)
+  const draft = useAppStore((s) => s.chatDraft)
+  const busy = useAppStore((s) => s.chatBusy)
+  const setDraft = useAppStore((s) => s.setChatDraft)
+  const sendChat = useAppStore((s) => s.sendChat)
   const resolveCheckpoint = useAppStore((s) => s.resolveCheckpoint)
-  const events = detail?.events || []
+
+  const events = detail?.events || NO_EVENTS
   const cp = detail?.checkpoints?.[0]
   const project = (runs || []).find((r) => r.id === runId)?.project
-  const [busy, setBusy] = useState(false)
-  const [draft, setDraft] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const turns = events.filter((e) => e.kind === 'chat.user' || e.kind === 'chat.assistant')
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns.length, busy])
 
-  const send = async () => {
-    const msg = draft.trim()
-    if (!msg || !runId || busy) return
-    setDraft(''); setBusy(true)
-    try {
-      await api.chat(runId, msg)
-      reloadDetail()
-    } catch (e) {
-      setDraft(msg)
-      toast('error', 'Chat failed', (e as Error).message)
-    } finally { setBusy(false) }
-  }
-
-  const hasCheckpoint = (detail?.checkpoints?.length ?? 0) > 0
-  if (!chatOpen) {
+  if (!runId) {
     return (
-      <button className={`chat-fab ${hasCheckpoint ? 'has-cp' : ''}`}
-        title={hasCheckpoint ? 'The audit needs your input' : 'Open chat'} onClick={() => setChatOpen(true)}>
-        <MessageSquare size={20} />
-        {hasCheckpoint && <span className="fab-badge" />}
-      </button>
+      <div className="pane">
+        <h2>Chat</h2>
+        <p className="sub">Open an audit to chat about its codebase.</p>
+      </div>
     )
   }
 
   return (
-    <aside className="chatdock floating">
-      <div className="chatdock-h">
-        <AgentAvatar size={18} /> <span>myAudit</span>
-        <span className="chatdock-x" title="Close" onClick={() => setChatOpen(false)}><X size={16} /></span>
+    <div className="chatpane">
+      <div className="chatpane-h">
+        <AgentAvatar size={20} />
+        <span>myAudit</span>
+        <span className="chatpane-scope">answers about this audit: its board, files and findings</span>
       </div>
 
-      <div className="chatdock-body">
+      <div className="chat-body">
         {turns.length === 0 && !busy && (
           <div className="agent-reply">
             {project
@@ -81,17 +72,22 @@ export function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="chatdock-composer">
+      <div className="chat-composer">
         <textarea
-          className="prompt-input" rows={2} value={draft} disabled={!runId || busy}
+          className="prompt-input" rows={2} value={draft} disabled={busy}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat() } }}
           placeholder={busy ? 'Waiting for reply…' : 'Ask about the code… (Enter to send)'} />
-        <div className="chatdock-footer">
+        <div className="chat-footer">
           <span className="token-count">{turns.length} messages</span>
-          <button className="btn-sm primary" onClick={send} disabled={!runId || busy || !draft.trim()}>Send</button>
+          <button className="btn-sm primary" onClick={() => void sendChat()}
+            disabled={busy || !draft.trim()}>Send</button>
         </div>
       </div>
-    </aside>
+    </div>
   )
 }
+
+// Module-level so this selector never returns a fresh array (see the
+// "selectors must not allocate" rule in docs/state-management.md).
+const NO_EVENTS: NonNullable<ReturnType<typeof useAppStore.getState>['detail']>['events'] = []

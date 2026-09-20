@@ -7,10 +7,10 @@ This is the answer to "where do I put this piece of state?" for `web/src`.
 | Home | Holds | Examples |
 |---|---|---|
 | **`data` (store)** | server responses | `runs`, `detail`, `board` |
-| **`ui` (store)** | UI state read by more than one component, or that must outlive a tab switch | `tab`, `file`, `openFiles`, `focusCard`, `explorerOpen`, `explorerW`, `chatOpen`, `toasts`, `newOpen` |
+| **`ui` (store)** | UI state read by more than one component, or that must outlive a tab switch | `tab`, `file`, `openFiles`, `focusCard`, `explorerOpen`, `explorerW`, `chatDraft`, `chatBusy`, `toasts`, `newOpen` |
 | **component local** | ephemeral, single-owner | dropdown open flags, input drafts, `busy`/`saving`, drag state, DOM refs |
 | **URL hash** | position you can link to or reload into | `#/run/<id>/<tab>`, `?card=<id>` |
-| **`localStorage`** | preference that should outlive the session | `chatOpen`, `explorerW` |
+| **`localStorage`** | preference that should outlive the session | `explorerW` |
 | **`sessionStorage`** | per-session flag | `seen-splash` |
 
 The store lives in `web/src/store/slices.ts` (one Zustand store; `data` and `ui`

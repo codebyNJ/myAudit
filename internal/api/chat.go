@@ -165,6 +165,9 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 	if strings.TrimSpace(notes) != "" {
 		task += "Prior analysis + audit log for this codebase:\n" + notes + "\n\n"
 	}
+	if board := boardSummary(ctx, s, run); board != "" {
+		task += board + "\n"
+	}
 	task += "Developer: " + msg + "\n\nRespond concisely; if you changed files, say what and why."
 
 	ctx, cancel := context.WithTimeout(ctx, chatTimeout)
@@ -181,4 +184,49 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 		return "chat error: " + res.Err
 	}
 	return res.Summary
+}
+
+// boardSummary gives chat the findings board as context.
+//
+// The agent already has the workspace and the run notes, so it can read any
+// file and recall the audit's analysis — but it could not see the tickets
+// themselves, which is what a question like "what's still open?" is about.
+func boardSummary(ctx context.Context, s *store.Store, run uuid.UUID) string {
+	cards, err := s.NodeDetailsForRun(ctx, run)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	n := 0
+	for _, c := range cards {
+		if c.Type != "bug" {
+			continue
+		}
+		if n == 0 {
+			b.WriteString("Findings on this audit's board (status | severity | title | file):\n")
+		}
+		n++
+		if n > boardContextLimit {
+			continue
+		}
+		fmt.Fprintf(&b, "- %s | %s | %s | %s\n", c.Status, dashIfEmpty(c.Severity), c.Title, dashIfEmpty(c.File))
+	}
+	if n == 0 {
+		return ""
+	}
+	if n > boardContextLimit {
+		fmt.Fprintf(&b, "- …and %d more\n", n-boardContextLimit)
+	}
+	return b.String()
+}
+
+// Enough for the agent to reason about the board without crowding out the
+// notes, which are usually the larger and more valuable context.
+const boardContextLimit = 60
+
+func dashIfEmpty(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
 }
