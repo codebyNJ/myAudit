@@ -78,6 +78,7 @@ type NodeDetail struct {
 	Tags       []string `json:"tags"`
 
 	CommitSHA string `json:"commit_sha,omitempty"`
+	Branch    string `json:"branch,omitempty"`
 	PRURL     string `json:"pr_url,omitempty"`
 	PRStatus  string `json:"pr_status,omitempty"`
 }
@@ -122,6 +123,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		       coalesce(json_extract(n.input_snapshot,'$.detail'),''),
 		       coalesce((SELECT json_group_array(value) FROM json_each(n.input_snapshot,'$.tags')),'[]'),
 		       coalesce(json_extract(n.output,'$.commit_sha'),''),
+		       coalesce(json_extract(n.output,'$.branch'),''),
 		       coalesce(json_extract(n.output,'$.pr_url'),''),
 		       coalesce(json_extract(n.output,'$.pr_status'),'')
 		FROM nodes n WHERE n.run_id=? ORDER BY n.created_at`, run)
@@ -134,7 +136,7 @@ func (s *Store) NodeDetailsForRun(ctx context.Context, run uuid.UUID) ([]NodeDet
 		var d NodeDetail
 		var claimed sql.NullTime
 		var tags string
-		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.File, &d.Severity, &d.Priority, &d.Class, &d.Category, &d.Confidence, &d.Detail, &tags, &d.CommitSHA, &d.PRURL, &d.PRStatus); err != nil {
+		if err := rows.Scan(&d.ID, &d.Type, &d.Name, &d.Status, &d.Deps, &d.Attempts, &d.Summary, &d.Files, &d.CostUSD, &d.Events, &d.CreatedAt, &claimed, &d.Title, &d.File, &d.Severity, &d.Priority, &d.Class, &d.Category, &d.Confidence, &d.Detail, &tags, &d.CommitSHA, &d.Branch, &d.PRURL, &d.PRStatus); err != nil {
 			return nil, err
 		}
 		if claimed.Valid {

@@ -38,13 +38,18 @@ func registerExport(mux *http.ServeMux, s *store.Store) {
 			Status     string   `json:"status"`
 			Detail     string   `json:"detail,omitempty"`
 			Tags       []string `json:"tags"`
+			// Where the work for this finding lives. Without these the export
+			// says what is wrong but not what was done about it.
+			CommitSHA string `json:"commit_sha,omitempty"`
+			Branch    string `json:"branch,omitempty"`
+			PRURL     string `json:"pr_url,omitempty"`
 		}
 		out := []finding{}
 		for _, c := range cards {
 			if c.Type != "bug" {
 				continue
 			}
-			out = append(out, finding{c.Title, c.File, c.Class, c.Severity, c.Priority, c.Confidence, c.Category, c.Status, c.Detail, c.Tags})
+			out = append(out, finding{c.Title, c.File, c.Class, c.Severity, c.Priority, c.Confidence, c.Category, c.Status, c.Detail, c.Tags, c.CommitSHA, c.Branch, c.PRURL})
 		}
 		w.Header().Set("content-type", "application/json")
 		w.Header().Set("content-disposition", `attachment; filename="findings.json"`)
@@ -125,6 +130,9 @@ func buildReport(run store.RunSummary, cards []store.NodeDetail, cost float64, n
 			if strings.TrimSpace(f.Detail) != "" {
 				b.WriteString(f.Detail + "\n\n")
 			}
+			if git := gitTrail(f); git != "" {
+				b.WriteString(git + "\n\n")
+			}
 		}
 	}
 	if strings.TrimSpace(notes) != "" {
@@ -152,4 +160,30 @@ func dash(s string) string {
 func mdCell(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	return strings.ReplaceAll(s, "|", "\\|")
+}
+
+// gitTrail renders what was done about a finding: the commit, the branch it is
+// labelled with, and the PR if one was opened.
+func gitTrail(f store.NodeDetail) string {
+	var parts []string
+	if f.CommitSHA != "" {
+		parts = append(parts, "commit `"+shortSHA(f.CommitSHA)+"`")
+	}
+	if f.Branch != "" {
+		parts = append(parts, "branch `"+f.Branch+"`")
+	}
+	if f.PRURL != "" {
+		parts = append(parts, "PR "+f.PRURL)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " · ")
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
 }

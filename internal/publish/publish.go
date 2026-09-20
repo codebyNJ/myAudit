@@ -49,7 +49,7 @@ func PublishFix(ctx context.Context, opts Options) (Result, error) {
 	if base == "" {
 		base = "main"
 	}
-	branch := fmt.Sprintf("myaudit/%s/%s", shortID(opts.RunID), shortID(opts.NodeID))
+	branch := branchFor(opts.RunID, opts.NodeID)
 
 	ws := sandbox.Workspace{Dir: opts.SandboxDir}
 	patch, err := ws.FormatPatch(ctx, opts.CommitSHA)
@@ -190,10 +190,9 @@ func ghCreate(ctx context.Context, dir, title, body, head, base string) (string,
 	return sandbox.RunOutput(cmd) // caller trims; see prURL below
 }
 
-func shortID(id uuid.UUID) string {
-	s := id.String()
-	if len(s) >= 8 {
-		return s[:8]
-	}
-	return s
+// branchFor is the one place publish derives a branch name, delegating to the
+// sandbox helper so the label a ticket shows before a push and the branch this
+// pushes cannot drift apart.
+func branchFor(runID, nodeID uuid.UUID) string {
+	return sandbox.BranchName(runID.String(), nodeID.String())
 }
