@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Chat is a first-class tab alongside Board, Overview, Report and Code, and the agent can now see the findings board rather than only the code and the audit notes. The floating dock stays as the secondary entry point, sharing one conversation with the tab — switching tabs mid-reply loses neither the draft nor the request
+
 ### Fixed
 
 - Opening a ticket on a run whose workspace is gone no longer logs a 500; the diff is simply empty

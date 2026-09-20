@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { api, type CreateRunBody, type NodeCard, type Run, type RunDetail } from '../api'
 
-export type Tab = 'dev' | 'playwright' | 'kanban' | 'notes' | 'settings'
+export type Tab = 'dev' | 'playwright' | 'kanban' | 'notes' | 'chat' | 'settings'
 export type Toast = { id: number; type: 'success' | 'error' | 'info'; title: string; msg?: string }
 
 /** Retry the preview when another node has finished since the last check. */
@@ -9,7 +9,7 @@ export function shouldRetryPreview(prevDoneCount: number, doneCount: number): bo
   return doneCount > prevDoneCount
 }
 
-const TABS = new Set<Tab>(['dev', 'playwright', 'kanban', 'notes', 'settings'])
+const TABS = new Set<Tab>(['dev', 'playwright', 'kanban', 'notes', 'chat', 'settings'])
 
 // Guarded so this module can be imported outside a browser — tests run in a
 // node environment, and reading browser globals at module load made the whole
@@ -54,6 +54,14 @@ export type State = {
   explorerOpen: boolean
   explorerW: number
   chatOpen: boolean
+  /**
+   * The composer and the in-flight flag live here, not in the component: the
+   * dock and the Chat tab are two views of one conversation, and a reply can
+   * take up to chatTimeout (10 minutes). Component-local state would give each
+   * view its own draft and abandon a send when either unmounted.
+   */
+  chatDraft: string
+  chatBusy: boolean
   toasts: Toast[]
 
   // ---- actions
@@ -66,6 +74,8 @@ export type State = {
   toggleExplorer: () => void
   setExplorerW: (n: number) => void
   setChatOpen: (v: boolean) => void
+  setChatDraft: (v: string) => void
+  sendChat: () => Promise<void>
   openCard: (id: string) => void
   clearFocusCard: () => void
   toast: (type: Toast['type'], title: string, msg?: string) => void
@@ -99,6 +109,8 @@ export const useAppStore = create<State>((set, get) => ({
   explorerOpen: true,
   explorerW: num('explorerW', 180, 480, 240),
   chatOpen: ls.get('chatOpen') === '1',
+  chatDraft: '',
+  chatBusy: false,
   toasts: [],
 
   setTab: (tab) => set({ tab }),
@@ -134,6 +146,25 @@ export const useAppStore = create<State>((set, get) => ({
   setChatOpen: (chatOpen) => {
     ls.set('chatOpen', chatOpen ? '1' : '0')
     set({ chatOpen })
+  },
+
+  setChatDraft: (chatDraft) => set({ chatDraft }),
+
+  sendChat: async () => {
+    const { runId, chatDraft, chatBusy, toast, reloadDetail } = get()
+    const msg = chatDraft.trim()
+    if (!msg || !runId || chatBusy) return
+    set({ chatDraft: '', chatBusy: true })
+    try {
+      await api.chat(runId, msg)
+      reloadDetail()
+    } catch (e) {
+      // Put the message back so a failed send does not lose what was typed.
+      set({ chatDraft: msg })
+      toast('error', 'Chat failed', (e as Error).message)
+    } finally {
+      set({ chatBusy: false })
+    }
   },
 
   openCard: (focusCard) => set({ focusCard, tab: 'kanban' }),
