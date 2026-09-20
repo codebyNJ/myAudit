@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useScrollAnchor } from '../useScrollAnchor'
+import { branchCommand, commitCommand, shortSHA } from '../gitref'
 import {
   Download, Search, Bug,
   GitBranch, RefreshCw, Clock, FileCode2, X, Workflow,
@@ -194,6 +195,9 @@ export function KanbanScreen() {
     setTab('dev')
     setSel(null)
   }
+  const copy = (text: string, what: string) => {
+    navigator.clipboard?.writeText(text).then(() => toast('success', `${what} copied`)).catch(() => {})
+  }
   const copyLink = (card: NodeCard) => {
     const url = `${location.origin}${location.pathname}?card=${card.id}${location.hash}`
     navigator.clipboard?.writeText(url).then(() => toast('success', 'Link copied')).catch(() => {})
@@ -262,7 +266,7 @@ export function KanbanScreen() {
     try {
       const res = await api.pushPR(runId, card.id)
       toast('success', 'PR created', res.pr_url)
-      setSel({ ...card, pr_url: res.pr_url, pr_status: 'pushed' })
+      setSel({ ...card, pr_url: res.pr_url, pr_status: 'pushed', branch: res.branch })
       void loadBoard(runId)
     } catch (e) {
       toast('error', 'Push PR failed', (e as Error).message)
@@ -354,6 +358,7 @@ export function KanbanScreen() {
         <span className="jfoot-meta">
           {n.attempts > 1 && <span className="kmeta"><RefreshCw size={10} /> {n.attempts}</span>}
           {n.files > 0 && <span className="kmeta"><FileCode2 size={10} /> {n.files}</span>}
+          {n.branch && <span className="kmeta" title={`branch ${n.branch}`}><GitBranch size={10} /></span>}
           {n.cost_usd > 0 && <span className="kmeta">${n.cost_usd.toFixed(2)}</span>}
           {ageOf(n) && <span className="kmeta"><Clock size={10} /> {ageOf(n)}</span>}
         </span>
@@ -522,6 +527,40 @@ export function KanbanScreen() {
                 {sel.type === 'bug' && sel.status === 'dismissed' && <button className="btn-sm" onClick={() => restore(sel)}>Restore</button>}
                 {sel.type === 'bug' && sel.status !== 'dismissed' && <button className="btn-sm" onClick={() => dismiss(sel)}>Dismiss</button>}
               </div>
+
+              {sel.type === 'bug' && (sel.commit_sha || sel.branch) && (
+                <div>
+                  <div className="drawer-sec-h">Git</div>
+                  <dl className="drawer-kv">
+                    <dt>commit</dt>
+                    <dd className="git-ref">
+                      {sel.commit_sha ? (
+                        <>
+                          <code>{shortSHA(sel.commit_sha)}</code>
+                          <button className="btn-sm" title={commitCommand(sel.commit_sha, runId!, !!sel.pr_url)}
+                            onClick={() => copy(commitCommand(sel.commit_sha!, runId!, !!sel.pr_url), 'Command')}>Copy</button>
+                        </>
+                      ) : <span className="git-none">no commits yet</span>}
+                    </dd>
+                    <dt>branch</dt>
+                    <dd className="git-ref">
+                      {sel.branch ? (
+                        <>
+                          <code>{sel.branch}</code>
+                          <button className="btn-sm" onClick={() => copy(sel.branch!, 'Branch')}>Copy name</button>
+                          <button className="btn-sm" title={branchCommand(sel.branch, runId!, !!sel.pr_url)}
+                            onClick={() => copy(branchCommand(sel.branch!, runId!, !!sel.pr_url), 'Command')}>Copy command</button>
+                        </>
+                      ) : <span className="git-none">created when the fix commits</span>}
+                    </dd>
+                  </dl>
+                  <div className="git-where">
+                    {sel.pr_url
+                      ? 'This branch is in your repository — it was pushed with the PR.'
+                      : 'This branch is in the run workspace until you push a PR.'}
+                  </div>
+                </div>
+              )}
 
               {sel.type === 'bug' && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

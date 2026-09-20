@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Ticket cards and the ticket drawer show the git work behind a finding: the fix commit, the branch it is labelled with, and copy actions whose command follows where that branch actually lives — the run workspace before a push, your own clone after one. Exports (`findings.json`, `report.md`) carry the same trail
 - Chat is a first-class tab alongside Board, Overview, Report and Code, replacing the floating dock and its launcher button. The agent can now see the findings board rather than only the code and the audit notes, a draft survives switching tabs, and a waiting checkpoint is flagged on the tab itself
 
 ### Fixed

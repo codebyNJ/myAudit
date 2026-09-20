@@ -181,13 +181,22 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 		return true, nil
 	}
 
+	// A label for the commit, not a place to work: see sandbox.CreateBranch.
+	// A ticket that is genuinely fixed must not be reported as failed because
+	// a cosmetic ref could not be written, so this only logs.
+	branch := sandbox.BranchName(c.RunID.String(), c.ID.String())
+	if err := ws.CreateBranch(ctx, branch, commitSHA); err != nil {
+		branch = ""
+		d.Log.Log(ctx, event(c, "fix.branch_failed", err.Error()))
+	}
+
 	state, out := classifyTests(ctx, ws)
 	fixMsg := strings.TrimSpace(r.Summary)
 	if fixMsg == "" {
 		fixMsg = "Applied a fix."
 	}
 	out = firstN(out, 1200)
-	baseOut := nodeOutput{Kind: "bug", Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens, CommitSHA: commitSHA}
+	baseOut := nodeOutput{Kind: "bug", Changed: changed, CostUSD: r.CostUSD, Tokens: r.Tokens, CommitSHA: commitSHA, Branch: branch}
 
 	switch state {
 	case testPass:
