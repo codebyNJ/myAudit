@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live view now shows the captured-frame timestamp and the real application title; both read a wrongly-capitalised key and were always `undefined`
 - Blank UI on launch caused by mismatched `react` / `react-dom` versions (19.3.0 vs 19.2.8); both are now pinned together and a test fails the build if they ever diverge
 
+### Security
+
+- `dompurify` forced to 3.4.15, clearing four advisories in the sanitiser the rendered markdown goes through — monaco-editor 0.56.0 is the latest release and still pins the vulnerable 3.4.8, so there is no upstream bump to take and it is overridden instead
+- `vitest` and `@vitest/coverage-v8` updated to 5.x, clearing a path-traversal advisory in `@vitest/mocker` (dev tooling only, never shipped)
+
 ## [0.2.12] - 2026-09-18
 
 ### Added
