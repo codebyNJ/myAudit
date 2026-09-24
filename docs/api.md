@@ -98,6 +98,8 @@ Chat respects the active agent provider. Messages starting with `fix` enqueue op
 | `GET` | `/api/runs/{id}/live` | Live preview status |
 | `POST` | `/api/runs/{id}/preview` | Start dev-server preview (202) |
 | `DELETE` | `/api/runs/{id}/preview` | Stop preview |
+| `POST` | `/api/runs/{id}/preview/restart` | Restart the dev-server preview |
+| `GET` | `/api/runs/{id}/preview/log` | Dev-server log (`text/plain`) |
 
 ## Export
 

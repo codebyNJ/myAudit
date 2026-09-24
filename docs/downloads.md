@@ -7,7 +7,7 @@
 | Platform | Installer |
 |----------|-----------|
 | macOS (Apple Silicon) | `myAudit-*-macOS.dmg` |
-| Windows (x86_64) | `myAudit-*-Windows-x86_64-setup.exe` (`.msi` also attached) |
+| Windows (x86_64) | `myAudit-*-Windows-x86_64-setup.exe` |
 
 ## macOS
 

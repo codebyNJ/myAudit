@@ -73,6 +73,10 @@ The entire run is inspectable via the JSON API at any instant.
 | `internal/agent` | Shared types; `claude/` and `opencode/` runners |
 | `internal/worker` | Node dispatch: import, map, qa, bug |
 | `internal/api` | HTTP API, run loop, embedded web UI |
+| `internal/preview` | Target dev server for live screenshots |
+| `internal/publish` | Branch naming, patch, Push PR |
+| `internal/proc` | Process-group kill (unix/windows) |
+| `internal/demo` | Embedded sample repo |
 | `web` | React + Vite frontend |
 | `desktop` | Tauri shell |
 

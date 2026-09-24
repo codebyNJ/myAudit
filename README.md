@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml/badge.svg)](https://github.com/codebyNJ/myAudit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go)](go.mod)
+[![Go Version](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go)](go.mod)
 [![Latest Release](https://img.shields.io/github/v/release/codebyNJ/myAudit)](https://github.com/codebyNJ/myAudit/releases/latest)
 
 Point it at a codebase. myAudit drives a local agent CLI (**Claude Code** or
@@ -78,9 +78,13 @@ install and fix signing automatically.
 | **QA** | claude (**live**) | per module: install deps, run the suite/build, exercise the code, find real bugs + best-practice misses + missing-test gaps, and file **one bug ticket per finding with reproduce steps**. QA drains before any dev work. |
 | **dev fix** | claude (**live**) | per ticket (blocked until its module's QA is done): root-cause a minimal fix, commit it, run an **independent regression** — green **auto-closes** to Done; a real failure or an unverifiable/no-diff fix lands in **Review** with a red flag. Never a false "fixed". |
 
-Findings carry **severity** (high/medium/low) and **priority** (P0–P2). The
-board is the living logger; `notes` is the running markdown report (product
-map + per-module QA + every fix's what & why).
+Findings carry a **class** (bug / improvement / style / question), so a
+naming nit cannot arrive looking like a SQL injection, plus **severity**
+(high/medium/low), **priority** (P0–P2), **confidence**, and a scope tag when
+a finding sits outside the module being audited. A fixed ticket also shows its
+**commit and branch**. The board is the living logger; the **Report** tab is
+the running markdown report (product map + per-module QA + every fix's what &
+why).
 
 ## What makes it minimal
 
@@ -105,7 +109,7 @@ map + per-module QA + every fix's what & why).
 
 ## Run it
 
-Prereqs: **Go 1.23+**, **Node 18+**, **`claude`** or **`opencode`** CLI (logged
+Prereqs: **Go 1.26+**, **Node 24**, **`claude`** or **`opencode`** CLI (logged
 in), and **git**. Live QA also uses whatever the target repo needs on `PATH`
 (e.g. `npm`). The desktop shell additionally needs **Rust +
 `cargo install tauri-cli`**. On first launch you pick Claude Code or OpenCode;
@@ -145,10 +149,11 @@ curl -XPOST localhost:7788/api/runs \
   -d '{"repo_path":"/abs/path/to/your/repo"}'
 ```
 
-Then watch the **Board** fill, read the **Notes** log, browse changed files in
-the **Explorer** (changed files are flagged green + `M`), and talk to the code
-in the floating **chat** — it's real Claude Code over the workspace, and
-typing `fix` enqueues the open tickets for the autonomous dev loop.
+Then watch the **Board** fill, read the **Report** tab (the running notes
+log), browse changed files in the **Explorer** (changed files are flagged
+green + `M`), and talk to the code in the **Chat** tab — it's real Claude Code
+over the workspace, with the findings board in context, and typing `fix`
+enqueues the open tickets for the autonomous dev loop.
 
 ## Cost & time expectations
 
@@ -161,8 +166,9 @@ typing `fix` enqueues the open tickets for the autonomous dev loop.
   cycles than a single large module would.
 - **`make dev` and `make seed` are free** — use them to sanity-check the UI
   and workflow before spending tokens on a real run.
-- There's currently no in-app running cost meter; track spend via your
-  provider's own usage dashboard.
+- **Spend is visible while the run goes.** The header and the Overview tab
+  show the run's total model cost, and each ticket carries its own. Set a
+  **budget** when starting an audit and the run parks itself once it is spent.
 
 ## Troubleshooting
 
@@ -186,13 +192,17 @@ ran, and the relevant log/event output — see
 | Package | Responsibility |
 |---|---|
 | `internal/config` | env config (SQLite path, run pacing) |
-| `internal/store` | SQLite `runs`/`nodes`/`events`/`checkpoints`/`notes`/`file_reviews` + tickets + embedded schema |
+| `internal/store` | SQLite `runs`/`nodes`/`events`/`checkpoints`/`notes`/`settings`/`file_reviews` + tickets + embedded schema |
 | `internal/events` | typed, correlated event logger |
 | `internal/queue` | atomic node claim + dependency gating (QA-over-dev ordering) |
 | `internal/sandbox` | per-run working copy of the imported repo (git baseline, diff, run) |
 | `internal/agent` | CLI agent runners (`claude`, `opencode`) + tool policies |
 | `internal/worker` | one node of the audit graph — `import`/`map`/`qa`/`bug` dispatch |
 | `internal/api` | JSON API + run loop + embedded web UI |
+| `internal/preview` | boots the target app's dev server for live screenshots |
+| `internal/publish` | branch naming, patch, and Push PR into your own clone |
+| `internal/proc` | process-group kill (unix/windows) so agents leave nothing behind |
+| `internal/demo` | embedded sample repo with intentional bugs |
 | `web` / `desktop` | React UI and its Tauri desktop shell |
 
 | Doc | Contents |
@@ -204,6 +214,10 @@ ran, and the relevant log/event output — see
 | [`docs/agent-providers.md`](docs/agent-providers.md) | Claude Code vs OpenCode |
 | [`docs/configuration.md`](docs/configuration.md) | Env vars and settings |
 | [`docs/testing.md`](docs/testing.md) | Unit, integration, and CI |
+| [`docs/downloads.md`](docs/downloads.md) | Installers and install scripts |
+| [`docs/safety.md`](docs/safety.md) | Isolation, tool policies, when code runs live |
+| [`docs/desktop.md`](docs/desktop.md) | Tauri shell and production builds |
+| [`docs/state-management.md`](docs/state-management.md) | Frontend state ownership rules |
 
 ## Configuration
 
@@ -216,6 +230,10 @@ All optional — see [`.env.example`](.env.example).
 | `CLAUDE_MODEL` | Haiku | agent model — set `claude-sonnet-5` (or Opus) for senior-grade depth |
 | `REAL_CLAUDE` | unset | `1` = real agent; unset = $0 stub |
 | `CLAUDE_BIN` | `claude` | path to the Claude Code CLI binary |
+| `AGENT_PROVIDER` | `claude` | active provider — `claude` or `opencode` |
+| `OPENCODE_MODEL` | — | OpenCode model (`provider/model`); wins over Settings |
+| `OPENCODE_BIN` | `opencode` | path to the OpenCode CLI binary |
+| `MYAUDIT_DEMO` | embedded | override the bundled demo repo path |
 | `MAX_CONCURRENT_AGENTS` | `max(4, CPU cores)` | max parallel agent processes (active provider; minimum 4) |
 | `MAX_CONCURRENT_CLAUDE` | — | legacy alias for `MAX_CONCURRENT_AGENTS` |
 | `AGENT_ISOLATE` | unset | `1` = run each agent inside a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
@@ -250,8 +268,8 @@ version, and it is stamped into `tauri.conf.json`, `Cargo.toml` and
 a commit:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 You can also run the workflow manually (**Actions → Release desktop app → Run
