@@ -8,7 +8,7 @@
 
 | Tool | Version | Required for |
 |------|---------|--------------|
-| Go | 1.23+ | server, tests |
+| Go | 1.26+ | server, tests |
 | Node.js | 24 (see `.nvmrc`) | web UI build |
 | git | any recent | workspace snapshots |
 | `claude` or `opencode` CLI | logged in | live agent (`make run`) |
@@ -79,7 +79,7 @@ import → map ─┬→ QA · module A ─→ bug tickets ─→ dev fix ─→
 3. **QA** — live agent exercises each module, files bug tickets with reproduce steps.
 4. **dev fix** — one fix per ticket; green regression auto-closes, failures go to Review.
 
-Watch the **Board**, read **Notes**, browse changed files in **Explorer**, and use **chat** (`fix` enqueues open tickets).
+Watch the **Board**, read the **Report** tab, browse changed files in **Explorer**, and use the **Chat** tab (`fix` enqueues open tickets).
 
 ## Common issues
 

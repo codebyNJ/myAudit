@@ -6,7 +6,7 @@ Thanks for your interest in contributing! This document covers local setup, test
 
 | Tool | Version | Required for |
 |------|---------|--------------|
-| Go | 1.23+ (see `go.mod`) | server, tests |
+| Go | 1.26+ (see `go.mod`) | server, tests |
 | Node.js | 24 (see `.nvmrc`) | web UI |
 | npm | comes with Node | web UI |
 | git | any recent | import/sandbox |
