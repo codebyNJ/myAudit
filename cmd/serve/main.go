@@ -57,11 +57,14 @@ func main() {
 	}()
 	defer api.Previews.StopAll()
 
-	addr := ":7788"
+	port := "7788"
 	if p := os.Getenv("PORT"); p != "" {
-		addr = ":" + p
+		port = p
 	}
-	slog.Info("myAudit UI serving", "addr", "http://localhost"+addr)
+	// Loopback only: agents run from this API have a shell, so it must not be
+	// reachable from the network. localOnly (internal/api) covers the browser.
+	addr := "127.0.0.1:" + port
+	slog.Info("myAudit UI serving", "addr", "http://localhost:"+port)
 	// ReadHeaderTimeout only. A chat turn runs an agent and can legitimately
 	// hold the request open for minutes (chatTimeout is 10m), so Read/Write
 	// timeouts would sever real work; a slow *header* never is real work.

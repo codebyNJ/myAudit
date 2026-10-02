@@ -10,6 +10,10 @@ myAudit runs agent tools against a **copy** of your code, but live QA and dev-fi
 - Your **original repo path is never modified**.
 - A git baseline is created inside the copy so diffs are clean.
 
+## Network exposure
+
+The server binds `127.0.0.1` and refuses requests whose `Host` or `Origin` header is not a loopback address (`internal/api/guard.go`). The agents it runs have a shell, so reaching the API is reaching your machine: the local network and other websites are both kept out.
+
 ## Tool policies
 
 Agents run with different tool access depending on the node:

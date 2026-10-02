@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The server listens on `127.0.0.1` instead of every interface and refuses requests whose `Host` or `Origin` is not localhost. Before, anyone on the network could drive the live agent, and any website could start an audit with a cross-origin POST
+
 ## [0.3.0] - 2026-09-20
 
 ### Added
