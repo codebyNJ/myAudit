@@ -133,9 +133,15 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 	})
 }
 
+// isFixIntent is the bare command only. The chat agent is told to make changes
+// when asked, so "fix the typo in X" is a request for it; matching every
+// message that starts with "fix" re-queued every ticket on the board instead.
 func isFixIntent(msg string) bool {
-	m := strings.ToLower(strings.TrimSpace(msg))
-	return strings.HasPrefix(m, "fix")
+	switch strings.ToLower(strings.TrimSpace(msg)) {
+	case "fix", "fix all":
+		return true
+	}
+	return false
 }
 
 func enqueueFixes(ctx context.Context, s *store.Store, run uuid.UUID) string {

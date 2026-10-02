@@ -158,8 +158,8 @@ curl -XPOST localhost:7788/api/runs \
 Then watch the **Board** fill, read the **Report** tab (the running notes
 log), browse changed files in the **Explorer** (changed files are flagged
 green + `M`), and talk to the code in the **Chat** tab — it's real Claude Code
-over the workspace, with the findings board in context, and typing `fix`
-enqueues the open tickets for the autonomous dev loop.
+over the workspace, with the findings board in context, and sending just `fix`
+(or `fix all`) enqueues the open tickets for the autonomous dev loop.
 
 ## Cost & time expectations
 
