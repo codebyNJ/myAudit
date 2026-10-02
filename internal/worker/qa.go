@@ -103,7 +103,7 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	if name, args, ok := detectTestCmd(moduleWS.Dir); ok {
 		testCmdHint = strings.TrimSpace(name + " " + strings.Join(args, " "))
 	}
-	task := qaTask(sp.Module, sp.Path, notes, testCmdHint)
+	task := qaTask(sp.Module, sp.Path, auditContext(notes), testCmdHint)
 	if len(sp.Files) > 0 {
 		task = filesScope(sp.Path, sp.Files) + task
 	}
@@ -148,7 +148,7 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 		}
 	}
 	_ = d.Store.AppendNotes(ctx, c.RunID,
-		fmt.Sprintf("\n\n## QA — %s (`%s`)\n\n", sp.Module, sp.Path)+
+		qaSectionMarker+fmt.Sprintf("%s (`%s`)\n\n", sp.Module, sp.Path)+
 			findingsMarkdown(findings, r.Summary))
 	d.complete(ctx, c, nodeOutput{
 		Kind: "qa", Summary: fmt.Sprintf("%s: %d ticket(s) filed", sp.Module, filed),
@@ -450,8 +450,8 @@ const conventionBudget = 6000
 // Nothing used to tell the agent how this codebase prefers to be written, so a
 // pattern used deliberately and consistently — an error-handling idiom, a
 // naming scheme, a file layout — came back as a finding. The notes blob is
-// already passed into every qa and fix prompt, so this needs no new plumbing:
-// putting the conventions there means every later node inherits them.
+// already passed into every qa prompt (fixTask does not read it), so this needs
+// no new plumbing: putting the conventions there means every QA node inherits them.
 func readConventions(root string) string {
 	var b strings.Builder
 	for _, name := range conventionFiles {
@@ -658,6 +658,21 @@ func qaTask(module, path, notes, testCmdHint string) string {
 			"Return [] if the module is genuinely clean. Order by severity (high first). Max 8.",
 		module, path)
 	return sb.String()
+}
+
+// qaSectionMarker opens each module's QA section in the notes; everything
+// before the first one is the map and the repo's conventions.
+const qaSectionMarker = "\n\n## QA — "
+
+// auditContext is the part of the notes a QA prompt needs: the product map and
+// the repo's conventions. The QA sections and fix logs after it grow with every
+// module and ticket; QA nodes run in parallel and append as they finish, so a
+// module audited later used to pay for every earlier module's findings.
+func auditContext(notes string) string {
+	if i := strings.Index(notes, qaSectionMarker); i >= 0 {
+		return notes[:i]
+	}
+	return notes
 }
 
 func fixTask(b store.Bug, notes string) string {
