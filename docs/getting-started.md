@@ -79,7 +79,7 @@ import → map ─┬→ QA · module A ─→ bug tickets ─→ dev fix ─→
 3. **QA** — live agent exercises each module, files bug tickets with reproduce steps.
 4. **dev fix** — one fix per ticket; green regression auto-closes, failures go to Review.
 
-Watch the **Board**, read the **Report** tab, browse changed files in **Explorer**, and use the **Chat** tab (`fix` enqueues open tickets).
+Watch the **Board**, read the **Report** tab, browse changed files in **Explorer**, and use the **Chat** tab (sending just `fix` enqueues open tickets).
 
 ## Common issues
 
