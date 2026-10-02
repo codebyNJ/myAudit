@@ -50,10 +50,12 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string,
 	if mode == agent.Live {
 		args = append(args, "--auto")
 	}
-	args = append(args, task)
 
 	c := exec.CommandContext(ctx, o.bin(), args...)
 	c.Dir = dir
+	// On stdin, as for claude: the prompt carries the run's notes, and as one
+	// argument it outgrew Windows' 32,767-character command line.
+	c.Stdin = strings.NewReader(task)
 	proc.SetGroup(c)
 	c.Cancel = func() error { return proc.KillTree(c) }
 	c.WaitDelay = 10 * time.Second
