@@ -83,3 +83,24 @@ func TestRunAndDiffCapture(t *testing.T) {
 		t.Fatalf("expected empty diff after commit, got %q (err %v)", d, err)
 	}
 }
+
+// .myaudit/ is myAudit's own scratch space. If git saw it, the next fix commit
+// would carry screenshots and the preview log.
+func TestBaselineKeepsMyAuditScratchOutOfGit(t *testing.T) {
+	ctx := context.Background()
+	ws, err := Import(ctx, t.TempDir(), "r", makeRepo(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Join(ws.Dir, ".myaudit", "live"), 0o755)
+	os.WriteFile(filepath.Join(ws.Dir, ".myaudit", "live", "1.png"), []byte("png"), 0o644)
+	os.WriteFile(filepath.Join(ws.Dir, ".myaudit", "preview.log"), []byte("log"), 0o644)
+
+	diff, err := ws.Diff(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(diff) != "" {
+		t.Fatalf(".myaudit/ must never reach a commit, got diff:\n%s", diff)
+	}
+}

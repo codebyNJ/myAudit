@@ -161,17 +161,43 @@ func (w Workspace) Commit(ctx context.Context, msg string) error {
 
 func ensureGitBaseline(ctx context.Context, dir string) error {
 	_ = os.RemoveAll(filepath.Join(dir, ".git"))
-	steps := [][]string{
-		{"-C", dir, "init", "-q"},
+	if err := gitSteps(ctx, [][]string{{"-C", dir, "init", "-q"}}); err != nil {
+		return err
+	}
+	// .myaudit/ is myAudit's scratch space — live.json, screenshots, the
+	// preview log — and never part of a fix. Every commit here is `git add -A`.
+	if err := excludeFromGit(dir, ".myaudit/"); err != nil {
+		return err
+	}
+	return gitSteps(ctx, [][]string{
 		{"-C", dir, "add", "-A"},
 		{"-C", dir, "-c", "user.email=myaudit@local", "-c", "user.name=myaudit", "commit", "-q", "--allow-empty", "-m", "import baseline"},
-	}
+	})
+}
+
+func gitSteps(ctx context.Context, steps [][]string) error {
 	for _, args := range steps {
 		if out, err := exec.CommandContext(ctx, "git", args...).CombinedOutput(); err != nil {
 			return fmt.Errorf("git %v: %w: %s", args, err, out)
 		}
 	}
 	return nil
+}
+
+// excludeFromGit keeps pattern out of every `git add -A` in the workspace
+// without editing the repo's own .gitignore, which is part of what is audited.
+func excludeFromGit(dir, pattern string) error {
+	p := filepath.Join(dir, ".git", "info", "exclude")
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString("\n" + pattern + "\n")
+	return err
 }
 
 // vanished reports whether err is just a file that went away mid-walk (the
