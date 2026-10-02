@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -201,11 +202,20 @@ func (s *Store) ChangedFilesForRun(ctx context.Context, run uuid.UUID) ([]FileEn
 	return files, nil
 }
 
+// runSpent is a run's spend, for a query that names the run r. agent.cost
+// events record every invocation; runs from before those events have only
+// their per-node totals. The events are a superset of the totals, so the
+// larger figure is right for both.
+const runSpent = `max(
+	coalesce((SELECT sum(json_extract(e.attrs,'$.cost_usd')) FROM events e WHERE e.run_id=r.id AND e.kind='agent.cost'), 0),
+	coalesce((SELECT sum(json_extract(n.output,'$.cost_usd')) FROM nodes n WHERE n.run_id=r.id), 0))`
+
 func (s *Store) RunCostUSD(ctx context.Context, run uuid.UUID) (float64, error) {
 	var total float64
-	err := s.db.QueryRowContext(ctx,
-		`SELECT coalesce(sum(json_extract(output,'$.cost_usd')),0) FROM nodes
-		 WHERE run_id=? AND output IS NOT NULL AND json_extract(output,'$.cost_usd') IS NOT NULL`, run).Scan(&total)
+	err := s.db.QueryRowContext(ctx, `SELECT `+runSpent+` FROM runs r WHERE r.id=?`, run).Scan(&total)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
 	return total, err
 }
 
