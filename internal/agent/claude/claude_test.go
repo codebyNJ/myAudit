@@ -180,3 +180,15 @@ func TestParseError(t *testing.T) {
 		t.Fatalf("err should carry subtype, got %q", r.Err)
 	}
 }
+
+// --setting-sources project loads the audited repo's CLAUDE.md, and with it
+// the repo's own hooks: commands it chose, run even under the read-only policy.
+func TestArgsDisableTheAuditedReposHooks(t *testing.T) {
+	args := Options{}.Args("/w")
+	for i, a := range args {
+		if a == "--settings" && i+1 < len(args) && args[i+1] == `{"disableAllHooks":true}` {
+			return
+		}
+	}
+	t.Fatalf("project hooks must be disabled: %v", args)
+}

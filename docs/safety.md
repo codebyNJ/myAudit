@@ -29,9 +29,11 @@ QA installs dependencies, runs builds/tests, and may start dev servers — by de
 
 Child agent processes drop `PORT` and `MYAUDIT_DB` from their environment so a target app's dev server cannot collide with or discover the myAudit server.
 
-## Container isolation (Claude only)
+## Container isolation
 
-Set `AGENT_ISOLATE=1` to run each **Claude** agent inside a Docker container (`AGENT_IMAGE`, default `myaudit-sandbox`). OpenCode always runs in the workspace directory (no container jail in v1).
+Set `AGENT_ISOLATE=1` to run each **Claude** agent, and the audited repo's own dependency install and test suite, inside a Docker container (`AGENT_IMAGE`, default `myaudit-sandbox`; it needs the repo's toolchain). OpenCode agents and the Agent screen's live preview still run on the host.
+
+Claude runs with the audited repo's project settings so it reads the repo's `CLAUDE.md`, but with every hook disabled: hooks are commands the repo chose, and they would otherwise run even under the read-only policy.
 
 ## Recommendations
 

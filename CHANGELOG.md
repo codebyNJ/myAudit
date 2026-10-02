@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- With `AGENT_ISOLATE=1`, the audited repo's dependency install (including npm lifecycle scripts) and its test suite run in the container too; they used to run on the host. The audited repo's own Claude Code hooks are disabled — with project settings loaded, a `SessionStart` hook in its `.claude/settings.json` ran even for read-only nodes
 - The server listens on `127.0.0.1` instead of every interface and refuses requests whose `Host` or `Origin` is not localhost. Before, anyone on the network could drive the live agent, and any website could start an audit with a cross-origin POST
 
 ### Fixed

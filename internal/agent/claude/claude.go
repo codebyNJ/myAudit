@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/codebyNJ/myAudit/internal/agent"
 	"github.com/codebyNJ/myAudit/internal/proc"
 	"github.com/codebyNJ/myAudit/internal/sandbox"
@@ -46,23 +44,8 @@ func (o Options) command(ctx context.Context, ws sandbox.Workspace, task string)
 	}
 	var c *exec.Cmd
 	if o.Isolate {
-		img := o.Image
-		if img == "" {
-			img = "myaudit-sandbox"
-		}
-		name := "myaudit-run-" + uuid.NewString()[:8]
-
-		docker := []string{"run", "--rm", "-i", "--name", name, "-v", dir + ":/work", "-w", "/work", "-e", "CLAUDE_CODE_OAUTH_TOKEN", img, o.bin()}
-		docker = append(docker, o.Args("/work")...)
-		c = exec.CommandContext(ctx, "docker", docker...)
-
-		c.Cancel = func() error {
-			_ = exec.Command("docker", "rm", "-f", name).Run()
-			if c.Process != nil {
-				return c.Process.Kill()
-			}
-			return nil
-		}
+		c = sandbox.ContainerCmd(ctx, dir, o.Image, []string{"-i", "-e", "CLAUDE_CODE_OAUTH_TOKEN"},
+			append([]string{o.bin()}, o.Args("/work")...)...)
 	} else {
 		c = exec.CommandContext(ctx, o.bin(), o.Args(dir)...)
 		c.Dir = dir
@@ -94,6 +77,9 @@ func (o Options) Args(wsDir string) []string {
 		"--add-dir", wsDir,
 		"--permission-mode", pm,
 		"--setting-sources", "project",
+		// Project settings load for the repo's CLAUDE.md, but its hooks are
+		// commands the audited repo chose. CLI settings outrank project ones.
+		"--settings", `{"disableAllHooks":true}`,
 	)
 	if o.Model != "" {
 		args = append(args, "--model", o.Model)
