@@ -213,3 +213,28 @@ func TestReviewRejectCannotRevertWholeWorkspace(t *testing.T) {
 		}
 	}
 }
+
+// A running ticket's status is the queue's lock on the shared workspace;
+// moving it let a second fix start in the same git index.
+func TestRunningTicketStatusCannotBeChanged(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	defer s.Close()
+	run, _ := s.CreateRun(ctx, "proj")
+	id, err := s.AddNodeFull(ctx, run, "bug", nil, map[string]any{"title": "t"}, "running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(NewMux(s, nil))
+	defer srv.Close()
+	url := srv.URL + "/api/runs/" + run.String() + "/nodes/" + id.String()
+
+	patchJSON(t, url, `{"status":"open"}`, 409)
+	if code := do(t, "POST", url+"/enqueue", ""); code != 409 {
+		t.Fatalf("enqueue running ticket: want 409, got %d", code)
+	}
+	patchJSON(t, url, `{"priority":"P0"}`, 200) // triage fields stay editable
+	if n, _ := s.GetNode(ctx, id); n.Status != "running" {
+		t.Fatalf("status moved to %q", n.Status)
+	}
+}
