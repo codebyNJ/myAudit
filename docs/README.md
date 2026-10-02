@@ -25,7 +25,7 @@ Welcome to the myAudit wiki. Use this hub to navigate setup, architecture, API, 
 
 | Page | What you'll learn |
 |------|-------------------|
-| [Testing](testing.md) | Go unit/integration tests, CI, UI embed |
+| [Testing](testing.md) | Go unit tests, CI, UI embed |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | PR process, pre-commit hooks |
 | [SECURITY.md](../SECURITY.md) | Reporting vulnerabilities |
 

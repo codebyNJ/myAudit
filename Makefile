@@ -5,15 +5,11 @@
 MYAUDIT_DB ?= myaudit.db
 export
 
-.PHONY: cover test test-integration run dev seed ui-build ui-check serve-restart ui-dev desktop tidy lint-go ci
+.PHONY: cover test run dev seed ui-build ui-check serve-restart ui-dev desktop tidy lint-go ci
 
 ## test: run the full Go suite (each test uses its own temp SQLite; no services)
 test: ui-check
 	go test $$(go list ./... | grep -v '/runs/')
-
-## test-integration: agent tests that call the real claude CLI (needs TEMPLATE_PATH)
-test-integration:
-	go test -tags=integration -timeout 10m ./internal/agent/...
 
 ## lint-go: run golangci-lint v2 (install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.0)
 lint-go:
