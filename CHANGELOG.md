@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A fix commit holds only what the fix agent changed. Files QA left behind (proof tests), chat or editor edits, and myAudit's own `.myaudit/` screenshots and logs used to be swept into the first fix — which could auto-close a ticket whose agent changed nothing, and went out in Push PR
 - Files directly in the repo root, or directly in `src/`, `app/`, `apps/` or `packages/`, get a QA module of their own once their subdirectories become modules — they were never audited before (in a typical React app: `App.tsx`, `main.tsx`, the API client). Hidden directories are no longer audited as modules
 - The run's cost and its budget cap count every agent invocation — retried, failed, timed-out and checkpointed attempts, the map overview, and chat. Only each node's last attempt used to count, so a run could spend well past `budget_usd`
+- Only the chat message `fix` (or `fix all`) re-queues open tickets. Any message starting with "fix" used to — "fix the typo in README" re-ran every ticket on the board
 
 ## [0.3.0] - 2026-09-20
 

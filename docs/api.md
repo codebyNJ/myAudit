@@ -87,7 +87,7 @@ Response `201`: `{ "id": "<uuid>" }`
 | `PATCH` | `/api/runs/{id}/nodes/{nid}` | Update severity, priority, status |
 | `POST` | `/api/runs/{id}/nodes/{nid}/tags` | Set tags — `{ "tags": ["..."] }` |
 
-Chat respects the active agent provider. Messages starting with `fix` enqueue open tickets for the dev loop.
+Chat respects the active agent provider. The message `fix` (or `fix all`) enqueues open tickets for the dev loop; anything else goes to the agent.
 
 ## Flows and live preview
 
