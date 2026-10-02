@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The run loop starts the next ready node as soon as any running one finishes, instead of waiting for every node it started together — one long fix no longer holds up other runs
 
+### Removed
+
+- The agent integration test and its workflow, which had not compiled since the fork from myIntern (they called scaffolding code myAudit does not have)
+
 ## [0.3.0] - 2026-09-20
 
 ### Added
