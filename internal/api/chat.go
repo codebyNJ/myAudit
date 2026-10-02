@@ -16,6 +16,7 @@ import (
 	"github.com/codebyNJ/myAudit/internal/events"
 	"github.com/codebyNJ/myAudit/internal/sandbox"
 	"github.com/codebyNJ/myAudit/internal/store"
+	"github.com/codebyNJ/myAudit/internal/worker"
 )
 
 func registerChat(mux *http.ServeMux, s *store.Store) {
@@ -177,6 +178,7 @@ func chatReply(ctx context.Context, s *store.Store, run uuid.UUID, msg string) s
 		image = "myaudit-sandbox"
 	}
 	res, err := runAgent(ctx, s, ws, task, agent.Live, os.Getenv("AGENT_ISOLATE") != "", image, os.Getenv("CLAUDE_BIN"), os.Getenv("OPENCODE_BIN"), nil)
+	worker.LogCost(ctx, events.New(s.DB()), run, nil, res)
 	if err != nil {
 		return "chat failed: " + err.Error()
 	}
