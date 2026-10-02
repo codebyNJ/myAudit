@@ -352,3 +352,46 @@ func TestQALooseFilesModuleIsScopedToItsFiles(t *testing.T) {
 		t.Fatalf("loose-files QA must be told its files, got:\n%.400s", fake.lastTask)
 	}
 }
+
+func TestAuditContextKeepsMapAndConventionsOnly(t *testing.T) {
+	notes := "# Audit map\n\nthe map\n\n## Repo conventions\n\nuse tabs" +
+		qaSectionMarker + "api (`api`)\n\n- **[HIGH]** finding A" +
+		"\n\n### Fix — finding A\n\nfixed it"
+	got := auditContext(notes)
+	if !strings.Contains(got, "the map") || !strings.Contains(got, "use tabs") {
+		t.Fatalf("map and conventions must stay, got:\n%s", got)
+	}
+	if strings.Contains(got, "finding A") || strings.Contains(got, "fixed it") {
+		t.Fatalf("QA sections and fix logs must go, got:\n%s", got)
+	}
+}
+
+// Notes are editable in the UI; without the QA heading there is nothing to cut.
+func TestAuditContextFallsBackToWholeNotes(t *testing.T) {
+	edited := "# My own notes\n\nno QA headings here"
+	if got := auditContext(edited); got != edited {
+		t.Fatalf("want the notes unchanged, got:\n%s", got)
+	}
+}
+
+// QA nodes run in parallel and append their sections as they finish, so a
+// later module's prompt used to carry every earlier module's findings.
+func TestQAPromptOmitsEarlierModulesFindings(t *testing.T) {
+	ctx := context.Background()
+	s := newStore(t)
+	run, _ := s.CreateRun(ctx, "proj")
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, run.String(), "b"), 0o755)
+	s.PutNotes(ctx, run, "# Audit map\n\nthe map"+qaSectionMarker+"a (`a`)\n\n- **[HIGH]** module a's finding")
+	if _, err := s.AddNodeFull(ctx, run, "qa", nil, map[string]any{"module": "b", "path": "b"}, "ready"); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &recordingAgent{result: agent.Result{OK: true, Summary: "[]"}}
+	if _, err := RunOnce(ctx, newDeps(s, fake, root)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(fake.lastTask, "the map") || strings.Contains(fake.lastTask, "module a's finding") {
+		t.Fatalf("QA prompt must carry the map and not other modules' findings, got:\n%.600s", fake.lastTask)
+	}
+}
