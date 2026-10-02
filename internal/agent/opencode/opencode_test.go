@@ -3,6 +3,7 @@ package opencode
 import (
 	"bufio"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,5 +88,21 @@ func TestCommandArgs(t *testing.T) {
 	}
 	if !strings.Contains(got, "--agent plan") {
 		t.Fatalf("expected plan agent: %s", got)
+	}
+}
+
+// The prompt carries the run's notes; as one argv entry it outgrew Windows'
+// 32,767-character command line.
+func TestCommandSendsThePromptOnStdin(t *testing.T) {
+	task := strings.Repeat("notes ", 20000) // 120 KB, past every argv limit
+	cmd := Options{}.command(context.Background(), sandbox.Workspace{Dir: t.TempDir()}, task, agent.Live)
+	if strings.Contains(strings.Join(cmd.Args, " "), "notes notes") {
+		t.Fatal("the prompt must not be a command-line argument")
+	}
+	if cmd.Stdin == nil {
+		t.Fatal("the prompt must go in on stdin")
+	}
+	if b, _ := io.ReadAll(cmd.Stdin); string(b) != task {
+		t.Fatal("stdin must carry the whole prompt")
 	}
 }
