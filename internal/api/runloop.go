@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/codebyNJ/myAudit/internal/agent"
@@ -61,72 +61,91 @@ func NewStubDeps(s *store.Store) worker.Deps {
 	}
 }
 
-func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
+// prepare promotes nodes whose dependencies are met and parks over-budget runs.
+func prepare(ctx context.Context, deps worker.Deps) error {
 	if _, err := deps.Queue.PromoteReady(ctx); err != nil {
-		return 0, err
+		return err
 	}
-
 	if paused, err := deps.Store.PauseOverBudget(ctx); err == nil {
 		for _, id := range paused {
 			deps.Log.Log(ctx, events.Event{RunID: id, Kind: "run.paused", Msg: "budget reached — parked remaining work"})
 		}
 	}
+	return nil
+}
 
-	n := deps.MaxConcurrent
-	if n < 1 {
-		n = 1
+// dispatch claims ready nodes while slots has room and runs each on its own
+// goroutine, freeing its slot the moment that node ends. Waiting for a whole
+// batch instead left slots idle behind the slowest node — up to a 20-minute
+// fix — while other work sat ready.
+func dispatch(ctx context.Context, deps worker.Deps, slots chan struct{}, done func(error)) error {
+	for {
+		select {
+		case slots <- struct{}{}:
+		default:
+			return nil // every slot busy
+		}
+		c, err := deps.Queue.Claim(ctx)
+		if err != nil || c == nil {
+			<-slots
+			return err
+		}
+		go func() {
+			defer func() { <-slots }()
+			done(deps.ProcessClaimed(ctx, c))
+		}()
 	}
-	claimed, err := deps.Queue.ClaimN(ctx, n)
+}
+
+// finalize closes runs with nothing left to do and reclaims their caches.
+func finalize(ctx context.Context, deps worker.Deps) {
+	finished, err := deps.Store.FinalizeDrainedRuns(ctx)
 	if err != nil {
-		return 0, err
+		return
 	}
-
-	processed := 0
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	for _, c := range claimed {
-		wg.Add(1)
-		go func(c *queue.ClaimedNode) {
-			defer wg.Done()
-			if procErr := deps.ProcessClaimed(ctx, c); procErr == nil {
-				mu.Lock()
-				processed++
-				mu.Unlock()
-			}
-		}(c)
-	}
-	wg.Wait()
-
-	if finished, ferr := deps.Store.FinalizeDrainedRuns(ctx); ferr == nil {
-		for _, r := range finished {
-			deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run." + r.Status, Msg: "audit " + r.Status})
-
-			if freed, rerr := sandbox.Reclaim(filepath.Join(deps.WorkspaceRoot, r.ID.String())); rerr == nil && freed > 0 {
-				deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run.reclaim",
-					Msg: fmt.Sprintf("reclaimed %.0f MB of dependency caches", float64(freed)/(1<<20))})
-			}
+	for _, r := range finished {
+		deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run." + r.Status, Msg: "audit " + r.Status})
+		if freed, rerr := sandbox.Reclaim(filepath.Join(deps.WorkspaceRoot, r.ID.String())); rerr == nil && freed > 0 {
+			deps.Log.Log(ctx, events.Event{RunID: r.ID, Kind: "run.reclaim",
+				Msg: fmt.Sprintf("reclaimed %.0f MB of dependency caches", float64(freed)/(1<<20))})
 		}
 	}
-	return processed, nil
+}
+
+// TickAll is one synchronous pass: claim what is ready, wait for it, finalize.
+func TickAll(ctx context.Context, deps worker.Deps) (int, error) {
+	if err := prepare(ctx, deps); err != nil {
+		return 0, err
+	}
+	n := max(deps.MaxConcurrent, 1)
+	slots := make(chan struct{}, n)
+	var processed atomic.Int64
+	err := dispatch(ctx, deps, slots, func(e error) {
+		if e == nil {
+			processed.Add(1)
+		}
+	})
+	for range n { // each slot comes back once its node has ended
+		slots <- struct{}{}
+	}
+	finalize(ctx, deps)
+	return int(processed.Load()), err
 }
 
 func StartRunLoop(ctx context.Context, deps worker.Deps, every time.Duration) {
 	if n, err := deps.Queue.RecoverStuck(ctx, 3); err == nil && n > 0 {
 		slog.Info("recovered stuck nodes on startup", "count", n)
 	}
-	for {
-		if ctx.Err() != nil {
-			return
+	slots := make(chan struct{}, max(deps.MaxConcurrent, 1))
+	for ctx.Err() == nil {
+		if prepare(ctx, deps) == nil {
+			_ = dispatch(ctx, deps, slots, func(error) {})
 		}
-		n, _ := TickAll(ctx, deps)
-		wait := every
-		if n == 0 {
-			wait = time.Second
-		}
+		finalize(ctx, deps)
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(wait):
+		case <-time.After(every):
 		}
 	}
 }
