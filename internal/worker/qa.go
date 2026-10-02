@@ -57,12 +57,15 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 	}
 
 	for _, m := range mods {
-		id, err := d.Store.AddNodeFull(ctx, c.RunID, "qa", []uuid.UUID{c.ID},
-			map[string]any{
-				"module": m.Name, "path": m.Path,
-				"title": "QA · " + m.Name,
-				"tags":  []string{"qa", "module:" + m.Name},
-			}, "pending")
+		spec := map[string]any{
+			"module": m.Name, "path": m.Path,
+			"title": "QA · " + m.Name,
+			"tags":  []string{"qa", "module:" + m.Name},
+		}
+		if len(m.Files) > 0 {
+			spec["files"] = m.Files
+		}
+		id, err := d.Store.AddNodeFull(ctx, c.RunID, "qa", []uuid.UUID{c.ID}, spec, "pending")
 		if err != nil {
 			continue
 		}
@@ -75,8 +78,9 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 
 func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace) (bool, error) {
 	var sp struct {
-		Module string `json:"module"`
-		Path   string `json:"path"`
+		Module string   `json:"module"`
+		Path   string   `json:"path"`
+		Files  []string `json:"files"`
 	}
 	_ = json.Unmarshal(c.Spec, &sp)
 	if sp.Module == "" {
@@ -97,7 +101,11 @@ func (d Deps) qa(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspace
 	if name, args, ok := detectTestCmd(moduleWS.Dir); ok {
 		testCmdHint = strings.TrimSpace(name + " " + strings.Join(args, " "))
 	}
-	r, ok := d.runAgent(ctx, c, moduleWS, qaTask(sp.Module, sp.Path, notes, testCmdHint), agent.Live)
+	task := qaTask(sp.Module, sp.Path, notes, testCmdHint)
+	if len(sp.Files) > 0 {
+		task = filesScope(sp.Path, sp.Files) + task
+	}
+	r, ok := d.runAgent(ctx, c, moduleWS, task, agent.Live)
 	if !ok {
 		return true, nil
 	}
@@ -457,7 +465,12 @@ func readConventions(root string) string {
 		"follows consistently is a convention, not a defect.\n" + b.String()
 }
 
-type module struct{ Name, Path string }
+type module struct {
+	Name, Path string
+	// Files, when set, limits the module to these files directly inside Path:
+	// the loose files of a directory whose subdirectories are modules of their own.
+	Files []string
+}
 
 var codeExt = map[string]bool{
 	".go": true, ".js": true, ".jsx": true, ".ts": true, ".tsx": true, ".py": true,
@@ -477,39 +490,46 @@ var skipModuleDir = map[string]bool{
 
 func scanModules(root string) (mods []module, dropped []string) {
 	seen := map[string]bool{}
-	add := func(name, rel string) {
-		if seen[rel] {
+	add := func(m module) {
+		if seen[m.Name] {
 			return
 		}
-		seen[rel] = true
-		mods = append(mods, module{Name: name, Path: rel})
+		seen[m.Name] = true
+		mods = append(mods, m)
 	}
+	hidden := func(name string) bool { return strings.HasPrefix(name, ".") }
 
 	containers := map[string]bool{"src": true, "app": true, "apps": true, "packages": true}
 	entries, _ := os.ReadDir(root)
 	for _, e := range entries {
-		if !e.IsDir() || skipModuleDir[e.Name()] {
+		if !e.IsDir() || skipModuleDir[e.Name()] || hidden(e.Name()) {
 			continue
 		}
 		abs := filepath.Join(root, e.Name())
 		if containers[e.Name()] {
-
+			if loose := looseCode(abs); len(loose) > 0 {
+				add(module{Name: e.Name() + " (top-level files)", Path: e.Name(), Files: loose})
+			}
 			for _, sub := range readDirs(abs) {
-				if skipModuleDir[sub] {
+				if skipModuleDir[sub] || hidden(sub) {
 					continue
 				}
 				if hasCode(filepath.Join(abs, sub)) {
-					add(e.Name()+"/"+sub, e.Name()+"/"+sub)
+					add(module{Name: e.Name() + "/" + sub, Path: e.Name() + "/" + sub})
 				}
 			}
 			continue
 		}
 		if hasCode(abs) {
-			add(e.Name(), e.Name())
+			add(module{Name: e.Name(), Path: e.Name()})
 		}
 	}
 	if len(mods) == 0 {
 		return []module{{Name: "(root)", Path: "."}}, nil
+	}
+	// First, so the cap below never drops the repo's own entry point.
+	if loose := looseCode(root); len(loose) > 0 {
+		mods = append([]module{{Name: "(root files)", Path: ".", Files: loose}}, mods...)
 	}
 	const cap = 10
 	if len(mods) > cap {
@@ -519,6 +539,26 @@ func scanModules(root string) (mods []module, dropped []string) {
 		mods = mods[:cap]
 	}
 	return mods, dropped
+}
+
+// looseCode lists the code files directly in dir, not in its subdirectories.
+func looseCode(dir string) []string {
+	var out []string
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if !e.IsDir() && codeExt[strings.ToLower(filepath.Ext(e.Name()))] {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+// filesScope narrows a loose-files module to exactly its files; the
+// subdirectories beside them are modules of their own with their own QA.
+func filesScope(path string, files []string) string {
+	return fmt.Sprintf("SCOPE: audit only these files directly in `%s`: %s. "+
+		"Its subdirectories are audited separately — do not report on them.\n\n",
+		path, strings.Join(files, ", "))
 }
 
 func readDirs(dir string) []string {
