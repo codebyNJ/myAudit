@@ -39,6 +39,9 @@ func TestEventCountPerNodeUsesAnIndex(t *testing.T) {
 		}
 		plan.WriteString(detail + "\n")
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(plan.String(), "idx_events_node") {
 		t.Fatalf("per-node event count scans the table:\n%s", plan.String())
 	}
