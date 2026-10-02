@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS events (
   attrs   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id, ts);
+CREATE INDEX IF NOT EXISTS idx_events_node ON events(node_id);
 
 CREATE TABLE IF NOT EXISTS checkpoints (
   id          TEXT PRIMARY KEY,
