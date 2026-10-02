@@ -103,7 +103,9 @@ why).
 - The server listens on `127.0.0.1` only and refuses any request whose `Host`
   or `Origin` is not localhost, so neither another machine nor a website you
   visit can drive it.
-- `map` and the chat's questions run under a **read-only** tool policy.
+- `map` and the flows pass run under a **read-only** tool policy. Chat is
+  **live**, like QA and dev-fix: it edits and runs code in the workspace when
+  you ask it to.
 - QA and dev-fix nodes are **live** (they run the product via Bash — install
   deps, boot servers, run tests). This deliberately relaxes confinement so the
   agent can genuinely exercise the code, so **point it at codebases you trust
@@ -187,7 +189,7 @@ over the workspace, with the findings board in context, and sending just `fix`
 | macOS says the app "is damaged" after manual `.dmg` install | Gatekeeper/signing issue — see [docs/downloads.md](docs/downloads.md) or run `bash scripts/install.sh`. |
 | Desktop build fails at the `.dmg` step with no `.dmg` produced | You're building without a GUI session — `bundle_dmg.sh` needs one unless you pass `CI=true`, which skips the Finder/AppleScript styling step. |
 | A ticket lands in **Review** instead of auto-closing | Expected behavior, not a bug — it means the dev-fix regression either failed or produced no verifiable diff. Check the ticket's notes for what the agent tried. |
-| Everything seems to run but nothing shows up in the UI | Confirm the server is actually reachable at the port you expect (`curl localhost:7788/api/...`) — the desktop shell auto-picks a free port, which may differ from `7788`. |
+| Everything seems to run but nothing shows up in the UI | Confirm the server is actually reachable at the port you expect (`curl localhost:7788/api/...`) — the desktop shell always uses `7788`, and if something is already listening there it uses that server instead of starting its own. |
 
 If none of the above fits, please open an issue with your OS, the command you
 ran, and the relevant log/event output — see

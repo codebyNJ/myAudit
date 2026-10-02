@@ -21,7 +21,7 @@ import → map ─┬→ qa(module A) ─→ bug… (dev fixes, blocked until QA
 
 ## Scheduling: QA over dev
 
-The queue claims ready nodes with an atomic SQLite update. Claim order is `import > map > qa > bug`, so discovery drains before fixes begin. Bug tickets depend on their module's `qa` node — `PromoteReady` only marks a node `ready` when all deps are `done`.
+The queue claims ready nodes with an atomic SQLite update. Claim order is `import > map > qa > bug`, so discovery drains before fixes begin. Bug tickets depend on their module's `qa` node — `PromoteReady` marks a node `ready` once none of its deps is still `pending`, `ready` or `running` — a failed or cancelled dependency unblocks its dependents too.
 
 ## Agent providers
 
