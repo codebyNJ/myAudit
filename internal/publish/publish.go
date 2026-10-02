@@ -58,7 +58,9 @@ func PublishFix(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	// Everything below runs inside the developer's own clone, so whatever
-	// branch they had checked out has to survive this — on every exit path.
+	// branch they had checked out has to survive this — on every exit path,
+	// including a cancelled request.
+	keep := context.WithoutCancel(ctx)
 	restore, err := checkoutWorkBranch(ctx, opts.RepoPath, branch, base)
 	if err != nil {
 		return Result{}, err
@@ -67,15 +69,15 @@ func PublishFix(ctx context.Context, opts Options) (Result, error) {
 
 	amOut, amCode, amErr := gitAm(ctx, opts.RepoPath, patch)
 	if amErr != nil {
-		abortAm(ctx, opts.RepoPath)
+		abortAm(keep, opts.RepoPath)
 		return Result{}, amErr
 	}
 	if amCode != 0 {
 		// A failed `git am` leaves the repo mid-apply; without the abort the
 		// restore checkout below cannot run and the clone stays wedged.
-		abortAm(ctx, opts.RepoPath)
+		abortAm(keep, opts.RepoPath)
 		restore()
-		_, _, _ = sandbox.RepoGit(ctx, opts.RepoPath, "branch", "-D", branch)
+		_, _, _ = sandbox.RepoGit(keep, opts.RepoPath, "branch", "-D", branch)
 		return Result{}, fmt.Errorf("git am failed — fix may conflict with current branch:\n%s", amOut)
 	}
 
@@ -126,11 +128,14 @@ func currentRef(ctx context.Context, dir string) string {
 // func is safe to call more than once.
 func checkoutWorkBranch(ctx context.Context, dir, branch, base string) (restore func(), err error) {
 	orig := currentRef(ctx, dir)
+	// Restoring must outlive the request: it runs exactly when ctx may have
+	// been cancelled by the browser going away.
+	keep := context.WithoutCancel(ctx)
 	restore = func() {
 		if orig == "" {
 			return
 		}
-		_, _, _ = sandbox.RepoGit(ctx, dir, "checkout", orig)
+		_, _, _ = sandbox.RepoGit(keep, dir, "checkout", orig)
 	}
 
 	_, _, _ = sandbox.RepoGit(ctx, dir, "fetch", "origin")
