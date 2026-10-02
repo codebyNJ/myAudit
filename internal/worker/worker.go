@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -62,6 +63,13 @@ func CancelRun(runID string) {
 	})
 }
 
+// userCancelled tells a cancel from a timeout. CancelRun cancels a node's
+// context and so does the node's own time limit, but only the first is the
+// user's doing; recording a timeout as "stopped by user" hid why it ended.
+func userCancelled(ctx context.Context) bool {
+	return errors.Is(ctx.Err(), context.Canceled)
+}
+
 func RunOnce(ctx context.Context, d Deps) (bool, error) {
 	c, err := d.Queue.Claim(ctx)
 	if err != nil {
@@ -99,7 +107,7 @@ func (d Deps) ProcessClaimed(ctx context.Context, c *queue.ClaimedNode) error {
 		d.fail(ctx, c, "unknown node type: "+c.Type)
 		return nil
 	}
-	if ctx.Err() != nil {
+	if userCancelled(ctx) {
 		d.cancelled(ctx, c)
 		return nil
 	}
@@ -154,11 +162,15 @@ func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 		}
 		r, err := d.Agent.Run(ctx, ws, t, mode, onStep)
 		if err != nil {
-			if ctx.Err() != nil {
+			if userCancelled(ctx) {
 				d.cancelled(ctx, c)
 				return r, false
 			}
-			d.fail(ctx, c, "agent: "+err.Error())
+			reason := "agent: " + err.Error()
+			if ctx.Err() != nil {
+				reason = "timed out: " + err.Error()
+			}
+			d.fail(ctx, c, reason)
 			return r, false
 		}
 		last = r
@@ -178,6 +190,10 @@ func (d Deps) complete(ctx context.Context, c *queue.ClaimedNode, out nodeOutput
 }
 
 func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, status string) {
+	// The node's own deadline may be why it is finishing. Its terminal state
+	// must still be written, or it sits in "running" and blocks every fix in
+	// the run until a restart re-runs it.
+	ctx = context.WithoutCancel(ctx)
 	b, _ := json.Marshal(out)
 	if err := d.Queue.Finish(ctx, c.ID, b, status); err != nil {
 		e := event(c, "node.error", "persist status: "+err.Error())
@@ -191,16 +207,18 @@ func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, 
 }
 
 func (d Deps) cancelled(ctx context.Context, c *queue.ClaimedNode) {
+	ctx = context.WithoutCancel(ctx)
 	b, _ := json.Marshal(nodeOutput{Kind: c.Type, Summary: "cancelled by user"})
 	_ = d.Queue.Finish(ctx, c.ID, b, "cancelled")
 	d.Log.Log(ctx, event(c, "node.cancelled", "stopped by user"))
 }
 
 func (d Deps) fail(ctx context.Context, c *queue.ClaimedNode, reason string) {
-	if ctx.Err() != nil {
+	if userCancelled(ctx) {
 		d.cancelled(ctx, c)
 		return
 	}
+	ctx = context.WithoutCancel(ctx)
 	b, _ := json.Marshal(nodeOutput{Kind: c.Type, Summary: reason})
 	_ = d.Queue.Finish(ctx, c.ID, b, "failed")
 	e := event(c, "node.fail", reason)
