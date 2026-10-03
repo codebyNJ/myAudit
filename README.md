@@ -108,7 +108,10 @@ why).
   deps, boot servers, run tests). This deliberately relaxes confinement so the
   agent can genuinely exercise the code, so **point it at codebases you trust
   (your own).** The agent's environment is scrubbed of myAudit's own server
-  vars, and `AGENT_ISOLATE=1` can additionally jail each agent in a container.
+  vars, and `AGENT_ISOLATE=1` can additionally jail each Claude agent — and
+  the repo's own dependency install and test runs — in a container (the Agent
+  screen's preview still runs on the host). The audited repo's own Claude Code
+  hooks never run.
 
 ## Run it
 
@@ -239,7 +242,7 @@ All optional — see [`.env.example`](.env.example).
 | `MYAUDIT_DEMO` | embedded | override the bundled demo repo path |
 | `MAX_CONCURRENT_AGENTS` | `max(4, CPU cores)` | max parallel agent processes (active provider; minimum 4) |
 | `MAX_CONCURRENT_CLAUDE` | — | legacy alias for `MAX_CONCURRENT_AGENTS` |
-| `AGENT_ISOLATE` | unset | `1` = run each agent inside a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
+| `AGENT_ISOLATE` | unset | `1` = run Claude agents and the repo's install/test commands in a container (`AGENT_IMAGE`, default `myaudit-sandbox`) |
 | `RUN_PACE_MS` | — | pace the run loop |
 
 ## Desktop builds & releases

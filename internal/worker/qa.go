@@ -299,7 +299,7 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 		return testNotRunnable, "no test runner detected"
 	}
 	_, imsg := ensureInstalled(ctx, ws)
-	out, code, err := ws.Run(ctx, name, args...)
+	out, code, err := repoRun(ctx, ws, name, args...)
 	if err != nil {
 		return testNotRunnable, err.Error()
 	}
@@ -316,6 +316,16 @@ func classifyTests(ctx context.Context, ws sandbox.Workspace) (testResult, strin
 	return testFail, out
 }
 
+// repoRun runs one of the audited repo's own commands — its dependency install
+// or its test suite. Install scripts and tests are the repo's code as surely as
+// the agent's Bash is, so under AGENT_ISOLATE they run in the agent's container.
+func repoRun(ctx context.Context, ws sandbox.Workspace, name string, args ...string) (string, int, error) {
+	if os.Getenv("AGENT_ISOLATE") == "" {
+		return ws.Run(ctx, name, args...)
+	}
+	return sandbox.RunOutput(sandbox.ContainerCmd(ctx, ws.Dir, os.Getenv("AGENT_IMAGE"), nil, append([]string{name}, args...)...))
+}
+
 func ensureInstalled(ctx context.Context, ws sandbox.Workspace) (bool, string) {
 
 	if os.Getenv("REAL_CLAUDE") == "" {
@@ -330,14 +340,14 @@ func ensureInstalled(ctx context.Context, ws sandbox.Workspace) (bool, string) {
 		if fileExists(filepath.Join(dir, "package-lock.json")) {
 			args = []string{"ci", "--no-audit", "--no-fund"}
 		}
-		_, code, err := ws.Run(ctx, name, args...)
+		_, code, err := repoRun(ctx, ws, name, args...)
 		if err != nil || code != 0 {
 			return true, "npm install failed (continuing)"
 		}
 		return true, "npm install"
 	}
 	if fileExists(filepath.Join(dir, "requirements.txt")) {
-		if _, _, err := ws.Run(ctx, "pip", "install", "-q", "-r", "requirements.txt"); err == nil {
+		if _, _, err := repoRun(ctx, ws, "pip", "install", "-q", "-r", "requirements.txt"); err == nil {
 			return true, "pip install"
 		}
 	}

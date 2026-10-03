@@ -43,7 +43,7 @@ See [Agent providers](agent-providers.md) for mode mapping and settings.
 | **ReadOnly** | Read, Glob, Grep | `--agent plan` |
 | **Live** | + Write, Edit, Bash | `--agent build --auto` |
 
-Live mode lets QA run the product. Agent env scrubs `PORT`/`MYAUDIT_DB`. `AGENT_ISOLATE=1` jails Claude in a container.
+Live mode lets QA run the product. Agent env scrubs `PORT`/`MYAUDIT_DB`. `AGENT_ISOLATE=1` jails Claude, and the repo's own install and test commands, in a container. The audited repo's Claude Code hooks are disabled.
 
 ## Data model
 

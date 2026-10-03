@@ -21,7 +21,7 @@ Copy [`.env.example`](../.env.example) to `.env` and uncomment what you need.
 | `MAX_CONCURRENT_AGENTS` | `max(4, CPU cores)` | Max parallel agent processes (active provider; minimum 4) |
 | `MAX_CONCURRENT_CLAUDE` | — | Legacy alias for `MAX_CONCURRENT_AGENTS` |
 | `RUN_PACE_MS` | — | Milliseconds between run-loop ticks |
-| `AGENT_ISOLATE` | unset | `1` = run Claude agents in a container |
+| `AGENT_ISOLATE` | unset | `1` = run Claude agents and the repo's install/test commands in a container |
 | `AGENT_IMAGE` | `myaudit-sandbox` | Docker image when isolating |
 
 Resolution order for provider: `AGENT_PROVIDER` env → SQLite `agent_provider` → `claude`.
