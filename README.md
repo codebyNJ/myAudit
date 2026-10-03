@@ -74,7 +74,7 @@ install and fix signing automatically.
 | stage | model? | what it does |
 |---|---|---|
 | **import** | no ($0) | copy the target repo into an isolated per-run workspace + git baseline |
-| **map** | claude (read-only) | write a product map to notes and **split the repo into modules**, spawning one QA card per module at runtime (the board grows itself) |
+| **map** | claude (read-only) | write a product map to notes and **split the repo into modules** — each top-level directory (one level deeper inside `src/`, `app/`, `apps/`, `packages/`), plus a module for loose files at the root or in those containers, at most 10 — spawning one QA card per module at runtime (the board grows itself) |
 | **QA** | claude (**live**) | per module: install deps, run the suite/build, exercise the code, find real bugs + best-practice misses + missing-test gaps, and file **one bug ticket per finding with reproduce steps**. QA drains before any dev work. |
 | **dev fix** | claude (**live**) | per ticket (blocked until its module's QA is done): root-cause a minimal fix, commit it, run an **independent regression** — green **auto-closes** to Done; a real failure or an unverifiable/no-diff fix lands in **Review** with a red flag. Never a false "fixed". |
 
@@ -164,9 +164,9 @@ enqueues the open tickets for the autonomous dev loop.
   Haiku model. Larger repos or `CLAUDE_MODEL=claude-sonnet-5`/Opus cost more
   per module but find deeper issues — budget accordingly for a "senior
   engineer" bar.
-- **Cost scales with module count**, not raw file count — `map` decides the
-  split, so a monorepo with many small modules will spawn more QA/dev-fix
-  cycles than a single large module would.
+- **Cost scales with module count**, not raw file count — the split follows
+  the directory layout (see **map** above), so a monorepo with many small
+  packages spawns more QA/dev-fix cycles than a single large module would.
 - **`make dev` and `make seed` are free** — use them to sanity-check the UI
   and workflow before spending tokens on a real run.
 - **Spend is visible while the run goes.** The header and the Overview tab

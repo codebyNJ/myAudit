@@ -17,6 +17,7 @@ type recordingAgent struct {
 	calls     int
 	lastMode  agent.Mode
 	lastWSDir string
+	lastTask  string
 	result    agent.Result
 	writeFile string
 }
@@ -25,6 +26,7 @@ func (f *recordingAgent) Run(ctx context.Context, ws sandbox.Workspace, task str
 	f.calls++
 	f.lastMode = mode
 	f.lastWSDir = ws.Dir
+	f.lastTask = task
 	if f.writeFile != "" {
 		p := filepath.Join(ws.Dir, f.writeFile)
 		os.MkdirAll(filepath.Dir(p), 0o755)
