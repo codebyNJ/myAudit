@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A QA or fix node that hits its 20-minute limit is recorded as failed ("timed out: …"). It used to stay "running", which blocked every other fix in the run until the server restarted, and was logged as "stopped by user"
+- A fix commit holds only what the fix agent changed. Files QA left behind (proof tests), chat or editor edits, and myAudit's own `.myaudit/` screenshots and logs used to be swept into the first fix — which could auto-close a ticket whose agent changed nothing, and went out in Push PR
 
 ## [0.3.0] - 2026-09-20
 

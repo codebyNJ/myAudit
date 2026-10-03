@@ -157,6 +157,17 @@ func (d Deps) bug(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Workspac
 
 	baseFails := d.regressionBaseline(ctx, ws, c.RunID)
 
+	// Whatever is already in the tree is not this ticket's fix: QA's proof
+	// tests, a chat or editor change, files the baseline test run left. Commit
+	// it on its own so the fix commit — and the patch Push PR sends — holds
+	// only what the fix agent changed, and "no change" still means no change.
+	if pre, _ := ws.Diff(ctx); strings.TrimSpace(pre) != "" {
+		if err := ws.Commit(ctx, "chore: workspace changes before fix"); err != nil {
+			d.fail(ctx, c, "commit pre-existing changes: "+err.Error())
+			return true, nil
+		}
+	}
+
 	r, ok := d.runAgent(ctx, c, ws, fixTask(b, notes), agent.Live)
 	if !ok {
 		return true, nil
