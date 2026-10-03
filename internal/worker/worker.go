@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
+
 	"github.com/codebyNJ/myAudit/internal/agent"
 	"github.com/codebyNJ/myAudit/internal/events"
 	"github.com/codebyNJ/myAudit/internal/queue"
@@ -155,12 +157,18 @@ func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 		d.Log.Log(ctx, event(c, "agent.step", step))
 	}
 	var last agent.Result
+	var spent float64
+	var tokens int
 	for attempt := 0; attempt <= d.MaxRepairs; attempt++ {
 		t := task
 		if attempt > 0 && last.Err != "" {
 			t = task + "\n\nThe previous attempt failed with:\n" + last.Err + "\nTry again."
 		}
 		r, err := d.Agent.Run(ctx, ws, t, mode, onStep)
+		LogCost(ctx, d.Log, c.RunID, &c.ID, r)
+		spent += r.CostUSD
+		tokens += r.Tokens
+		r.CostUSD, r.Tokens = spent, tokens
 		if err != nil {
 			if userCancelled(ctx) {
 				d.cancelled(ctx, c)
@@ -185,6 +193,21 @@ func (d Deps) runAgent(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Wor
 	return last, false
 }
 
+// LogCost records one agent invocation's spend as it happens. A run's cost and
+// its budget cap are summed from these events, so an attempt that is retried,
+// fails, times out or ends in a checkpoint is billed like any other — and so
+// are the map's overview and a chat turn, which belong to no node's output.
+func LogCost(ctx context.Context, log *events.Logger, run uuid.UUID, node *uuid.UUID, r agent.Result) {
+	if r.CostUSD <= 0 {
+		return
+	}
+	log.Log(context.WithoutCancel(ctx), events.Event{
+		RunID: run, NodeID: node, Kind: "agent.cost",
+		Msg:   fmt.Sprintf("$%.4f (%d tokens)", r.CostUSD, r.Tokens),
+		Attrs: map[string]any{"cost_usd": r.CostUSD, "tokens": r.Tokens},
+	})
+}
+
 func (d Deps) complete(ctx context.Context, c *queue.ClaimedNode, out nodeOutput) {
 	d.finish(ctx, c, out, "done")
 }
@@ -199,9 +222,6 @@ func (d Deps) finish(ctx context.Context, c *queue.ClaimedNode, out nodeOutput, 
 		e := event(c, "node.error", "persist status: "+err.Error())
 		e.Level = "error"
 		d.Log.Log(ctx, e)
-	}
-	if out.CostUSD > 0 {
-		d.Log.Log(ctx, event(c, "agent.cost", fmt.Sprintf("$%.4f (%d tokens)", out.CostUSD, out.Tokens)))
 	}
 	d.Log.Log(ctx, event(c, "node.end", out.Summary))
 }
