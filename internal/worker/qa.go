@@ -229,7 +229,7 @@ func (d Deps) appendFix(ctx context.Context, run uuid.UUID, b store.Bug, msg str
 		sb.WriteString("\nFiles changed: ")
 		sb.WriteString("`" + strings.Join(changed, "`, `") + "`\n")
 	}
-	_ = d.Store.AppendNotes(ctx, run, sb.String())
+	_ = d.Store.AppendNotes(context.WithoutCancel(ctx), run, sb.String())
 }
 
 var baselineFails sync.Map // runID -> int

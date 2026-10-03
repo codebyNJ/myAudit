@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The server listens on `127.0.0.1` instead of every interface and refuses requests whose `Host` or `Origin` is not localhost. Before, anyone on the network could drive the live agent, and any website could start an audit with a cross-origin POST
 
+### Fixed
+
+- A QA or fix node that hits its 20-minute limit is recorded as failed ("timed out: …"). It used to stay "running", which blocked every other fix in the run until the server restarted, and was logged as "stopped by user"
+
 ## [0.3.0] - 2026-09-20
 
 ### Added
