@@ -63,6 +63,10 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 			http.Error(w, "only bug tickets can be re-queued", 400)
 			return
 		}
+		if n.Status == "running" {
+			http.Error(w, "this ticket is already being worked on", http.StatusConflict)
+			return
+		}
 		if err := s.SetNodeStatus(r.Context(), n.ID, "ready"); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -100,6 +104,12 @@ func registerChat(mux *http.ServeMux, s *store.Store) {
 		}
 
 		if b.Status != "" {
+			// A running ticket's status is the queue's lock on the shared
+			// workspace: moving it lets another fix start in the same git index.
+			if n.Status == "running" {
+				http.Error(w, "this ticket is being worked on — wait for it to finish, or cancel the run", http.StatusConflict)
+				return
+			}
 			ok := map[string]bool{"open": true, "dismissed": true, "in_review": true, "done": true}
 			if !ok[b.Status] {
 				http.Error(w, "status not allowed", 400)

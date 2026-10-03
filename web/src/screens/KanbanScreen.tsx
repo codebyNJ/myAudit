@@ -317,7 +317,7 @@ export function KanbanScreen() {
     return (
     <div className={`kcard jira ${isFailed(n.status) ? 'failed' : ''} ${n.status === 'dismissed' ? 'dismissed' : ''} ${n.status === 'running' ? 'running' : ''} ${dragId === n.id ? 'dragging' : ''}`}
       key={n.id} tabIndex={0} role="button" style={{ ['--stripe' as string]: stripe }}
-      draggable={n.type === 'bug'}
+      draggable={n.type === 'bug' && n.status !== 'running'}
       onDragStart={(e) => {
         if (n.type !== 'bug') return
         dragIdRef.current = n.id
