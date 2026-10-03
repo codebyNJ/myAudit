@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The run loop starts the next ready node as soon as any running one finishes, instead of waiting for every node it started together — one long fix no longer holds up other runs
+- QA prompts carry the product map and repo conventions instead of the whole notes log, so a module audited later no longer pays for every earlier module's findings
 
 ### Removed
 
