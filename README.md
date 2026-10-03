@@ -100,6 +100,9 @@ why).
 
 - Each run works on an **isolated copy** of your repo under `runs/<id>/`; your
   original is never touched.
+- The server listens on `127.0.0.1` only and refuses any request whose `Host`
+  or `Origin` is not localhost, so neither another machine nor a website you
+  visit can drive it.
 - `map` and the chat's questions run under a **read-only** tool policy.
 - QA and dev-fix nodes are **live** (they run the product via Bash — install
   deps, boot servers, run tests). This deliberately relaxes confinement so the

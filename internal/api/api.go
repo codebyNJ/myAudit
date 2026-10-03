@@ -430,7 +430,7 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 	if static != nil {
 		mux.Handle("GET /", static)
 	}
-	return mux
+	return localOnly(mux)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
