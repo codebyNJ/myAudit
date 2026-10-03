@@ -73,6 +73,12 @@ func (m *Manager) reservePort() (int, error) {
 		if m.reserved[p] {
 			continue
 		}
+		// Something already answering — a dev server bound to * or ::, which a
+		// 127.0.0.1 listen does not collide with on macOS — would be taken for
+		// ours by the boot check, which only dials the port.
+		if reachable(p) {
+			continue
+		}
 		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
 		if err != nil {
 			continue

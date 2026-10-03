@@ -1,6 +1,8 @@
 package preview
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -109,4 +111,30 @@ func TestBootFailHelperProcess(t *testing.T) {
 		return
 	}
 	os.Exit(1)
+}
+
+// A dev server bound to every interface does not collide with a 127.0.0.1
+// listen on macOS, so the old probe handed its port out and the boot check
+// then mistook that server for ours.
+func TestReservePortSkipsAPortSomethingAlreadyAnswers(t *testing.T) {
+	m := New(t.TempDir())
+	p, err := m.reservePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.releasePort(p)
+
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+	if err != nil {
+		t.Skipf("cannot occupy port %d: %v", p, err)
+	}
+	defer l.Close()
+
+	q, err := m.reservePort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q == p {
+		t.Fatalf("port %d is served by another listener but was handed out", p)
+	}
 }

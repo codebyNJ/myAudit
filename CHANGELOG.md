@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Only the chat message `fix` (or `fix all`) re-queues open tickets. Any message starting with "fix" used to — "fix the typo in README" re-ran every ticket on the board
 - Push PR hands your clone back on your own branch even if the browser disconnects mid-push; it could be left on the `myaudit/…` branch, mid `git am`
 - OpenCode receives its prompt on stdin instead of the command line, which long audits outgrew on Windows (32,767-character limit)
+- The Agent screen's preview no longer adopts another program's server: a port already answering on any interface is skipped when choosing the preview port
 
 ## [0.3.0] - 2026-09-20
 
