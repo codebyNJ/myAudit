@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenCode receives its prompt on stdin instead of the command line, which long audits outgrew on Windows (32,767-character limit)
 - The Agent screen's preview no longer adopts another program's server: a port already answering on any interface is skipped when choosing the preview port
 
+### Changed
+
+- The run loop starts the next ready node as soon as any running one finishes, instead of waiting for every node it started together — one long fix no longer holds up other runs
+
 ## [0.3.0] - 2026-09-20
 
 ### Added
