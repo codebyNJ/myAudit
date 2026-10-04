@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -317,7 +316,6 @@ func NewMux(s *store.Store, static http.Handler) http.Handler {
 		if cards == nil {
 			cards = []store.NodeDetail{}
 		}
-		slog.Info("board.read", "run", id, "cards", len(cards))
 		writeJSON(w, cards)
 	})
 
