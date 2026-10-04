@@ -40,7 +40,7 @@ func (s *Store) PauseOverBudget(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.status,
 		       COALESCE(json_extract(i.input_snapshot,'$.budget_usd'), 0) AS budget,
-		       COALESCE((SELECT sum(COALESCE(json_extract(n.output,'$.cost_usd'),0)) FROM nodes n WHERE n.run_id=r.id), 0) AS spent
+		       `+runSpent+` AS spent
 		FROM runs r
 		JOIN nodes i ON i.run_id=r.id AND i.type='import'
 		WHERE r.status IN ('running','paused')

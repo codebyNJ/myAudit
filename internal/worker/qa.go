@@ -28,10 +28,12 @@ func (d Deps) doMap(ctx context.Context, c *queue.ClaimedNode, ws sandbox.Worksp
 
 	overview := ""
 	mapCtx, cancel := context.WithTimeout(ctx, mapTimeout)
-	if r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly, nil); err == nil {
+	r, err := d.Agent.Run(mapCtx, ws, mapTask, agent.ReadOnly, nil)
+	cancel()
+	LogCost(ctx, d.Log, c.RunID, &c.ID, r)
+	if err == nil {
 		overview = strings.TrimSpace(r.Summary)
 	}
-	cancel()
 
 	var b strings.Builder
 	b.WriteString("# Audit map\n\n")

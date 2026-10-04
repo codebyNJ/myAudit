@@ -3,10 +3,13 @@ package store
 import (
 	"context"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func budgetRun(t *testing.T, s *Store, budget, spent float64) (run string) {
@@ -149,5 +152,61 @@ func TestAppendNotesKeepsConcurrentWrites(t *testing.T) {
 		if !strings.Contains(got, fmt.Sprintf("finding-%02d", i)) {
 			t.Fatalf("lost finding-%02d; notes = %q", i, got)
 		}
+	}
+}
+
+func addCostEvent(t *testing.T, s *Store, run string, usd float64) {
+	t.Helper()
+	if _, err := s.db.Exec(`INSERT INTO events(run_id, level, kind, attrs) VALUES(?,?,?,?)`,
+		run, "info", "agent.cost", fmt.Sprintf(`{"cost_usd":%f}`, usd)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Spend now arrives as agent.cost events; a run whose spend is only there
+// must still hit its cap.
+func TestPauseOverBudgetCountsCostEvents(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, testURL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	run := budgetRun(t, s, 1.0, 0)
+	addCostEvent(t, s, run, 0.6)
+	addCostEvent(t, s, run, 0.5)
+
+	paused, err := s.PauseOverBudget(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paused) != 1 {
+		t.Fatalf("$1.10 of events against a $1 cap must pause the run, got %v", paused)
+	}
+}
+
+func TestRunCostUSD(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, testURL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	current := budgetRun(t, s, 0, 0.25) // node total: last attempt only
+	addCostEvent(t, s, current, 0.10)
+	addCostEvent(t, s, current, 0.20)
+	if got, _ := s.RunCostUSD(ctx, uuid.MustParse(current)); math.Abs(got-0.30) > 1e-9 {
+		t.Fatalf("events are the full record, want 0.30, got %v", got)
+	}
+
+	legacy := budgetRun(t, s, 0, 0.40) // from before cost events existed
+	if got, _ := s.RunCostUSD(ctx, uuid.MustParse(legacy)); math.Abs(got-0.40) > 1e-9 {
+		t.Fatalf("a run with no cost events keeps its node totals, want 0.40, got %v", got)
+	}
+
+	if got, err := s.RunCostUSD(ctx, uuid.New()); err != nil || got != 0 {
+		t.Fatalf("unknown run: want 0, nil — got %v, %v", got, err)
 	}
 }
