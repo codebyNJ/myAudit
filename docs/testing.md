@@ -10,7 +10,6 @@ Go tests follow standard `go test` conventions — co-located with source, no to
 |---------|----------|---------|
 | `foo_test.go` | Next to `foo.go` | Unit tests |
 | `helpers_test.go` | `internal/api`, `worker`, `store` | Shared temp DB, HTTP helpers |
-| `*_integration_test.go` | Same package | Behind `//go:build integration` |
 | `testdata/` | Under the package | Fixtures (golden JSON, streams) |
 
 ## Go unit tests
@@ -35,23 +34,6 @@ Excludes packages under local `runs/` workspaces. Prefer `make test` over bare `
 | `internal/agent/opencode` | OpenCode JSONL stream parsing |
 | `internal/sandbox` | Workspace copy, diff, reclaim |
 
-## Go integration tests
-
-Agent integration tests call the real `claude` CLI:
-
-```bash
-make test-integration
-# or:
-TEMPLATE_PATH=/path/to/template-repo \
-  go test -tags=integration -timeout 10m ./internal/agent/...
-```
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `TEMPLATE_PATH` | yes | Real template repo for scaffold tests |
-
-CI: [`.github/workflows/integration.yml`](../.github/workflows/integration.yml) — manual dispatch only.
-
 ## Frontend tests
 
 ```bash
@@ -68,7 +50,7 @@ cd web && npm run lint    # oxlint
 pre-commit run --all-files
 ```
 
-Pre-commit runs format, `go vet`, fast `go test`, and oxlint — not integration tests.
+Pre-commit runs format, `go vet`, fast `go test`, and oxlint.
 
 ## CI
 

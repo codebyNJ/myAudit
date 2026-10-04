@@ -219,7 +219,7 @@ ran, and the relevant log/event output — see
 | [`docs/api.md`](docs/api.md) | REST endpoint reference |
 | [`docs/agent-providers.md`](docs/agent-providers.md) | Claude Code vs OpenCode |
 | [`docs/configuration.md`](docs/configuration.md) | Env vars and settings |
-| [`docs/testing.md`](docs/testing.md) | Unit, integration, and CI |
+| [`docs/testing.md`](docs/testing.md) | Unit tests and CI |
 | [`docs/downloads.md`](docs/downloads.md) | Installers and install scripts |
 | [`docs/safety.md`](docs/safety.md) | Isolation, tool policies, when code runs live |
 | [`docs/desktop.md`](docs/desktop.md) | Tauri shell and production builds |

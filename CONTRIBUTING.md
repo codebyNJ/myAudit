@@ -73,14 +73,6 @@ make ci                       # full CI mirror (web + Go + cross-compile)
 checks the shell inside `run:` blocks — CI runners have shellcheck, so without it
 your local run is weaker than CI's and can pass where CI fails.
 
-### Integration tests
-
-Agent integration tests are gated behind a build tag and require a template path:
-
-```bash
-TEMPLATE_PATH=/path/to/template go test -tags=integration ./internal/agent/...
-```
-
 ## Branch and commit conventions
 
 - Branch from `main`: `fix/short-description`, `feat/short-description`, `docs/...`
