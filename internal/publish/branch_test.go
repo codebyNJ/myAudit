@@ -84,3 +84,23 @@ func TestCurrentRefFallsBackToCommitWhenDetached(t *testing.T) {
 		t.Fatalf("detached HEAD should resolve to the commit: got %q, want %q", got, want)
 	}
 }
+
+// The browser going away mid-push cancels the request context; the clone must
+// still be handed back on the branch the developer was using.
+func TestRestoreSurvivesACancelledRequest(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	dir := gitRepo(t)
+	if out, err := exec.Command("git", "-C", dir, "checkout", "-q", "-b", "my-feature").CombinedOutput(); err != nil {
+		t.Fatalf("checkout: %v: %s", err, out)
+	}
+
+	restore, err := checkoutWorkBranch(ctx, dir, "myaudit/aaa/bbb", "main")
+	if err != nil {
+		t.Fatalf("checkoutWorkBranch: %v", err)
+	}
+	cancel()
+	restore()
+	if got := headRef(t, dir); got != "my-feature" {
+		t.Fatalf("clone left on %q after a cancelled request, want my-feature", got)
+	}
+}
